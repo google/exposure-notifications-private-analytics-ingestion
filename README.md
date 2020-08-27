@@ -6,8 +6,22 @@ protocol.
 
 ## Building/Running Tests
 
-TBD...
+To run all unit tests:
 
-## Deploying
+```shell script
+mvn test
+```
 
-...
+## Running
+
+### Locally
+
+```shell script
+mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=counts"
+```
+
+### On Cloud
+
+```shell script
+mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=appa-ingestion --stagingLocation=gs://appa-batch-output/staging/  --output=gs://appa-batch-output/output --runner=DataflowRunner  --region=us-central1"
+```
