@@ -17,7 +17,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -25,7 +24,7 @@ import java.util.List;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.CountWords;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ExtractWordsFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.FormatAsTextFn;
-import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.WordCountOptions;
+import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.IngestionPipelineOptions;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -89,16 +88,17 @@ public class IngestionPipelineTest {
   }
 
   @Test
-  public void testDebuggingWordCount() throws Exception {
+  public void testIngestionPipeline() throws Exception {
     File inputFile = tmpFolder.newFile();
     File outputFile = tmpFolder.newFile();
     Files.write(
         "stomach secret Flourish message Flourish here Flourish",
         inputFile,
         StandardCharsets.UTF_8);
-    WordCountOptions options = TestPipeline.testingPipelineOptions().as(WordCountOptions.class);
+    IngestionPipelineOptions options = TestPipeline.testingPipelineOptions().as(
+        IngestionPipelineOptions.class);
     options.setInputFile(getFilePath(inputFile.getAbsolutePath()));
     options.setOutput(getFilePath(outputFile.getAbsolutePath()));
-    IngestionPipeline.runDebuggingWordCount(options);
+    IngestionPipeline.runIngestionPipeline(options);
   }
 }

@@ -17,8 +17,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.regex.Pattern;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
@@ -30,9 +28,9 @@ import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.Validation.Required;
-import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
@@ -42,9 +40,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Pipeline to export Exposure Notification Private Analytics data shares
- * from Firestore and translate into format usable by downstream batch processing
- * by Health Authorities and Facilitators.
+ * Pipeline to export Exposure Notification Private Analytics data shares from Firestore and
+ * translate into format usable by downstream batch processing by Health Authorities and
+ * Facilitators.
  *
  * <p>To execute this pipeline locally, specify general pipeline configuration:
  *
@@ -57,9 +55,6 @@ import org.slf4j.LoggerFactory;
  * <pre>{@code
  * --runner=YOUR_SELECTED_RUNNER
  * }</pre>
- *
- * <p>The input file defaults to a public data set containing the text of of King Lear, by William
- * Shakespeare. You can override it and choose your own input with {@code --inputFile}.
  */
 public class IngestionPipeline {
 
@@ -74,7 +69,9 @@ public class IngestionPipeline {
   /**
    * Specific options for the pipeline.
    */
-  public interface WordCountOptions extends PipelineOptions {
+  public interface IngestionPipelineOptions extends PipelineOptions {
+
+    // TODO(larryjacobs): replace inputFile with firestore database id
 
     /**
      * By default, this example reads from a public dataset containing the text of King Lear. Set
@@ -86,7 +83,9 @@ public class IngestionPipeline {
 
     void setInputFile(String value);
 
-    /** Set this required option to specify where to write the output. */
+    /**
+     * Set this required option to specify where to write the output.
+     */
     @Description("Path of the file to write to")
     @Required
     String getOutput();
@@ -103,10 +102,11 @@ public class IngestionPipeline {
   }
 
   /**
-   * This DoFn tokenizes lines of text into individual words; we pass it to
-   * a ParDo in the pipeline.
+   * This DoFn tokenizes lines of text into individual words; we pass it to a ParDo in the
+   * pipeline.
    */
   static class ExtractWordsFn extends DoFn<String, String> {
+
     private final Counter emptyLines = Metrics.counter(ExtractWordsFn.class, "emptyLines");
     private final Distribution lineLenDist =
         Metrics.distribution(ExtractWordsFn.class, "lineLenDistro");
@@ -130,8 +130,11 @@ public class IngestionPipeline {
     }
   }
 
-  /** A SimpleFunction that converts a Word and Count into a printable string. */
+  /**
+   * A SimpleFunction that converts a Word and Count into a printable string.
+   */
   public static class FormatAsTextFn extends SimpleFunction<KV<String, Long>, String> {
+
     @Override
     public String apply(KV<String, Long> input) {
       return input.getKey() + ": " + input.getValue();
@@ -144,6 +147,7 @@ public class IngestionPipeline {
    */
   public static class CountWords
       extends PTransform<PCollection<String>, PCollection<KV<String, Long>>> {
+
     @Override
     public PCollection<KV<String, Long>> expand(PCollection<String> lines) {
 
@@ -157,8 +161,13 @@ public class IngestionPipeline {
     }
   }
 
-  /** A DoFn that filters for a specific key based upon a regular expression. */
+  // TODO(guray): convert this into a platform key attestation verifier?
+
+  /**
+   * A DoFn that filters for a specific key based upon a regular expression.
+   */
   public static class FilterTextFn extends DoFn<KV<String, Long>, KV<String, Long>> {
+
     private static final Logger LOG = LoggerFactory.getLogger(FilterTextFn.class);
 
     private final Pattern filter;
@@ -189,32 +198,27 @@ public class IngestionPipeline {
     }
   }
 
-  static void runDebuggingWordCount(WordCountOptions options) {
+  static void runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline p = Pipeline.create(options);
 
-    PCollection<KV<String, Long>> filteredWords =
-        p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
-            .apply(new CountWords())
-            .apply(ParDo.of(new FilterTextFn(options.getFilterPattern())));
-
-    /*
-     * <p>Below we verify that the set of filtered words matches our expected counts. Note
-     * that PAssert does not provide any output and that successful completion of the
-     * Pipeline implies that the expectations were met. Learn more at
-     * https://beam.apache.org/documentation/pipelines/test-your-pipeline/ on how to test
-     * your Pipeline.
-     */
-    List<KV<String, Long>> expectedResults =
-        Arrays.asList(KV.of("Flourish", 3L), KV.of("stomach", 1L));
-    PAssert.that(filteredWords).containsInAnyOrder(expectedResults);
+    p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
+        .apply(new CountWords())
+        .apply(ParDo.of(new FilterTextFn(options.getFilterPattern())))
+        // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
+        // https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/transforms/Count.html#globally--
+        .apply(MapElements.via(new FormatAsTextFn()))
+        // TODO(justinowusu): s/TextIO/AvroIO/
+        // https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
+        .apply("WriteCounts", TextIO.write().to(options.getOutput()));
+    ;
 
     p.run().waitUntilFinish();
   }
 
   public static void main(String[] args) {
-    WordCountOptions options =
-        PipelineOptionsFactory.fromArgs(args).withValidation().as(WordCountOptions.class);
+    IngestionPipelineOptions options =
+        PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 
-    runDebuggingWordCount(options);
+    runIngestionPipeline(options);
   }
 }
