@@ -16,15 +16,16 @@ mvn test
 
 ### Locally
 
-#### Be sure to replace serviceAccountKey default path before running.
+#### Be sure to set serviceAccountKey before running.
 ```shell script
 mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=counts --serviceAccountKey='PATH/TO/SERVICE_ACCOUNT_KEY.json' --firebaseProjectId='appa-firebase-test'"
 ```
 
 ### On Cloud
 
+#### Be sure to set serviceAccountKey before running.
 ```shell script
-mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=appa-ingestion --stagingLocation=gs://appa-batch-output/staging/  --output=gs://appa-batch-output/output --runner=DataflowRunner  --region=us-central1"
+mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=appa-ingestion --stagingLocation=gs://appa-batch-output/staging/  --output=gs://appa-batch-output/output --runner=DataflowRunner  --region=us-central1 --serviceAccountKey='PATH/TO/SERVICE_ACCOUNT_KEY.json' --firebaseProjectId='appa-firebase-test'"
 ```
 
 ## Deploying
