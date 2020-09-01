@@ -17,7 +17,28 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.api.core.ApiFuture;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.firestore.CollectionReference;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.WriteResult;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Query;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
+import com.google.firebase.cloud.FirestoreClient;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
@@ -28,7 +49,9 @@ import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.Validation.Required;
+import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.Count;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -42,7 +65,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Pipeline to export Exposure Notification Private Analytics data shares from Firestore and
  * translate into format usable by downstream batch processing by Health Authorities and
- * Facilitators.
+ * Facilitators.*
  *
  * <p>To execute this pipeline locally, specify general pipeline configuration:
  *
@@ -57,6 +80,7 @@ import org.slf4j.LoggerFactory;
  * }</pre>
  */
 public class IngestionPipeline {
+  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
   /**
    * \p{L} denotes the category of Unicode letters, so this pattern will match on everything that is
@@ -70,35 +94,40 @@ public class IngestionPipeline {
    * Specific options for the pipeline.
    */
   public interface IngestionPipelineOptions extends PipelineOptions {
+    /**
+     * Path to the service account key json file.
+     */
+    @Description("Path to the service account key json file")
+    @Required
+    ValueProvider<String> getServiceAccountKey();
 
-    // TODO(larryjacobs): replace inputFile with firestore database id
+    void setServiceAccountKey(ValueProvider<String> value);
 
     /**
-     * By default, this example reads from a public dataset containing the text of King Lear. Set
-     * this option to choose a different input file or glob.
+     * Fire base project to read from.
      */
-    @Description("Path of the file to read from")
-    @Default.String("gs://apache-beam-samples/shakespeare/kinglear.txt")
-    String getInputFile();
+    @Description("Firebase Project Id")
+    @Default.String("appa-firebase-test")
+    ValueProvider<String> getFirebaseProjectId();
 
-    void setInputFile(String value);
+    void setFirebaseProjectId(ValueProvider<String> value);
 
     /**
      * Set this required option to specify where to write the output.
      */
-    @Description("Path of the file to write to")
-    @Required
-    String getOutput();
+    @Description("Prefix of the output files to write to")
+    @Default.String("gs://appa-batch-output/test-counts")
+    ValueProvider<String> getOutput();
 
-    void setOutput(String value);
+    void setOutput(ValueProvider<String> value);
 
     @Description(
         "Regex filter pattern to use in IngestionPipeline. "
             + "Only words matching this pattern will be counted.")
-    @Default.String("Flourish|stomach")
-    String getFilterPattern();
+    @Default.String("test|metric")
+    ValueProvider<String> getFilterPattern();
 
-    void setFilterPattern(String value);
+    void setFilterPattern(ValueProvider<String> value);
   }
 
   /**
@@ -170,10 +199,12 @@ public class IngestionPipeline {
 
     private static final Logger LOG = LoggerFactory.getLogger(FilterTextFn.class);
 
-    private final Pattern filter;
+    private final ValueProvider<String> pattern;
 
-    public FilterTextFn(String pattern) {
-      filter = Pattern.compile(pattern);
+    private Pattern filter;
+
+    public FilterTextFn(ValueProvider<String> pattern) {
+      this.pattern = pattern;
     }
 
     private final Counter matchedWords = Metrics.counter(FilterTextFn.class, "matchedWords");
@@ -182,6 +213,10 @@ public class IngestionPipeline {
 
     @ProcessElement
     public void processElement(ProcessContext c) {
+      // lazy init compiled pattern at runtime to pick up value provider
+      if (filter == null) {
+        filter = Pattern.compile(pattern.get());
+      }
       if (filter.matcher(c.element().getKey()).matches()) {
         // Log at the "DEBUG" level each element that we match. When executing this pipeline
         // these log lines will appear only if the log level is set to "DEBUG" or lower.
@@ -198,10 +233,13 @@ public class IngestionPipeline {
     }
   }
 
-  static void runIngestionPipeline(IngestionPipelineOptions options) {
+  static void runIngestionPipeline(IngestionPipelineOptions options) throws Exception {
     Pipeline p = Pipeline.create(options);
 
-    p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
+    // TODO(larryjacobs): Read documents from Firestore directly into a PCollection once such an I/O transform.
+    Firestore db = initializeFirestore(options);
+    List<String> docIds = readDocumentsFromFirestore(db, "metrics");
+    p.apply(Create.of(docIds)).setCoder(StringUtf8Coder.of())
         .apply(new CountWords())
         .apply(ParDo.of(new FilterTextFn(options.getFilterPattern())))
         // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
@@ -210,15 +248,57 @@ public class IngestionPipeline {
         // TODO(justinowusu): s/TextIO/AvroIO/
         // https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
         .apply("WriteCounts", TextIO.write().to(options.getOutput()));
-    ;
 
     p.run().waitUntilFinish();
+  }
+
+  // Initializes and returns a Firestore instance.
+  static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions) throws Exception {
+    // Don't attempt to initialize an already-initialized app. So far, this has only been an issue
+    // when running unit tests.
+    if(FirebaseApp.getApps().isEmpty()) {
+      // Use a service account to access Firestore.
+      InputStream serviceAccount = new FileInputStream(pipelineOptions.getServiceAccountKey().get());
+      GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
+      FirebaseOptions options = new FirebaseOptions.Builder()
+          .setProjectId(pipelineOptions.getFirebaseProjectId().get())
+          .setCredentials(credentials)
+          .build();
+      FirebaseApp.initializeApp(options);
+    }
+
+    return FirestoreClient.getFirestore();
+  }
+
+  // Returns all document id's in the collections and subcollections with the given collection id.
+  static List<String> readDocumentsFromFirestore(Firestore db, String collection) throws Exception {
+    // Create a reference to all collections and subcollections with the given collection id
+    Query query = db.collectionGroup(collection);
+    // Retrieve  query results asynchronously using query.get()
+    ApiFuture<QuerySnapshot> querySnapshot = query.get();
+    List<String> docs =  new ArrayList<>();
+
+    for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
+      LOG.debug("Fetched document from Firestore: " + document.getId());
+      docs.add(document.getId());
+    }
+
+    return docs;
   }
 
   public static void main(String[] args) {
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 
-    runIngestionPipeline(options);
+    try {
+      runIngestionPipeline(options);
+    } catch (Exception e) {
+      if (e instanceof UnsupportedOperationException) {
+        // Apparently a known issue that this throws when generating a template:
+        // https://issues.apache.org/jira/browse/BEAM-
+      } else {
+        LOG.debug("Exception thrown during pipeline run: " + e.toString());
+      }
+    }
   }
 }
