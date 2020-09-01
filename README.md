@@ -6,7 +6,7 @@ protocol.
 
 ## Testing
 
-To run all unit tests:
+Please be sure to set SERVICE_ACCOUNT_KEY_PATH in IngestionPipelineTest.java before running. To run all unit tests:
 
 ```shell script
 mvn test
@@ -16,8 +16,9 @@ mvn test
 
 ### Locally
 
+#### Be sure to replace serviceAccountKey default path before running.
 ```shell script
-mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=counts"
+mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=counts --serviceAccountKey='PATH/TO/SERVICE_ACCOUNT_KEY.json' --firebaseProjectId='appa-firebase-test'"
 ```
 
 ### On Cloud
