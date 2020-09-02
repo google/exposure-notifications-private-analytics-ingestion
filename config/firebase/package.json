@@ -1,0 +1,13 @@
+{
+  "name": "firebaseConfigsTest",
+  "version": "1.0.0",
+  "description": "test suite for configurations",
+  "main": "rules_test.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "@firebase/testing": "^0.20.11",
+    "jest": "^26.4.2"
+  }
+}
