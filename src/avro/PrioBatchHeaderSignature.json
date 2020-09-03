@@ -1,9 +1,12 @@
-{"namespace": "XXXXXX TODO",
+{
+  "namespace": "ENPA",
   "type": "record",
   "name": "PrioBatchHeaderSignature",
   "fields": [
-    {"name": "batch_header_signature", "type": "bytes",
-     "doc": "signature of the PrioBatchHeader object"}
+    {
+      "name": "batch_header_signature",
+      "type": "bytes",
+      "doc": "signature of the PrioBatchHeader object"
+    }
   ]
- }
- 
+}
