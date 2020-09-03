@@ -38,7 +38,7 @@
     },
     {
       "name": "hamming_weight",
-      "type": "[int, null]",
+      "type": ["int", "null"],
       "doc": "If specified, the hamming weight of the vector will be verified during the validity check on the server."
     },
     {
