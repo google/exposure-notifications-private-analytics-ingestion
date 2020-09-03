@@ -1,0 +1,9 @@
+{"namespace": "XXXXXX TODO",
+  "type": "record",
+  "name": "PrioBatchHeaderSignature",
+  "fields": [
+    {"name": "batch_header_signature", "type": "bytes",
+     "doc": "signature of the PrioBatchHeader object"}
+  ]
+ }
+ 
