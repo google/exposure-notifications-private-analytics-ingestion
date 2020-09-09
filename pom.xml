@@ -98,6 +98,24 @@
       </plugin>
 
       <plugin>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-maven-plugin</artifactId>
+        <version>1.10.0</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>schema</goal>
+            </goals>
+            <configuration>
+              <sourceDirectory>${project.basedir}/src/avro/</sourceDirectory>
+              <outputDirectory>${project.basedir}/src/main/java/com/google/exposurenotification/privateanalytics</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>3.0.0-M5</version>
@@ -547,14 +565,18 @@
     </dependency>
 
     <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-      <version>${mockito.version}</version>
-      <scope>test</scope>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <version>1.10.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
-      <artifactId>avro</artifactId>
+      <artifactId>avro-compiler</artifactId>
+      <version>1.10.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro-maven-plugin</artifactId>
       <version>1.10.0</version>
     </dependency>
   </dependencies>
