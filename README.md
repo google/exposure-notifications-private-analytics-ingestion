@@ -6,10 +6,28 @@ protocol.
 
 ## Testing
 
-Please be sure to set SERVICE_ACCOUNT_KEY_PATH in IngestionPipelineTest.java before running. To run all unit tests:
+### Unit Tests
+
+To run unit tests:
 
 ```shell script
 mvn test
+```
+
+### Integration Tests
+
+Install the [Firebase CLI](https://firebase.google.com/docs/cli), login and
+setup the emulator as follows:
+
+```shell script
+firebase login
+firebase setup:emulators:firestore
+```
+
+To run integration tests (includes standing up a Firestore emulator):
+
+```shell script
+mvn verify
 ```
 
 ## Running

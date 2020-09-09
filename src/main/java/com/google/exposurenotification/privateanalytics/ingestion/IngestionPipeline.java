@@ -19,13 +19,9 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.api.core.ApiFuture;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.firestore.CollectionReference;
-import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.WriteResult;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Query;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.firebase.cloud.FirestoreClient;
 import com.google.firebase.FirebaseApp;
@@ -236,7 +232,7 @@ public class IngestionPipeline {
     // TODO(larryjacobs): Read documents from Firestore directly into a PCollection once such an I/O transform.
     Firestore db = initializeFirestore(options);
     List<String> docIds = readDocumentsFromFirestore(db, "metrics");
-    p.apply(Create.of(docIds)).setCoder(StringUtf8Coder.of())
+    p.apply(Create.of(docIds).withCoder(StringUtf8Coder.of())).setCoder(StringUtf8Coder.of())
         .apply(new CountWords())
         .apply(ParDo.of(new FilterTextFn(options.getFilterPattern())))
         // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
@@ -251,10 +247,7 @@ public class IngestionPipeline {
 
   // Initializes and returns a Firestore instance.
   static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions) throws Exception {
-    // Don't attempt to initialize an already-initialized app. So far, this has only been an issue
-    // when running unit tests.
     if(FirebaseApp.getApps().isEmpty()) {
-      // Use a service account to access Firestore.
       InputStream serviceAccount = new FileInputStream(pipelineOptions.getServiceAccountKey().get());
       GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
       FirebaseOptions options = new FirebaseOptions.Builder()

@@ -45,7 +45,7 @@
     <slf4j.version>1.7.25</slf4j.version>
     <spark.version>2.4.6</spark.version>
     <hadoop.version>2.8.5</hadoop.version>
-    <maven-surefire-plugin.version>2.21.0</maven-surefire-plugin.version>
+    <maven-surefire-plugin.version>2.22.0</maven-surefire-plugin.version>
     <nemo.version>0.1</nemo.version>
     <flink.artifact.name>beam-runners-flink-1.10</flink.artifact.name>
   </properties>
@@ -81,6 +81,9 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven-surefire-plugin.version}</version>
         <configuration>
+          <excludes>
+            <exclude>**/*IT.java</exclude>
+          </excludes>
           <parallel>all</parallel>
           <threadCount>4</threadCount>
           <redirectTestOutputToFile>true</redirectTestOutputToFile>
@@ -92,6 +95,64 @@
             <version>${maven-surefire-plugin.version}</version>
           </dependency>
         </dependencies>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.0.0-M5</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+            <configuration>
+              <environmentVariables>
+                <FIRESTORE_EMULATOR_HOST>localhost:8080</FIRESTORE_EMULATOR_HOST>
+              </environmentVariables>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>1.6.0</version>
+        <executions>
+          <execution>
+            <id>start-emulator</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>firebase</executable>
+              <commandlineArgs>emulators:start --only firestore --project=emulator-test-project --config=config/firebase/firebase.json</commandlineArgs>
+              <async>true</async>
+              <asyncDestroyOnShutdown>true</asyncDestroyOnShutdown>
+            </configuration>
+          </execution>
+          <execution>
+            <id>stop-emulator</id>
+            <!-- It seems even with asyncDestroyOnShutdown, firebase CLI spawns
+              some child processes that aren't killed after the test, so we
+              kill them manually.
+              https://github.com/firebase/firebase-tools/issues/1367
+            -->
+            <phase>post-integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>pkill</executable>
+              <commandlineArgs>-f firebase</commandlineArgs>
+              <async>true</async>
+              <asyncDestroyOnShutdown>true</asyncDestroyOnShutdown>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
 
       <!-- Ensure that the Maven jar plugin runs before the Maven
