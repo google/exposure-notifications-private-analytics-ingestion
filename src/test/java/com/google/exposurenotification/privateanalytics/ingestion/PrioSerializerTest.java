@@ -1,7 +1,9 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import static org.junit.Assert.assertEquals;
-
+import ENPA.PrioBatchHeader;
+import ENPA.PrioDataSharePacket;
+import ENPA.PrioIngestionSignature;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -21,9 +23,9 @@ public class PrioSerializerTest {
 
     @Test
     public void testPrioBatchHeaderSerialization() throws IOException {
-        List<ENPA.PrioBatchHeader> batchHeaders = new ArrayList<>();
-        ENPA.PrioBatchHeader header1 =
-                ENPA.PrioBatchHeader.newBuilder()
+        List<PrioBatchHeader> batchHeaders = new ArrayList<>();
+        PrioBatchHeader header1 =
+                PrioBatchHeader.newBuilder()
                         .setBatchUuid("id123")
                         .setName("secretname")
                         .setBins(123)
@@ -33,11 +35,9 @@ public class PrioSerializerTest {
                         .setHammingWeight(5)
                         .setBatchStartTime(1600000000)
                         .setBatchEndTime(1700000000)
-                        .setCertificateHash("hashyhash")
-                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x10, 0x20, 0x30}))
                         .build();
-        ENPA.PrioBatchHeader header2 =
-                ENPA.PrioBatchHeader.newBuilder()
+        PrioBatchHeader header2 =
+                PrioBatchHeader.newBuilder()
                         .setBatchUuid("id987")
                         .setName("simplename")
                         .setBins(4)
@@ -47,46 +47,46 @@ public class PrioSerializerTest {
                         .setHammingWeight(8)
                         .setBatchStartTime(1650000000)
                         .setBatchEndTime(1710000000)
-                        .setCertificateHash("hashedpotatoes")
-                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x12, 0x13, 0x14}))
                         .build();
         batchHeaders.add(header1);
         batchHeaders.add(header2);
 
         File serializedHeaders = tmpFolder.newFile();
         PrioSerializer.serializeBatchHeaders(batchHeaders, serializedHeaders.getAbsolutePath());
-        List<ENPA.PrioBatchHeader> deserializedHeaders =
+        List<PrioBatchHeader> deserializedHeaders =
                 PrioSerializer.deserializeBatchHeaders(serializedHeaders.getAbsolutePath());
         assertEquals(batchHeaders, deserializedHeaders);
     }
 
     @Test
-    public void testPrioBatchHeaderSignatureSerialization() throws IOException {
-        List<ENPA.PrioBatchHeaderSignature> signatures = new ArrayList<>();
-        ENPA.PrioBatchHeaderSignature signature1 =
-                ENPA.PrioBatchHeaderSignature.newBuilder()
+    public void testIngestionSignatureSerialization() throws IOException {
+        List<PrioIngestionSignature> signatures = new ArrayList<>();
+        PrioIngestionSignature signature1 =
+                PrioIngestionSignature.newBuilder()
                         .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}))
+                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06, 0x07}))
                         .build();
-        ENPA.PrioBatchHeaderSignature signature2 =
-                ENPA.PrioBatchHeaderSignature.newBuilder()
-                        .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06}))
+        PrioIngestionSignature signature2 =
+                PrioIngestionSignature.newBuilder()
+                        .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x05, 0x04}))
+                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x03, 0x02, 0x01}))
                         .build();
         signatures.add(signature1);
         signatures.add(signature2);
 
         File serializedSignatures = tmpFolder.newFile();
-        PrioSerializer.serializeBatchHeaderSignatures(
+        PrioSerializer.serializeIngestionSignatures(
                 signatures, serializedSignatures.getAbsolutePath());
-        List<ENPA.PrioBatchHeaderSignature> deserializedSignatures =
-                PrioSerializer.deserializeBatchHeaderSignatures(serializedSignatures.getAbsolutePath());
+        List<PrioIngestionSignature> deserializedSignatures =
+                PrioSerializer.deserializeIngestionSignatures(serializedSignatures.getAbsolutePath());
         assertEquals(signatures, deserializedSignatures);
     }
 
     @Test
     public void testPrioDataSharePacketSerialization() throws IOException {
-        List<ENPA.PrioDataSharePacket> dataSharePackets = new ArrayList<>();
-        ENPA.PrioDataSharePacket dataSharePacket1 =
-                ENPA.PrioDataSharePacket.newBuilder()
+        List<PrioDataSharePacket> dataSharePackets = new ArrayList<>();
+        PrioDataSharePacket dataSharePacket1 =
+                PrioDataSharePacket.newBuilder()
                         .setDeviceNonce(ByteBuffer.wrap(new byte[] {0x07, 0x08, 0x09}))
                         .setEncryptionKeyId("verysecretandsecurevalue1")
                         .setRPit(1234567890)
@@ -95,8 +95,8 @@ public class PrioSerializerTest {
                         .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
                         .build();
 
-        ENPA.PrioDataSharePacket dataSharePacket2 =
-                ENPA.PrioDataSharePacket.newBuilder()
+        PrioDataSharePacket dataSharePacket2 =
+                PrioDataSharePacket.newBuilder()
                         .setDeviceNonce(ByteBuffer.wrap(new byte[] {0x10, 0x11, 0x12}))
                         .setEncryptionKeyId("verysecretandsecurevalue2")
                         .setRPit(987654321)
@@ -110,7 +110,7 @@ public class PrioSerializerTest {
         File serializedDataShares = tmpFolder.newFile();
         PrioSerializer.serializeDataSharePackets(
                 dataSharePackets, serializedDataShares.getAbsolutePath());
-        List<ENPA.PrioDataSharePacket> deserializedHeaders =
+        List<PrioDataSharePacket> deserializedHeaders =
                 PrioSerializer.deserializeDataSharePackets(serializedDataShares.getAbsolutePath());
         assertEquals(dataSharePackets, deserializedHeaders);
     }

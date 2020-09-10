@@ -1,7 +1,7 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import ENPA.PrioBatchHeader;
-import ENPA.PrioBatchHeaderSignature;
+import ENPA.PrioIngestionSignature;
 import ENPA.PrioDataSharePacket;
 import java.io.File;
 import java.io.IOException;
@@ -31,16 +31,16 @@ public class PrioSerializer {
         dataFileWriter.close();
     }
 
-    public static void serializeBatchHeaderSignatures(
-            List<ENPA.PrioBatchHeaderSignature> prioBatchHeaderSignatures, String pathname)
+    public static void serializeIngestionSignatures(
+            List<PrioIngestionSignature> prioIngestionSignatures, String pathname)
             throws IOException {
-        DatumWriter<PrioBatchHeaderSignature> signatureDatumWriter =
-                new SpecificDatumWriter<>(ENPA.PrioBatchHeaderSignature.class);
-        DataFileWriter<PrioBatchHeaderSignature> dataFileWriter =
+        DatumWriter<PrioIngestionSignature> signatureDatumWriter =
+                new SpecificDatumWriter<>(PrioIngestionSignature.class);
+        DataFileWriter<PrioIngestionSignature> dataFileWriter =
                 new DataFileWriter<>(signatureDatumWriter);
-        dataFileWriter.create(PrioBatchHeaderSignature.getClassSchema(), new File(pathname));
-        for (PrioBatchHeaderSignature prioBatchHeaderSignature : prioBatchHeaderSignatures) {
-            dataFileWriter.append(prioBatchHeaderSignature);
+        dataFileWriter.create(PrioIngestionSignature.getClassSchema(), new File(pathname));
+        for (PrioIngestionSignature prioIngestionSignature : prioIngestionSignatures) {
+            dataFileWriter.append(prioIngestionSignature);
         }
         dataFileWriter.close();
     }
@@ -57,7 +57,7 @@ public class PrioSerializer {
         dataFileWriter.close();
     }
 
-    public static List<ENPA.PrioBatchHeader> deserializeBatchHeaders(String pathname)
+    public static List<PrioBatchHeader> deserializeBatchHeaders(String pathname)
             throws IOException {
         DatumReader<PrioBatchHeader> batchHeaderDatumReader =
                 new SpecificDatumReader<>(PrioBatchHeader.class);
@@ -73,20 +73,20 @@ public class PrioSerializer {
         return prioBatchHeaders;
     }
 
-    public static List<PrioBatchHeaderSignature> deserializeBatchHeaderSignatures(String pathname)
+    public static List<PrioIngestionSignature> deserializeIngestionSignatures(String pathname)
             throws IOException {
-        DatumReader<PrioBatchHeaderSignature> signatureDatumReader =
-                new SpecificDatumReader<>(PrioBatchHeaderSignature.class);
-        DataFileReader<PrioBatchHeaderSignature> dataFileReader =
+        DatumReader<PrioIngestionSignature> signatureDatumReader =
+                new SpecificDatumReader<>(PrioIngestionSignature.class);
+        DataFileReader<PrioIngestionSignature> dataFileReader =
                 new DataFileReader<>(new File(pathname), signatureDatumReader);
-        List<PrioBatchHeaderSignature> prioBatchHeaderSignatures = new ArrayList<>();
-        PrioBatchHeaderSignature prioBatchHeaderSignature;
+        List<PrioIngestionSignature> prioIngestionSignatures = new ArrayList<>();
+        PrioIngestionSignature prioIngestionSignature;
         while (dataFileReader.hasNext()) {
-            prioBatchHeaderSignature = new PrioBatchHeaderSignature();
-            prioBatchHeaderSignature = dataFileReader.next(prioBatchHeaderSignature);
-            prioBatchHeaderSignatures.add(prioBatchHeaderSignature);
+            prioIngestionSignature = new PrioIngestionSignature();
+            prioIngestionSignature = dataFileReader.next(prioIngestionSignature);
+            prioIngestionSignatures.add(prioIngestionSignature);
         }
-        return prioBatchHeaderSignatures;
+        return prioIngestionSignatures;
     }
 
     public static List<PrioDataSharePacket> deserializeDataSharePackets(String pathname)

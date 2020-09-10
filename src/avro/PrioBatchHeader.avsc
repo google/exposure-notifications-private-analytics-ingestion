@@ -50,16 +50,6 @@
       "name": "batch_end_time",
       "type": "long",
       "doc": "time range information for the shares in this batch."
-    },
-    {
-      "name": "certificate_hash",
-      "type": "string",
-      "doc": "SHA256 hash of BAA certificate."
-    },
-    {
-      "name": "signature_of_packets",
-      "type": "bytes",
-      "doc": "signature of the avro file of individual shares in this batch."
     }
   ]
 }
