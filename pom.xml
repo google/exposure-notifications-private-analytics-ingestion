@@ -71,6 +71,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>${maven-compiler-plugin.version}</version>
         <configuration>
+          <parameters>true</parameters>
+          <testCompilerArgument>-parameters</testCompilerArgument>
           <source>1.8</source>
           <target>1.8</target>
         </configuration>
@@ -127,7 +129,7 @@
             </goals>
             <configuration>
               <environmentVariables>
-                <FIRESTORE_EMULATOR_HOST>localhost:8080</FIRESTORE_EMULATOR_HOST>
+                <FIRESTORE_EMULATOR_HOST>127.0.0.1:8080</FIRESTORE_EMULATOR_HOST>
               </environmentVariables>
             </configuration>
           </execution>
@@ -155,7 +157,7 @@
           <execution>
             <id>stop-emulator</id>
             <!-- It seems even with asyncDestroyOnShutdown, firebase CLI spawns
-              some child processes that aren't killed after the test, so we
+              some child processes that aren't killed after failing tests, so we
               kill them manually.
               https://github.com/firebase/firebase-tools/issues/1367
             -->
@@ -166,8 +168,6 @@
             <configuration>
               <executable>pkill</executable>
               <commandlineArgs>-f firebase</commandlineArgs>
-              <async>true</async>
-              <asyncDestroyOnShutdown>true</asyncDestroyOnShutdown>
             </configuration>
           </execution>
         </executions>

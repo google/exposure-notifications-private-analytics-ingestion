@@ -17,41 +17,17 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.api.core.ApiFuture;
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Query;
-import com.google.cloud.firestore.QuerySnapshot;
-import com.google.firebase.cloud.FirestoreClient;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Pattern;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
-import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metrics;
-import org.apache.beam.sdk.options.Default;
-import org.apache.beam.sdk.options.Description;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
-import org.apache.beam.sdk.transforms.Count;
-import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.MapElements;
-import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,168 +49,54 @@ import org.slf4j.LoggerFactory;
  * }</pre>
  */
 public class IngestionPipeline {
+
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
   /**
-   * \p{L} denotes the category of Unicode letters, so this pattern will match on everything that is
-   * not a letter.
-   *
-   * <p>It is used for tokenizing strings in the wordcount examples.
+   * A Temporary SimpleFunction that converts a DataShare into a printable string.
    */
-  private static final String TOKENIZER_PATTERN = "[^\\p{L}]+";
-
-  /**
-   * Specific options for the pipeline.
-   */
-  public interface IngestionPipelineOptions extends PipelineOptions {
-    /**
-     * Path to the service account key json file.
-     */
-    @Description("Path to the service account key json file")
-    @Required
-    ValueProvider<String> getServiceAccountKey();
-
-    void setServiceAccountKey(ValueProvider<String> value);
-
-    /**
-     * Fire base project to read from.
-     */
-    @Description("Firebase Project Id")
-    @Required
-    ValueProvider<String> getFirebaseProjectId();
-
-    void setFirebaseProjectId(ValueProvider<String> value);
-
-    /**
-     * Set this required option to specify where to write the output.
-     */
-    @Description("Prefix of the output files to write to")
-    @Required
-    ValueProvider<String> getOutput();
-
-    void setOutput(ValueProvider<String> value);
-
-    @Description(
-        "Regex filter pattern to use in IngestionPipeline. "
-            + "Only words matching this pattern will be counted.")
-    @Default.String("test|metric")
-    ValueProvider<String> getFilterPattern();
-
-    void setFilterPattern(ValueProvider<String> value);
-  }
-
-  /**
-   * This DoFn tokenizes lines of text into individual words; we pass it to a ParDo in the
-   * pipeline.
-   */
-  static class ExtractWordsFn extends DoFn<String, String> {
-
-    private final Counter emptyLines = Metrics.counter(ExtractWordsFn.class, "emptyLines");
-    private final Distribution lineLenDist =
-        Metrics.distribution(ExtractWordsFn.class, "lineLenDistro");
-
-    @ProcessElement
-    public void processElement(@Element String element, OutputReceiver<String> receiver) {
-      lineLenDist.update(element.length());
-      if (element.trim().isEmpty()) {
-        emptyLines.inc();
-      }
-
-      // Split the line into words.
-      String[] words = element.split(TOKENIZER_PATTERN, -1);
-
-      // Output each word encountered into the output PCollection.
-      for (String word : words) {
-        if (!word.isEmpty()) {
-          receiver.output(word);
-        }
-      }
-    }
-  }
-
-  /**
-   * A SimpleFunction that converts a Word and Count into a printable string.
-   */
-  public static class FormatAsTextFn extends SimpleFunction<KV<String, Long>, String> {
+  public static class FormatAsTextFn extends SimpleFunction<DataShare, String> {
 
     @Override
-    public String apply(KV<String, Long> input) {
-      return input.getKey() + ": " + input.getValue();
+    public String apply(DataShare input) {
+      return input.toString();
     }
   }
 
   /**
-   * A PTransform that converts a PCollection containing lines of text into a PCollection of
-   * formatted word counts.
+   * A DoFn that filters documents not in the date range
    */
-  public static class CountWords
-      extends PTransform<PCollection<String>, PCollection<KV<String, Long>>> {
+  public static class DateFilterFn extends DoFn<DataShare, DataShare> {
 
-    @Override
-    public PCollection<KV<String, Long>> expand(PCollection<String> lines) {
+    private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
 
-      // Convert lines of text into individual words.
-      PCollection<String> words = lines.apply(ParDo.of(new ExtractWordsFn()));
+    private final Counter dateFilterIncluded = Metrics
+        .counter(DateFilterFn.class, "dateFilterIncluded");
+    private final Counter dateFilterExcluded = Metrics
+        .counter(DateFilterFn.class, "dateFilterExcluded");
+    private final ValueProvider<Long> startTime;
 
-      // Count the number of times each word occurs.
-      PCollection<KV<String, Long>> wordCounts = words.apply(Count.perElement());
-
-      return wordCounts;
+    public DateFilterFn(ValueProvider<Long> startTime) {
+      this.startTime = startTime;
     }
-  }
-
-  // TODO(guray): convert this into a platform key attestation verifier?
-
-  /**
-   * A DoFn that filters for a specific key based upon a regular expression.
-   */
-  public static class FilterTextFn extends DoFn<KV<String, Long>, KV<String, Long>> {
-
-    private static final Logger LOG = LoggerFactory.getLogger(FilterTextFn.class);
-
-    private final ValueProvider<String> pattern;
-
-    private Pattern filter;
-
-    public FilterTextFn(ValueProvider<String> pattern) {
-      this.pattern = pattern;
-    }
-
-    private final Counter matchedWords = Metrics.counter(FilterTextFn.class, "matchedWords");
-
-    private final Counter unmatchedWords = Metrics.counter(FilterTextFn.class, "unmatchedWords");
 
     @ProcessElement
     public void processElement(ProcessContext c) {
-      // lazy init compiled pattern at runtime to pick up value provider
-      if (filter == null) {
-        filter = Pattern.compile(pattern.get());
-      }
-      if (filter.matcher(c.element().getKey()).matches()) {
-        // Log at the "DEBUG" level each element that we match. When executing this pipeline
-        // these log lines will appear only if the log level is set to "DEBUG" or lower.
-        LOG.debug("Matched: " + c.element().getKey());
-        matchedWords.inc();
+      if (c.element().getCreated() > startTime.get()) {
+        LOG.debug("Included: " + c.element().getId());
+        dateFilterIncluded.inc();
         c.output(c.element());
       } else {
-        // Log at the "TRACE" level each element that is not matched. Different log levels
-        // can be used to control the verbosity of logging providing an effective mechanism
-        // to filter less important information.
-        LOG.trace("Did not match: " + c.element().getKey());
-        unmatchedWords.inc();
+        LOG.trace("Excluded: " + c.element().getId());
+        dateFilterExcluded.inc();
       }
     }
   }
 
   static void runIngestionPipeline(IngestionPipelineOptions options) throws Exception {
-    Pipeline p = Pipeline.create(options);
-
-    // TODO(larryjacobs): Read documents from Firestore directly into a PCollection once such an I/O transform.
-    Firestore db = initializeFirestore(options);
-    List<String> docIds = readDocumentsFromFirestore(db, "metrics");
-    p.apply(Create.of(docIds).withCoder(StringUtf8Coder.of())).setCoder(StringUtf8Coder.of())
-        .apply(new CountWords())
-        .apply(ParDo.of(new FilterTextFn(options.getFilterPattern())))
+    Pipeline pipeline = Pipeline.create(options);
+    pipeline.apply(new FirestoreReader())
+        .apply(ParDo.of(new DateFilterFn(options.getStartTime())))
         // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
         // https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/transforms/Count.html#globally--
         .apply(MapElements.via(new FormatAsTextFn()))
@@ -242,38 +104,7 @@ public class IngestionPipeline {
         // https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
         .apply("WriteCounts", TextIO.write().to(options.getOutput()));
 
-    p.run().waitUntilFinish();
-  }
-
-  // Initializes and returns a Firestore instance.
-  static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions) throws Exception {
-    if(FirebaseApp.getApps().isEmpty()) {
-      InputStream serviceAccount = new FileInputStream(pipelineOptions.getServiceAccountKey().get());
-      GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
-      FirebaseOptions options = new FirebaseOptions.Builder()
-          .setProjectId(pipelineOptions.getFirebaseProjectId().get())
-          .setCredentials(credentials)
-          .build();
-      FirebaseApp.initializeApp(options);
-    }
-
-    return FirestoreClient.getFirestore();
-  }
-
-  // Returns all document id's in the collections and subcollections with the given collection id.
-  static List<String> readDocumentsFromFirestore(Firestore db, String collection) throws Exception {
-    // Create a reference to all collections and subcollections with the given collection id
-    Query query = db.collectionGroup(collection);
-    // Retrieve  query results asynchronously using query.get()
-    ApiFuture<QuerySnapshot> querySnapshot = query.get();
-    List<String> docs =  new ArrayList<>();
-
-    for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
-      LOG.debug("Fetched document from Firestore: " + document.getId());
-      docs.add(document.getId());
-    }
-
-    return docs;
+    pipeline.run().waitUntilFinish();
   }
 
   public static void main(String[] args) {
@@ -285,7 +116,7 @@ public class IngestionPipeline {
     } catch (Exception e) {
       if (e instanceof UnsupportedOperationException) {
         // Apparently a known issue that this throws when generating a template:
-        // https://issues.apache.org/jira/browse/BEAM-
+        // https://issues.apache.org/jira/browse/BEAM-9337
       } else {
         LOG.error("Exception thrown during pipeline run.", e);
       }
