@@ -32,18 +32,26 @@ mvn verify
 
 ## Running
 
+Set the following local variables that will be used in the commands below.
+
+```shell script
+OUTPUT_LOCATION=gs://some/output/folder
+FIREBASE_PROJECT_ID=firebase-project-id
+GCP_PROJECT_ID=other-project-id
+SERVICE_ACCOUNT_KEY=/some/key.json
+METRIC=metricOfInterest
+```
+
 ### Locally
 
-#### Be sure to set serviceAccountKey before running.
 ```shell script
-mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=counts --serviceAccountKey='PATH/TO/SERVICE_ACCOUNT_KEY.json' --firebaseProjectId='appa-firebase-test'"
+mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=$OUTPUT_LOCATION --firebaseProjectId=$FIREBASE_PROJECT_ID --serviceAccountKey=$SERVICE_ACCOUNT_KEY --metric=$METRIC"
 ```
 
 ### On Cloud
 
-#### Be sure to set serviceAccountKey before running.
 ```shell script
-mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=appa-ingestion --stagingLocation=gs://appa-batch-output/staging/  --output=gs://appa-batch-output/output --runner=DataflowRunner  --region=us-central1 --serviceAccountKey='PATH/TO/SERVICE_ACCOUNT_KEY.json' --firebaseProjectId='appa-firebase-test'"
+mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=$GCP_PROJECT_ID --stagingLocation=$OUTPUT_LOCATION/staging/  --output=$OUTPUT_LOCATION --runner=DataflowRunner  --region=us-central1 --serviceAccountKey=$SERVICE_ACCOUNT_KEY --firebaseProjectId=$FIREBASE_PROJECT_ID"
 ```
 
 ## Deploying

@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.Objects;
 import org.apache.beam.sdk.schemas.JavaBeanSchema;
 import org.apache.beam.sdk.schemas.annotations.DefaultSchema;
-import org.apache.beam.sdk.schemas.annotations.SchemaCreate;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** POJO for the collection type processed in this pipeline */
 @DefaultSchema(JavaBeanSchema.class)
@@ -21,20 +21,22 @@ public class DataShare implements Serializable {
   public static final String DEVICE_ATTESTATION = "deviceAttestation";
   public static final String ENCRYPTED_DATA_SHARES = "encryptedDataShares";
 
-  private String id;
+  private @Nullable String id;
   private long created;
 
-  @SchemaCreate
-  public DataShare(String id, long created) {
+  public DataShare() {}
+
+  public DataShare(@Nullable String id, long created) {
     this.id = id;
     this.created = created;
   }
 
+  @Nullable
   public String getId() {
     return id;
   }
 
-  public void setId(String id) {
+  public void setId(@Nullable String id) {
     this.id = id;
   }
 
@@ -62,5 +64,13 @@ public class DataShare implements Serializable {
   @Override
   public int hashCode() {
     return Objects.hash(id, created);
+  }
+
+  @Override
+  public String toString() {
+    return "DataShare{" +
+        "id='" + id + '\'' +
+        ", created=" + created +
+        '}';
   }
 }

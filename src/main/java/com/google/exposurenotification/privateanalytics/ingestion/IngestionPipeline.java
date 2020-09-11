@@ -17,7 +17,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.cloud.firestore.Firestore;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
@@ -83,11 +82,11 @@ public class IngestionPipeline {
     @ProcessElement
     public void processElement(ProcessContext c) {
       if (c.element().getCreated() > startTime.get()) {
-        LOG.debug("Included: " + c.element().getId());
+        LOG.debug("Included: " + c.element());
         dateFilterIncluded.inc();
         c.output(c.element());
       } else {
-        LOG.trace("Excluded: " + c.element().getId());
+        LOG.trace("Excluded: " + c.element());
         dateFilterExcluded.inc();
       }
     }
@@ -108,6 +107,7 @@ public class IngestionPipeline {
   }
 
   public static void main(String[] args) {
+    PipelineOptionsFactory.register(IngestionPipelineOptions.class);
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 

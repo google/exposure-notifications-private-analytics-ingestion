@@ -30,6 +30,15 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setFirebaseProjectId(ValueProvider<String> value);
 
   /**
+   * Metric to aggregate
+   */
+  @Description("Metric to aggregate")
+  @Required
+  ValueProvider<String> getMetric();
+
+  void setMetric(ValueProvider<String> value);
+
+  /**
    * Where to write the output.
    */
   @Description("Prefix of the output files to write to")
