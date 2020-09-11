@@ -51,11 +51,19 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * Start time of window to process
    */
   @Description(
-      "Start time in milliseconds of documents to process")
+      "Start time in seconds of documents to process")
   @Default.Long(0)
   ValueProvider<Long> getStartTime();
 
   void setStartTime(ValueProvider<Long> value);
 
-  // TODO(guray): add ValueProvider<Duration> or <Long> to specify end time?
+  /**
+   * Duration of time window to process
+   */
+  @Description(
+      "Duration of window in seconds")
+  @Default.Long(172800000)
+  ValueProvider<Long> getDuration();
+
+  void setDuration(ValueProvider<Long> value);
 }

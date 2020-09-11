@@ -63,7 +63,7 @@ public class IngestionPipeline {
   }
 
   /**
-   * A DoFn that filters documents not in the date range
+   * A DoFn that filters documents in particular time window
    */
   public static class DateFilterFn extends DoFn<DataShare, DataShare> {
 
@@ -74,14 +74,21 @@ public class IngestionPipeline {
     private final Counter dateFilterExcluded = Metrics
         .counter(DateFilterFn.class, "dateFilterExcluded");
     private final ValueProvider<Long> startTime;
+    private final ValueProvider<Long> duration;
 
-    public DateFilterFn(ValueProvider<Long> startTime) {
+    public DateFilterFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
       this.startTime = startTime;
+      this.duration = duration;
     }
 
     @ProcessElement
     public void processElement(ProcessContext c) {
-      if (c.element().getCreated() > startTime.get()) {
+      if (c.element().getCreated() == null || c.element().getCreated() == 0) {
+        // TODO: fork these documents off somewhere so that they are still deleted downstream and we don't accumulate junk
+        return;
+      }
+      if (c.element().getCreated() >= startTime.get() &&
+          c.element().getCreated() < startTime.get() + duration.get()) {
         LOG.debug("Included: " + c.element());
         dateFilterIncluded.inc();
         c.output(c.element());
@@ -95,13 +102,15 @@ public class IngestionPipeline {
   static void runIngestionPipeline(IngestionPipelineOptions options) throws Exception {
     Pipeline pipeline = Pipeline.create(options);
     pipeline.apply(new FirestoreReader())
-        .apply(ParDo.of(new DateFilterFn(options.getStartTime())))
+        .apply("Filter dates",
+            ParDo.of(new DateFilterFn(options.getStartTime(), options.getDuration())))
+        // TODO: fork data shares for PHA and Facilitator
         // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
-        // https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/transforms/Count.html#globally--
-        .apply(MapElements.via(new FormatAsTextFn()))
+        //  https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/transforms/Count.html#globally--
         // TODO(justinowusu): s/TextIO/AvroIO/
-        // https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
-        .apply("WriteCounts", TextIO.write().to(options.getOutput()));
+        //  https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
+        .apply("SerializeElements", MapElements.via(new FormatAsTextFn()))
+        .apply("WriteBatches", TextIO.write().to(options.getOutput()));
 
     pipeline.run().waitUntilFinish();
   }
@@ -113,13 +122,11 @@ public class IngestionPipeline {
 
     try {
       runIngestionPipeline(options);
+    } catch (UnsupportedOperationException ignore) {
+      // Known issue that this can throw when generating a template:
+      // https://issues.apache.org/jira/browse/BEAM-9337
     } catch (Exception e) {
-      if (e instanceof UnsupportedOperationException) {
-        // Apparently a known issue that this throws when generating a template:
-        // https://issues.apache.org/jira/browse/BEAM-9337
-      } else {
-        LOG.error("Exception thrown during pipeline run.", e);
-      }
+      LOG.error("Exception thrown during pipeline run.", e);
     }
   }
 }

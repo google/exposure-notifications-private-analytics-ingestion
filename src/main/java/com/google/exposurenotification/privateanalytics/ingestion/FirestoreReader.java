@@ -91,7 +91,7 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
     List<DataShare> docs = new ArrayList<>();
     for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
       LOG.debug("Fetched document from Firestore: " + document.getId());
-      docs.add(document.toObject(DataShare.class));
+      docs.add(DataShare.from(document));
     }
     return docs;
   }

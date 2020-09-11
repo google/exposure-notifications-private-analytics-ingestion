@@ -17,6 +17,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.cloud.Timestamp;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,14 +47,22 @@ public class IngestionPipelineTest {
   @Test
   @Category(ValidatesRunner.class)
   public void testDateFilter() {
-    List<DataShare> dataShares = Arrays.asList(new DataShare("id1", 1L),
-        new DataShare("id3", 3L));
+    List<DataShare> dataShares = Arrays.asList(
+        DataShare.builder().setId("id1").setCreated(1L).build(),
+        DataShare.builder().setId("id2").setCreated(2L).build(),
+        DataShare.builder().setId("id3").setCreated(3L).build(),
+        DataShare.builder().setId("missing").build()
+    );
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
     PCollection<DataShare> output =
-        input.apply(ParDo.of(new DateFilterFn(StaticValueProvider.of(2L))));
+        input.apply(
+            ParDo.of(new DateFilterFn(StaticValueProvider.of(2L), StaticValueProvider.of(1L))));
 
-    PAssert.that(output).containsInAnyOrder(Collections.singletonList(new DataShare("id3", 3L)));
+    PAssert.that(output).containsInAnyOrder(
+        Collections.singletonList(
+            DataShare.builder().setId("id2").setCreated(2L)
+                .build()));
     pipeline.run().waitUntilFinish();
   }
 }

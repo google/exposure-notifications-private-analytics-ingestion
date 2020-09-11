@@ -1,76 +1,51 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.auto.value.AutoValue;
+import com.google.cloud.Timestamp;
+import com.google.cloud.firestore.DocumentSnapshot;
 import java.io.Serializable;
-import java.util.Objects;
-import org.apache.beam.sdk.schemas.JavaBeanSchema;
-import org.apache.beam.sdk.schemas.annotations.DefaultSchema;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-/** POJO for the collection type processed in this pipeline */
-@DefaultSchema(JavaBeanSchema.class)
-public class DataShare implements Serializable {
+/** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
+@AutoValue
+public abstract class DataShare implements Serializable {
 
   // Firestore document field names
-  public static final String PAYLOAD = "payload";
-  public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
-  public static final String EPSILON = "epsilon";
-  public static final String PRIME = "prime";
-  public static final String NUMBER_SERVERS = "numberServers";
   public static final String CREATED = "created";
-  public static final String PRIO_PARAMS = "prioParams";
-  public static final String DEVICE_ATTESTATION = "deviceAttestation";
-  public static final String ENCRYPTED_DATA_SHARES = "encryptedDataShares";
 
-  private @Nullable String id;
-  private long created;
+  /** Firestore document id */
+  public abstract @Nullable String getId();
+  public abstract @Nullable Long getCreated();
 
-  public DataShare() {}
+  // TODO: List<encrypted payload>, uuid, attestation, etc
 
-  public DataShare(@Nullable String id, long created) {
-    this.id = id;
-    this.created = created;
-  }
-
-  @Nullable
-  public String getId() {
-    return id;
-  }
-
-  public void setId(@Nullable String id) {
-    this.id = id;
-  }
-
-  public long getCreated() {
-    return created;
-  }
-
-  public void setCreated(long created) {
-    this.created = created;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
+  /**
+   * @return Pipeline projection of Firestore document
+   */
+  public static DataShare from(DocumentSnapshot doc) {
+    DataShare.Builder builder = builder();
+    if (doc.getId() != null) {
+      builder.setId(doc.getId());
     }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
+    if (doc.get(CREATED) != null) {
+      try {
+        Timestamp timestamp = (Timestamp) doc.get(CREATED);
+        builder.setCreated(timestamp.getSeconds());
+      } catch (ClassCastException ignore) {
+        // These will be filtered out elsewhere in the pipeline
+      }
     }
-    DataShare dataShare = (DataShare) o;
-    return created == dataShare.created &&
-        Objects.equals(id, dataShare.id);
+    return builder.build();
   }
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(id, created);
+  static Builder builder() {
+    return new AutoValue_DataShare.Builder();
   }
 
-  @Override
-  public String toString() {
-    return "DataShare{" +
-        "id='" + id + '\'' +
-        ", created=" + created +
-        '}';
+  @AutoValue.Builder
+  abstract static class Builder {
+    abstract DataShare build();
+    abstract Builder setId(@Nullable String value);
+    abstract Builder setCreated(@Nullable Long value);
   }
 }
