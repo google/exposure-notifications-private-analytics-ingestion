@@ -30,7 +30,6 @@
         "null",
         "string"
       ],
-      "default": null,
       "doc": "Version configuration of the device."
     },
     {
@@ -39,7 +38,6 @@
         "null",
         "bytes"
       ],
-      "default": null,
       "doc": "Rolling random device identifier to prevent data pollution. This would be populated only in cases where ingestion cannot fully address spam/abuse."
     }
   ]

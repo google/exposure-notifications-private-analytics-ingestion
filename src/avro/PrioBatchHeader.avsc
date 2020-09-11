@@ -27,13 +27,11 @@
     {
       "name": "prime",
       "type": "long",
-      "default": 4293918721,
       "doc": "the value of prime p used in aggregation."
     },
     {
       "name": "number_of_servers",
       "type": "int",
-      "default": 2,
       "doc": "the number of servers that will be involved in the aggregation."
     },
     {
@@ -44,11 +42,13 @@
     {
       "name": "batch_start_time",
       "type": "long",
+      "logicalType": "timestamp-millis",
       "doc": "time range information for the shares in this batch."
     },
     {
       "name": "batch_end_time",
       "type": "long",
+      "logicalType": "timestamp-millis",
       "doc": "time range information for the shares in this batch."
     }
   ]
