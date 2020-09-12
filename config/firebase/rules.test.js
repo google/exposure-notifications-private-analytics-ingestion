@@ -30,12 +30,20 @@ describe('Tests of document creation', () => {
         const doc = db.collection('uuid').doc('foo');
         await firebase.assertFails(doc.set({}));
       });
-  it('document can be created if path matches uuid',
+  it('document cannot be created without created',
+      async () => {
+        const doc = db.collection('uuid').doc('foo');
+        await firebase.assertFails(doc.set({
+          'uuid': 'foo'}));
+      });
+  it('correct documents can be created',
       async () => {
         const doc = db.collection('uuid').doc('foo')
                       .collection('date').doc('2020-09-03-14')
                       .collection('metrics').doc('testMetric');
-        await firebase.assertSucceeds(doc.set({'uuid': 'foo'}));
+        await firebase.assertSucceeds(doc.set({
+          'created': firebase.firestore.FieldValue.serverTimestamp(),
+          'uuid': 'foo'}));
       });
   it('document cannot be deleted',
       async () => {
