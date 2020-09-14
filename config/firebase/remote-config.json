@@ -11,6 +11,32 @@
         "value": "24"
       },
       "description": "Hours in between each collection"
-    }
+    },
+
+
+    "enpa_metric_notification_count_sampling_prob": {
+      "defaultValue": {
+        "value": "1.0"
+      },
+      "description": "Probability of uploading data share"
+    },
+    "enpa_metric_notification_count_prio_prime": {
+      "defaultValue": {
+        "value": "4293918721"
+      },
+      "description": "Prime value to use in prio computations"
+    },
+    "enpa_metric_notification_count_prio_epsilon": {
+      "defaultValue": {
+        "value": "12.0"
+      },
+      "description": "Epsilon to use in prio computations"
+    },
+    "enpa_metric_notification_count_hamming_weight": {
+      "defaultValue": {
+        "value": "1"
+      },
+      "description": "Hamming weight to use in prio computations"
+    },
   }
 }
