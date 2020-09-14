@@ -1,4 +1,4 @@
-{"namespace": "ENPA",
+{"namespace": "org.abetterinternet.prio.v1",
  "type": "record",
  "name": "PrioIngestionSignature",
  "fields": [

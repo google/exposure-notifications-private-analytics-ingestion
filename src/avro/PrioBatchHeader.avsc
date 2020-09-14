@@ -1,5 +1,5 @@
 {
-  "namespace": "ENPA",
+  "namespace": "org.abetterinternet.prio.v1",
   "type": "record",
   "name": "PrioBatchHeader",
   "fields": [

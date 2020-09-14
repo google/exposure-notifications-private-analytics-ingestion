@@ -59,7 +59,7 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
     @ProcessElement
     public void processElement(ProcessContext context) throws Exception {
       String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric().get();
-      for (DataShare ds : readDocumentsFromFirestore(db, metric)) {
+      for (DataShare ds : readDocumentsFromFirestore(db, metric))  {
         context.output(ds);
       }
     }
@@ -91,7 +91,11 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
     List<DataShare> docs = new ArrayList<>();
     for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
       LOG.debug("Fetched document from Firestore: " + document.getId());
-      docs.add(DataShare.from(document));
+      try {
+        docs.add(DataShare.from(document));
+      } catch (RuntimeException e) {
+        LOG.error("Skipping document");
+      }
     }
     return docs;
   }

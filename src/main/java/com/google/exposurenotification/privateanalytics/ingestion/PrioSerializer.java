@@ -1,8 +1,8 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import ENPA.PrioBatchHeader;
-import ENPA.PrioIngestionSignature;
-import ENPA.PrioDataSharePacket;
+import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionSignature;
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;

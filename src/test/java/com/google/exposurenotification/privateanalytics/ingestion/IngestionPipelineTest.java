@@ -19,14 +19,18 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.cloud.Timestamp;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
+import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.SerializeDataShareFn;
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.nio.ByteBuffer;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
@@ -63,6 +67,36 @@ public class IngestionPipelineTest {
         Collections.singletonList(
             DataShare.builder().setId("id2").setCreated(2L)
                 .build()));
+    pipeline.run().waitUntilFinish();
+  }
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void testSerializeDataShare() {
+    List<DataShare> dataShares = Arrays.asList(
+            DataShare.builder().setId("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId").build(),
+            DataShare.builder().setId("id2").setCreated(2L).setRPit(123456L).setUuid("NotSoUniqueId").build()
+    );
+
+    List<PrioDataSharePacket> avroDataShares = Arrays.asList(
+            PrioDataSharePacket.newBuilder().setEncryptionKeyId("hardCodedID")
+            .setRPit(12345L)
+            .setUuid("SuperUniqueId")
+            // Current hard-coded value of encrypted payload in pipeline is {0x01, 0x02, 0x03, 0x04, 0x05}.
+            .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
+            .build(),
+            PrioDataSharePacket.newBuilder().setEncryptionKeyId("hardCodedID")
+                    .setRPit(123456L)
+                    .setUuid("NotSoUniqueId")
+                    .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
+                    .build()
+    );
+    PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
+
+    PCollection<PrioDataSharePacket> output =
+            input.apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()));
+
+    PAssert.that(output).containsInAnyOrder(avroDataShares.get(0), avroDataShares.get(1));
     pipeline.run().waitUntilFinish();
   }
 }

@@ -17,8 +17,10 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import java.nio.ByteBuffer;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.io.TextIO;
+import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -55,17 +57,18 @@ public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
-  /**
-   * A Temporary SimpleFunction that converts a DataShare into a printable string.
-   */
-  public static class FormatAsTextFn extends SimpleFunction<DataShare, String> {
+  public static class SerializeDataShareFn extends SimpleFunction<DataShare, PrioDataSharePacket> {
 
     @Override
-    public String apply(DataShare input) {
-      return input.toString();
+    public PrioDataSharePacket apply(DataShare input) {
+      return PrioDataSharePacket.newBuilder()
+              .setEncryptionKeyId("hardCodedID")
+              .setRPit(input.getRPit())
+              .setUuid(input.getUuid())
+              .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
+              .build();
     }
   }
-
   /**
    * A DoFn that filters documents in particular time window
    */
