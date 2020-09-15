@@ -1,9 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Limited rules execution environment and functions are constrained:
+    // https://firebase.google.com/docs/rules/rules-language#function
+    // https://github.com/google/cel-spec/blob/master/doc/langdef.md
+    function quickPad(datePart) {
+      return datePart.size() == 1 ? "0" + datePart : datePart;
+    }
+
+    // Assemble YYYY-MM-DD-HH from timestamp
+    function buildDatePath(t) {
+      return string(t.year()) + '-'
+        + quickPad(string(t.month())) + '-'
+        + quickPad(string(t.day())) + '-'
+        + quickPad(string(t.hours()))
+    }
+
+    // Check date path against timestamp, allowing for clock skew
+    function checkDatePath(datePath, t) {
+      return datePath == buildDatePath(t + duration.value(1, 'h'))
+          || datePath == buildDatePath(t)
+          || datePath == buildDatePath(t - duration.value(1, 'h'));
+    }
+
     match /uuid/{uuid}/date/{date}/metrics/{metricName} {
       allow create: if request.resource.data.uuid == uuid
-                    && request.resource.data.created == request.time;
+                    && request.resource.data.created == request.time
+                    && checkDatePath(date, request.resource.data.created);
     }
   }
 }
