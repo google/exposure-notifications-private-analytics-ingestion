@@ -25,9 +25,9 @@ service cloud.firestore {
     }
 
     match /uuid/{uuid}/date/{date}/metrics/{metricName} {
-      allow create: if request.resource.data.uuid == uuid
-                    && request.resource.data.created == request.time
-                    && checkDatePath(date, request.resource.data.created);
+      allow create: if request.resource.data.payload.uuid == uuid
+                    && request.resource.data.payload.created == request.time
+                    && checkDatePath(date, request.resource.data.payload.created);
     }
   }
 }

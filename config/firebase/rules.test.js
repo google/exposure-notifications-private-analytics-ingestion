@@ -14,8 +14,11 @@ beforeAll(async () => {
                 .collection('date').doc('2020-09-03-13')
                 .collection('metrics').doc('testMetric');
   await doc.set({
-    'created': firebase.firestore.FieldValue.serverTimestamp(),
-    'uuid': 'preexisting'});
+    'payload': {
+      'created': firebase.firestore.FieldValue.serverTimestamp(),
+      'uuid': 'preexisting'
+      }
+    });
 });
 
 afterAll(async () => {
@@ -62,8 +65,11 @@ describe('Tests of document writes and access', () => {
                       .collection('date').doc(getPath(oldDate))
                       .collection('metrics').doc('testMetric');
         await firebase.assertFails(doc.set({
+        'payload': {
           'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'}));
+          'uuid': 'foo'
+          }
+        }));
       });
   it('correct documents can be created',
       async () => {
@@ -71,8 +77,11 @@ describe('Tests of document writes and access', () => {
                       .collection('date').doc(datefmt)
                       .collection('metrics').doc('testMetric');
         await firebase.assertSucceeds(doc.set({
+        'payload': {
           'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'}));
+          'uuid': 'foo'
+        }
+        }));
       });
   it('documents can be created at slightly off path',
       async () => {
@@ -82,8 +91,11 @@ describe('Tests of document writes and access', () => {
                       .collection('date').doc(getPath(oldDate))
                       .collection('metrics').doc('testMetric');
         await firebase.assertSucceeds(doc.set({
+        'payload': {
           'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'}));
+          'uuid': 'foo'
+          }
+        }));
       });
   it('document cannot be deleted',
       async () => {
@@ -97,7 +109,11 @@ describe('Tests of document writes and access', () => {
         const doc = db.collection('uuid').doc('foo')
                       .collection('date').doc(datefmt)
                       .collection('metrics').doc('testMetric');
-        await firebase.assertFails(doc.update({'uuid': 'foo'}));
+        await firebase.assertFails(doc.update({
+        'payload': {
+          'uuid': 'foo'
+          }
+        }));
       });
   it('document cannot be read',
       async () => {
