@@ -115,12 +115,8 @@ public class IngestionPipeline {
         //  https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
         .apply("SerializeElements", MapElements.via(new FormatAsTextFn()))
         .apply("WriteBatches", TextIO.write().to(options.getOutput()));
-    
-    try {
-      pipeline.run().waitUntilFinish();
-    } catch (Exception e) {
-      LOG.error("Exception thrown during pipeline run: " + e);
-    }
+
+    pipeline.run().waitUntilFinish();
   }
 
   public static void main(String[] args) {
