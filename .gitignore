@@ -12,3 +12,4 @@ buildNumber.properties
 node_modules/
 enpa-ingestion.iml
 **firestore-debug.log
+**ui-debug.log
