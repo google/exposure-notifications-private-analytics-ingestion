@@ -1,3 +1,18 @@
+/*
+ * Copyright 2020 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.auto.value.AutoValue;
@@ -12,9 +27,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @AutoValue
 public abstract class DataShare implements Serializable {
 
-  /* Firestore document field names (Defined for the client in the link below) TODO(guray): Update link if changed
-  * https://team.git.corp.google.com/ct_app/ct-application/+/refs/heads/private-analytics/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/ExposureNotificationFirestoreRepository.java#29
-  */
+  // Firestore document field names
+  // TODO: link to ENX app github repo where these are defined
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
