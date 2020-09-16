@@ -29,6 +29,8 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -41,12 +43,14 @@ import org.slf4j.LoggerFactory;
 /**
  * Primitive beam connector for Firestore native specific to ENPA.
  *
- * For a general purpose connector see
- * https://issues.apache.org/jira/browse/BEAM-8376
+ * For a general purpose connector see https://issues.apache.org/jira/browse/BEAM-8376
  */
 public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreReader.class);
+
+  private static final Counter invalidDocumentCounter = Metrics
+      .counter(FirestoreReader.class, "invalidDocuments");
 
   @Override
   public PCollection<DataShare> expand(PBegin input) {
@@ -73,15 +77,17 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
 
     @ProcessElement
     public void processElement(ProcessContext context) throws Exception {
-      String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric().get();
-      for (DataShare ds : readDocumentsFromFirestore(db, metric))  {
+      String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric()
+          .get();
+      for (DataShare ds : readDocumentsFromFirestore(db, metric)) {
         context.output(ds);
       }
     }
   }
 
   // Initializes and returns a Firestore instance.
-  private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions) throws Exception {
+  private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions)
+      throws Exception {
     if (FirebaseApp.getApps().isEmpty()) {
       InputStream serviceAccount = new FileInputStream(
           pipelineOptions.getServiceAccountKey().get());
@@ -97,7 +103,8 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
   }
 
   // Returns all document id's in the collections and subcollections with the given collection id.
-  private static List<DataShare> readDocumentsFromFirestore(Firestore db, String collection) throws Exception {
+  private static List<DataShare> readDocumentsFromFirestore(Firestore db, String collection)
+      throws Exception {
     // Create a reference to all collections and subcollections with the given collection id
     Query query = db.collectionGroup(collection);
     // Retrieve query results asynchronously using query.get()
@@ -109,7 +116,8 @@ public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> 
       try {
         docs.add(DataShare.from(document));
       } catch (RuntimeException e) {
-        LOG.error("Skipping document");
+        LOG.debug("Skipping document: " + document.getId());
+        invalidDocumentCounter.inc();
       }
     }
     return docs;
