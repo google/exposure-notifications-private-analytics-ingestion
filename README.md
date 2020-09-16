@@ -2,7 +2,22 @@
 
 This repository contains batch processing jobs that can be used to ingest
 private data shares according to the Exposure Notification Private Analytics
-protocol.
+protocol. It assumes private data shares are uploaded as Firestore documents,
+as is done with the Exposure Notification Express apps, and runs an Apache
+Beam pipeline to periodically convert them into the format that the private
+aggregation algorithms expect, defined in Avro schema format
+[here](https://github.com/abetterinternet/prio-server/tree/master/avro-schema).
+
+This repository also contains Firebase configuration to lockdown Firestore
+with security rules, and Firebase Remote Config that can be used to
+dynamically change the data share creation behavior in an Exposure
+Notification Express app.
+
+This implementation happens to make use of Firestore as a convenient way to
+send up the packets to a scalable NoSQL db for subsequent batching and aggregation.
+Alternative implementations might operate a custom backend endpoint to accumulate
+the packets, or use a pubsub mechanism. Since the packets are encrypted on device,
+the channel over which the packets travel need not be trusted.
 
 ## Testing
 
