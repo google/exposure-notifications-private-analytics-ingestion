@@ -15,7 +15,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.cloud.Timestamp;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.SerializeDataShareFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
@@ -95,6 +94,50 @@ public class IngestionPipelineTest {
             input.apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()));
 
     PAssert.that(output).containsInAnyOrder(avroDataShares.get(0), avroDataShares.get(1));
+    pipeline.run().waitUntilFinish();
+  }
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void processDataShares_valid() {
+    IngestionPipelineOptions options = TestPipeline
+        .testingPipelineOptions().as(IngestionPipelineOptions.class);
+    options.setStartTime(StaticValueProvider.of(2L));
+    options.setDuration(StaticValueProvider.of(1L));
+    options.setMinimumParticipantCount(StaticValueProvider.of(1L));
+    List<DataShare> inputData = Arrays.asList(
+        DataShare.builder().setId("id1").setCreated(1L).build(),
+        DataShare.builder().setId("id2").setCreated(2L).build(),
+        DataShare.builder().setId("id3").setCreated(4L).build(),
+        DataShare.builder().setId("missing").build()
+    );
+    List<DataShare> expectedOutput =
+        Arrays.asList(DataShare.builder().setId("id2").setCreated(2L).build());
+
+    PCollection<DataShare> actualOutput = IngestionPipeline
+        .processDataShares(pipeline.apply(Create.of(inputData)), options);
+
+    PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
+    pipeline.run().waitUntilFinish();
+  }
+
+  @Test(expected = AssertionError.class)
+  @Category(ValidatesRunner.class)
+  public void processDataShares_participantCountlessThanMinCount() {
+    IngestionPipelineOptions options = TestPipeline
+        .testingPipelineOptions().as(IngestionPipelineOptions.class);
+    options.setStartTime(StaticValueProvider.of(2L));
+    options.setDuration(StaticValueProvider.of(1L));
+    options.setMinimumParticipantCount(StaticValueProvider.of(2L));
+    List<DataShare> inputData = Arrays.asList(
+        DataShare.builder().setId("id1").setCreated(1L).build(),
+        DataShare.builder().setId("id2").setCreated(2L).build(),
+        DataShare.builder().setId("id3").setCreated(4L).build(),
+        DataShare.builder().setId("missing").build()
+    );
+
+    IngestionPipeline
+        .processDataShares(pipeline.apply(Create.of(inputData)), options);
     pipeline.run().waitUntilFinish();
   }
 }
