@@ -20,10 +20,10 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -78,6 +78,7 @@ public abstract class DataShare implements Serializable {
       throw new IllegalArgumentException("Missing required field: 'ID'", e);
     }
 
+    // Step 1: Process the payload.
     Map<String, Object> payload = new HashMap<>();
     System.out.println(payload.getClass());
     try {
@@ -88,16 +89,25 @@ public abstract class DataShare implements Serializable {
     builder.setCreated(checkThenGet(CREATED, Timestamp.class, payload, PAYLOAD).getSeconds());
     builder.setUuid(checkThenGet(UUID, String.class, payload, PAYLOAD));
 
+    // Get the Prio parameters.
     Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, HashMap.class, payload, PAYLOAD);
     Long prime = checkThenGet(PRIME, Long.class, prioParams, PRIO_PARAMS);
     builder.setPrime(prime);
-    builder.setRPit(ThreadLocalRandom.current().nextLong(prime));
     builder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
     builder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
     int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS).intValue();
     builder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
       builder.setHammingWeight(checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
+    }
+
+    try {
+      // Generate a r_PIT randomly for every data share.
+      Long rPit = generateRandom(prime);
+      builder.setRPit(rPit);
+    }
+    catch(IllegalArgumentException e) {
+      throw new IllegalArgumentException("The prime specified in the Prio parameters is invalid.");
     }
 
     List<Map<String, String>> encryptedDataShares =
@@ -139,7 +149,6 @@ public abstract class DataShare implements Serializable {
 
   // Returns a casted element from a map and provides detailed exceptions upon failure.
   private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
-    String errorMessage = "Missing required field: '" + field + "' from '" + sourceName + "'";
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
     }
@@ -149,5 +158,22 @@ public abstract class DataShare implements Serializable {
     } catch (RuntimeException e) {
       throw new IllegalArgumentException("Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
     }
+  }
+
+  // Generate a random element in [0, p-1] using SecureRandom.
+  private static Long generateRandom(Long p) throws IllegalArgumentException {
+    if (p <= 0) {
+      throw new IllegalArgumentException("The upper bound should be > 0.");
+    }
+    // Use rejection sampling to generate a random v in [0, p-1].
+    // We generate a v with the same number of bits as p, and restart until v is
+    // smaller than p.
+    SecureRandom secureRandom = new SecureRandom();
+    Long v = Long.MAX_VALUE;
+    while (v >= p) { // this terminates in less than 2 rounds in expectation.
+      v = secureRandom.nextLong();
+      v >>= Long.numberOfLeadingZeros(p);
+    }
+    return v;
   }
 }
