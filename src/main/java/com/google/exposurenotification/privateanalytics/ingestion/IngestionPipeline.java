@@ -69,6 +69,7 @@ public class IngestionPipeline {
               .build();
     }
   }
+
   /**
    * A DoFn that filters documents in particular time window
    */
@@ -128,7 +129,8 @@ public class IngestionPipeline {
       PCollection<DataShare> inputDataShares, IngestionPipelineOptions options) {
     PCollection<DataShare> dataShares = inputDataShares
         .apply("Filter dates", ParDo.of(new DateFilterFn(options.getStartTime(),
-            options.getDuration())));
+            options.getDuration())))
+        .apply(new DeviceAttestation());
     // TODO: fork data shares for PHA and Facilitator
 
     ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
