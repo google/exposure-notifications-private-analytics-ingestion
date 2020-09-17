@@ -40,6 +40,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description("Firebase Project Id")
   @Required
+
   ValueProvider<String> getFirebaseProjectId();
 
   void setFirebaseProjectId(ValueProvider<String> value);
@@ -81,4 +82,27 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   ValueProvider<Long> getDuration();
 
   void setDuration(ValueProvider<Long> value);
+<<<<<<< HEAD
+=======
+
+  /**
+   * Minimum count of participants to preserve privacy(e.g., not allow batch of 1).
+   */
+  @Description(
+      "Minimum count of participants to preserve privacy.")
+  @Default.Long(0)
+  ValueProvider<Long> getMinimumParticipantCount();
+
+  void setMinimumParticipantCount(ValueProvider<Long> value);
+
+  static String displayString(IngestionPipelineOptions options){
+    return "IngestionPipelineOptions:"
+        + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
+        + "\nmetric=" + options.getMetric()
+        + "\noutput=" + options.getOutput()
+        + "\nstart=" + options.getStartTime()
+        + "\nduration=" + options.getDuration()
+        + "\nminParticipant=" + options.getMinimumParticipantCount();
+  }
+>>>>>>> f447de7 (log options during execution, graph during init)
 }

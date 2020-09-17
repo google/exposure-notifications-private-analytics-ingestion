@@ -17,6 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.nio.ByteBuffer;
+import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.metrics.Counter;
@@ -25,6 +26,7 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -104,6 +106,7 @@ public class IngestionPipeline {
     }
   }
 
+<<<<<<< HEAD
   static void runIngestionPipeline(IngestionPipelineOptions options) throws Exception {
     Pipeline pipeline = Pipeline.create(options);
     pipeline.apply(new FirestoreReader())
@@ -117,6 +120,55 @@ public class IngestionPipeline {
         .apply("SerializeElements", MapElements.via(new FormatAsTextFn()))
         .apply("WriteBatches", TextIO.write().to(options.getOutput()));
 
+=======
+  /**
+   * Process input {@link PCollection<DataShare>}, and make them available for final serialization.
+   */
+  static PCollection<DataShare> processDataShares(
+      PCollection<DataShare> inputDataShares, IngestionPipelineOptions options) {
+    PCollection<DataShare> dataShares = inputDataShares
+        .apply("Filter dates", ParDo.of(new DateFilterFn(options.getStartTime(),
+            options.getDuration())));
+    // TODO: fork data shares for PHA and Facilitator
+
+    ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
+    PAssert.thatSingleton(dataShares.apply("CountParticipants", Count.globally()))
+        .satisfies(input -> {
+          Assert.assertTrue("Number of participating devices is:"
+                  + input
+                  + " which is less than the minimum requirement of "
+                  + minParticipantCount.get(),
+              input >= minParticipantCount.get());
+          return null;
+        });
+
+    return dataShares;
+  }
+
+
+  static void runIngestionPipeline(IngestionPipelineOptions options) {
+    Pipeline pipeline =  Pipeline.create(options);
+    // Log pipeline options.
+    // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
+    // the ValueProviders as part of job execution and not during setup.
+    pipeline.apply(Create.of(1))
+        .apply(
+            ParDo.of(
+                new DoFn<Integer, Integer>() {
+                  @ProcessElement
+                  public void process(ProcessContext c) {
+                    IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
+                    LOG.info(IngestionPipelineOptions.displayString(options));
+                  }
+                }));
+
+    processDataShares(pipeline.apply(new FirestoreReader()), options)
+        .apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()))
+        .apply(AvroIO.write(PrioDataSharePacket.class)
+            .to(options.getOutput())
+            .withSuffix(".avro"));
+    LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
+>>>>>>> f447de7 (log options during execution, graph during init)
     pipeline.run().waitUntilFinish();
   }
 
