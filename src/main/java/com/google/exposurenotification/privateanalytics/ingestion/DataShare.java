@@ -18,28 +18,44 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.auto.value.AutoValue;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.security.SecureRandom;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-/** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
+/**
+ * Pipeline view of Firestore documents corresponding to Prio data share pairs.
+ */
 @AutoValue
 public abstract class DataShare implements Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   // Firestore document field names
   // TODO: link to ENX app github repo where these are defined
   public static final String PAYLOAD = "payload";
+  public static final String SIGNATURE = "signature";
+  public static final String CERT_CHAIN = "certificateChain";
 
   // Payload fields
   public static final String ENCRYPTED_DATA_SHARES = "encryptedDataShares";
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
+
+  // Signature and certificates fields
+  public abstract @Nullable String getSignature();
+  public abstract @Nullable List<X509Certificate> getCertificateChain();
 
   // Prio Parameters field names
   public static final String PRIME = "prime";
@@ -64,8 +80,6 @@ public abstract class DataShare implements Serializable {
   public abstract @Nullable Integer getHammingWeight();
   public abstract @Nullable List<Map<String, String>> getEncryptedDataShares();
 
-  // TODO: attestation, certificateChain, and signature
-
   /**
    * @return Pipeline projection of Firestore document
    */
@@ -75,17 +89,15 @@ public abstract class DataShare implements Serializable {
     try {
       builder.setId(doc.getId());
     } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: 'ID'", e);
+      throw new IllegalArgumentException("Missing required field: ID", e);
     }
 
     // Step 1: Process the payload.
-    Map<String, Object> payload = new HashMap<>();
-    System.out.println(payload.getClass());
-    try {
-      payload = (Map<String, Object>) doc.get(PAYLOAD);
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + PAYLOAD + "'", e);
+    Map<String, Object> payload = (Map<String, Object>) doc.get(PAYLOAD);
+    if (payload == null) {
+      throw new IllegalArgumentException("Missing required field: " + PAYLOAD);
     }
+
     builder.setCreated(checkThenGet(CREATED, Timestamp.class, payload, PAYLOAD).getSeconds());
     builder.setUuid(checkThenGet(UUID, String.class, payload, PAYLOAD));
 
@@ -101,32 +113,57 @@ public abstract class DataShare implements Serializable {
       builder.setHammingWeight(checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
     }
 
-    try {
-      // Generate a r_PIT randomly for every data share.
-      Long rPit = generateRandom(prime);
-      builder.setRPit(rPit);
-    }
-    catch(IllegalArgumentException e) {
-      throw new IllegalArgumentException("The prime specified in the Prio parameters is invalid.");
-    }
+    // Generate a r_PIT randomly for every data share.
+    Long rPit = generateRandom(prime);
+    builder.setRPit(rPit);
 
-    List<Map<String, String>> encryptedDataShares =
-            checkThenGet(ENCRYPTED_DATA_SHARES, ArrayList.class, payload, PAYLOAD);
+    // Get the encrypted shares.
+    List<Map<String, String>> encryptedDataShares = checkThenGet(ENCRYPTED_DATA_SHARES, ArrayList.class, payload,
+        PAYLOAD);
     if (encryptedDataShares.size() != numberOfServers) {
-      throw new IllegalArgumentException(
-              "Mismatch between number of servers (" + numberOfServers + ") and number of data shares (" + encryptedDataShares.size() + ")");
+      throw new IllegalArgumentException("Mismatch between number of servers (" + numberOfServers
+          + ") and number of data shares (" + encryptedDataShares.size() + ")");
     }
 
     // Ensure data shares are of correct type.
     for (int i = 0; i < encryptedDataShares.size(); i++) {
-      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" +  i + "]");
-      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" +  i + "]");
+      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" + i + "]");
+      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" + i + "]");
     }
     builder.setEncryptedDataShares(encryptedDataShares);
 
+    // Step 2: Get the signature.
+    String signature = (String) doc.get(SIGNATURE);
+    if (signature == null) {
+      throw new IllegalArgumentException("Missing required field: " + SIGNATURE);
+    }
+    builder.setSignature(signature);
+
+    // Step 3: Get the chain of X509 certificates.
+    List<String> certChainString = (List<String>) doc.get(CERT_CHAIN);
+    if (certChainString == null) {
+      throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
+    }
+
+    List<X509Certificate> certChainX509 = new ArrayList<>();
+    try {
+      CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+      for (String cert : certChainString) {
+        // Decode.
+        byte[] certBytes = Base64.getDecoder().decode(cert);
+        // Parse as X509 certificate.
+        InputStream in = new ByteArrayInputStream(certBytes);
+        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(in);
+        certChainX509.add(certX509);
+      }
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN, e);
+    }
+
+    builder.setCertificateChain(certChainX509);
+
     return builder.build();
   }
-
 
   static Builder builder() {
     return new AutoValue_DataShare.Builder();
@@ -145,9 +182,12 @@ public abstract class DataShare implements Serializable {
     abstract Builder setRPit(@Nullable Long value);
     abstract Builder setHammingWeight(@Nullable Integer value);
     abstract Builder setEncryptedDataShares(@Nullable List<Map<String, String>> value);
+    abstract Builder setSignature(@Nullable String value);
+    abstract Builder setCertificateChain(@Nullable List<X509Certificate> certChain);
   }
 
-  // Returns a casted element from a map and provides detailed exceptions upon failure.
+  // Returns a casted element from a map and provides detailed exceptions upon
+  // failure.
   private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
@@ -156,7 +196,8 @@ public abstract class DataShare implements Serializable {
     try {
       return fieldClass.cast(sourceMap.get(field));
     } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
+      throw new IllegalArgumentException(
+          "Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
     }
   }
 
@@ -170,7 +211,7 @@ public abstract class DataShare implements Serializable {
     // smaller than p.
     SecureRandom secureRandom = new SecureRandom();
     Long v = Long.MAX_VALUE;
-    while (v >= p) { // this terminates in less than 2 rounds in expectation.
+    while (v >= p || v < 0) { // this terminates in less than 4 rounds in expectation.
       v = secureRandom.nextLong();
       v >>= Long.numberOfLeadingZeros(p);
     }
