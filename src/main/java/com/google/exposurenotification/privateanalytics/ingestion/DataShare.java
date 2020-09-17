@@ -19,8 +19,12 @@ import com.google.auto.value.AutoValue;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
@@ -29,10 +33,13 @@ public abstract class DataShare implements Serializable {
 
   // Firestore document field names
   // TODO: link to ENX app github repo where these are defined
+  public static final String PAYLOAD = "payload";
+
+  // Payload fields
+  public static final String ENCRYPTED_DATA_SHARES = "encryptedDataShares";
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
-  public static final String R_PIT = "rPit";
 
   // Prio Parameters field names
   public static final String PRIME = "prime";
@@ -40,7 +47,10 @@ public abstract class DataShare implements Serializable {
   public static final String EPSILON = "epsilon";
   public static final String NUMBER_OF_SERVERS = "numberServers";
   public static final String HAMMING_WEIGHT = "hammingWeight"; // Optional field
-  public static final String[] requiredPrioParams = new String[] {PRIME, BINS, EPSILON, NUMBER_OF_SERVERS};
+
+  // Encrypted Data Share fields
+  public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
+  public static final String DATA_SHARE_PAYLOAD = "payload";
 
   /** Firestore document id */
   public abstract @Nullable String getId();
@@ -52,96 +62,61 @@ public abstract class DataShare implements Serializable {
   public abstract @Nullable Integer getNumberOfServers();
   public abstract @Nullable Long getRPit();
   public abstract @Nullable Integer getHammingWeight();
+  public abstract @Nullable List<Map<String, String>> getEncryptedDataShares();
 
-
-  // TODO: List<encrypted payload>, attestation, etc
+  // TODO: attestation, certificateChain, and signature
 
   /**
    * @return Pipeline projection of Firestore document
    */
+
   public static DataShare from(DocumentSnapshot doc) {
     DataShare.Builder builder = builder();
     try {
-        builder.setId(doc.getId());
+      builder.setId(doc.getId());
     } catch (RuntimeException e) {
       throw new IllegalArgumentException("Missing required field: 'ID'", e);
     }
 
+    Map<String, Object> payload = new HashMap<>();
+    System.out.println(payload.getClass());
     try {
-      Timestamp timestamp = doc.getTimestamp(CREATED);
-        builder.setCreated(timestamp.getSeconds());
+      payload = (Map<String, Object>) doc.get(PAYLOAD);
     } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + CREATED, e);
+      throw new IllegalArgumentException("Missing required field: '" + PAYLOAD + "'", e);
     }
+    builder.setCreated(checkThenGet(CREATED, Timestamp.class, payload, PAYLOAD).getSeconds());
+    builder.setUuid(checkThenGet(UUID, String.class, payload, PAYLOAD));
 
-    try {
-      builder.setUuid(doc.getString(UUID));
-    } catch (NullPointerException e) {
-      throw new IllegalArgumentException("Missing required field: '" + UUID, e);
-    }
-
-    try {
-      builder.setRPit(doc.getLong(R_PIT));
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: " + R_PIT, e);
-    }
-
-    Map<String, Object> prioParams = new HashMap<>();
-    try {
-      prioParams = (Map<String, Object>) doc.get(PRIO_PARAMS);
-      if (prioParams == null) {
-        throw new IllegalArgumentException("Missing required field: '" + PRIO_PARAMS + "'");
-      }
-    } catch (RuntimeException e) {
-        throw new IllegalArgumentException("Missing required field: '" + PRIO_PARAMS + "'");
-      }
-
-    for (String key : requiredPrioParams) {
-      if (prioParams.get(key) == null) {
-          throw new IllegalArgumentException("Missing required field: '" + key + "' from '" + PRIO_PARAMS + "'");
-      }
-    }
-
-    for (String key : requiredPrioParams) {
-      if (prioParams.get(key) == null) {
-        throw new IllegalArgumentException("Missing required field: " + key + " from '" + PRIO_PARAMS + "'");
-      }
-    }
-
-    try {
-    builder.setPrime((Long) prioParams.get(PRIME));
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + PRIME + "' from '" + PRIO_PARAMS + "'", e);
-    }
-
-    try {
-      builder.setEpsilon( (Double) prioParams.get(EPSILON));
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + EPSILON + "' from '" + PRIO_PARAMS + "'", e);
-    }
-
-    try {
-      builder.setBins(( (Long) prioParams.get(BINS)).intValue());
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + BINS + "' from '" + PRIO_PARAMS + "'", e);
-    }
-
-    try {
-      builder.setNumberOfServers(( (Long) prioParams.get(NUMBER_OF_SERVERS)).intValue());
-    } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: '" + NUMBER_OF_SERVERS + "' from '" + PRIO_PARAMS + "'", e);
-    }
-
+    Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, HashMap.class, payload, PAYLOAD);
+    Long prime = checkThenGet(PRIME, Long.class, prioParams, PRIO_PARAMS);
+    builder.setPrime(prime);
+    builder.setRPit(ThreadLocalRandom.current().nextLong(prime));
+    builder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
+    builder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
+    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS).intValue();
+    builder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
-      try {
-        builder.setHammingWeight(((Long) prioParams.get(HAMMING_WEIGHT)).intValue());
-      } catch (RuntimeException e) {
-        throw new IllegalArgumentException("Error parsing field: '" + HAMMING_WEIGHT + "' from '" + PRIO_PARAMS + "'", e);
-      }
+      builder.setHammingWeight(checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
     }
+
+    List<Map<String, String>> encryptedDataShares =
+            checkThenGet(ENCRYPTED_DATA_SHARES, ArrayList.class, payload, PAYLOAD);
+    if (encryptedDataShares.size() != numberOfServers) {
+      throw new IllegalArgumentException(
+              "Mismatch between number of servers (" + numberOfServers + ") and number of data shares (" + encryptedDataShares.size() + ")");
+    }
+
+    // Ensure data shares are of correct type.
+    for (int i = 0; i < encryptedDataShares.size(); i++) {
+      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" +  i + "]");
+      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" +  i + "]");
+    }
+    builder.setEncryptedDataShares(encryptedDataShares);
 
     return builder.build();
   }
+
 
   static Builder builder() {
     return new AutoValue_DataShare.Builder();
@@ -159,5 +134,20 @@ public abstract class DataShare implements Serializable {
     abstract Builder setNumberOfServers(@Nullable Integer value);
     abstract Builder setRPit(@Nullable Long value);
     abstract Builder setHammingWeight(@Nullable Integer value);
+    abstract Builder setEncryptedDataShares(@Nullable List<Map<String, String>> value);
+  }
+
+  // Returns a casted element from a map and provides detailed exceptions upon failure.
+  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
+    String errorMessage = "Missing required field: '" + field + "' from '" + sourceName + "'";
+    if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
+      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
+    }
+
+    try {
+      return fieldClass.cast(sourceMap.get(field));
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException("Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
+    }
   }
 }
