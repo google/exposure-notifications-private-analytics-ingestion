@@ -15,15 +15,15 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.common.truth.Truth;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.rules.ExpectedException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -44,9 +44,6 @@ public class DataShareTest {
 
   @Rule
   public MockitoRule mockitoRule = MockitoJUnit.rule();
-
-  @Rule
-  public ExpectedException thrown = ExpectedException.none();
 
   @Test
   public void testHappyCase() {
@@ -69,13 +66,13 @@ public class DataShareTest {
 
     DataShare dataShare = DataShare.from(documentSnapshot);
 
-    Truth.assertThat(dataShare.getId()).isEqualTo("id");
-    Truth.assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
-    Truth.assertThat(dataShare.getRPit()).isEqualTo(7654321L);
-    Truth.assertThat(dataShare.getPrime()).isEqualTo(4293918721L);
-    Truth.assertThat(dataShare.getBins()).isEqualTo(2L);
-    Truth.assertThat(dataShare.getHammingWeight()).isEqualTo(1L);
-    Truth.assertThat(dataShare.getEpsilon()).isEqualTo(5.2933D);
+    assertThat(dataShare.getId()).isEqualTo("id");
+    assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
+    assertThat(dataShare.getRPit()).isEqualTo(7654321L);
+    assertThat(dataShare.getPrime()).isEqualTo(4293918721L);
+    assertThat(dataShare.getBins()).isEqualTo(2L);
+    assertThat(dataShare.getHammingWeight()).isEqualTo(1L);
+    assertThat(dataShare.getEpsilon()).isEqualTo(5.2933D);
   }
 
   @Test
@@ -88,13 +85,9 @@ public class DataShareTest {
     when(documentSnapshot.getLong(eq(DataShare.R_PIT)))
             .thenReturn(7654321L);
 
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Missing required field: 'prioParams'");
-    DataShare dataShare = DataShare.from(documentSnapshot);
-
-    Truth.assertThat(dataShare.getId()).isEqualTo("id");
-    Truth.assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
-    Truth.assertThat(dataShare.getRPit()).isEqualTo(7654321L);
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        () -> DataShare.from(documentSnapshot));
+    assertThat(e).hasMessageThat().contains("Missing required field: 'prioParams'");
   }
 
   @Test
@@ -115,20 +108,18 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.PRIO_PARAMS)))
             .thenReturn(mockPrioParams);
 
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Missing required field: 'prime' from 'prioParams'");
-    DataShare dataShare = DataShare.from(documentSnapshot);
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        () -> DataShare.from(documentSnapshot));
+    assertThat(e).hasMessageThat().contains("Missing required field: 'prime' from 'prioParams'");
+
   }
 
   @Test
   public void testWrongTypes() {
     when(documentSnapshot.getId()).thenReturn("id");
     when(documentSnapshot.get(eq(DataShare.CREATED))).thenReturn(3.14);
-    thrown.expect(IllegalArgumentException.class);
-    DataShare dataShare = DataShare.from(documentSnapshot);
-
-    Truth.assertThat(dataShare.getId()).isEqualTo("id");
-    Truth.assertThat(dataShare.getCreated()).isNull();
+    assertThrows(IllegalArgumentException.class,
+        () -> DataShare.from(documentSnapshot));
   }
 
 }
