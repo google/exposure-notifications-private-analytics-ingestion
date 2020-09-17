@@ -37,6 +37,7 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PDone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,45 +46,84 @@ import org.slf4j.LoggerFactory;
  *
  * For a general purpose connector see https://issues.apache.org/jira/browse/BEAM-8376
  */
-public class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
+public class FirestoreConnector {
 
-  private static final Logger LOG = LoggerFactory.getLogger(FirestoreReader.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
   private static final Counter invalidDocumentCounter = Metrics
-      .counter(FirestoreReader.class, "invalidDocuments");
+      .counter(FirestoreConnector.class, "invalidDocuments");
 
-  @Override
-  public PCollection<DataShare> expand(PBegin input) {
-    return input
-        // XXX: total hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
-        .apply(Create.of(""))
-        // TODO(larryjacobs): run partition query to split into cursors, and pass that to ReadFn
-        //      apparently the Source idiom is no longer favored?
-        //        https://beam.apache.org/documentation/io/developing-io-overview/#sources
-        //        https://beam.apache.org/blog/splittable-do-fn/
-        // TODO(larryjacobs): reshuffle
-        .apply(ParDo.of(new ReadFn()));
-  }
+  /** Reads documents from Firestore */
+  public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
 
-  // TODO(larryjacobs): switch to take partitioned query cursors as input
-  static class ReadFn extends DoFn<String, DataShare> {
-
-    private Firestore db;
-
-    @StartBundle
-    public void startBundle(StartBundleContext context) throws Exception {
-      db = initializeFirestore(context.getPipelineOptions().as(IngestionPipelineOptions.class));
+    @Override
+    public PCollection<DataShare> expand(PBegin input) {
+      return input
+          // XXX: total hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
+          .apply(Create.of(""))
+          // TODO(larryjacobs): run partition query to split into cursors, and pass that to ReadFn
+          //      apparently the Source idiom is no longer favored?
+          //        https://beam.apache.org/documentation/io/developing-io-overview/#sources
+          //        https://beam.apache.org/blog/splittable-do-fn/
+          // TODO(larryjacobs): reshuffle
+          .apply(ParDo.of(new ReadFn()));
     }
 
-    @ProcessElement
-    public void processElement(ProcessContext context) throws Exception {
-      String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric()
-          .get();
-      for (DataShare ds : readDocumentsFromFirestore(db, metric)) {
-        context.output(ds);
+    // TODO(larryjacobs): switch to take partitioned query cursors as input
+    static class ReadFn extends DoFn<String, DataShare> {
+
+      private Firestore db;
+
+      @StartBundle
+      public void startBundle(StartBundleContext context) throws Exception {
+        db = initializeFirestore(context.getPipelineOptions().as(IngestionPipelineOptions.class));
+      }
+
+      @ProcessElement
+      public void processElement(ProcessContext context) throws Exception {
+        String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric()
+            .get();
+        for (DataShare ds : readDocumentsFromFirestore(db, metric)) {
+          context.output(ds);
+        }
       }
     }
   }
+
+  /** Deletes documents from Firestore */
+  public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
+
+    @Override
+    public PDone expand(PCollection<DataShare> input) {
+      // TODO: would it be useful to sort on document paths to get more efficient deletes?
+      input.apply(ParDo.of(new DeleteFn()));
+      return PDone.in(input.getPipeline());
+    }
+
+    // TODO: batch up deletes
+    // https://firebase.google.com/docs/firestore/manage-data/delete-data#collections
+    // https://github.com/googleapis/nodejs-firestore/issues/64
+    static class DeleteFn extends DoFn<DataShare, Void> {
+
+      private Firestore db;
+
+      @StartBundle
+      public void startBundle(StartBundleContext context) throws Exception {
+        db = initializeFirestore(context.getPipelineOptions().as(IngestionPipelineOptions.class));
+      }
+
+      @ProcessElement
+      public void processElement(ProcessContext context) throws Exception {
+        IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        // TODO: way to short circuit this earlier based on a ValueProvider flag?
+        if (options.getDelete().get()) {
+          // TODO: better way to do a delete without retrieving doc again? Can't put DocumentSnapshot's in a PCollection as they're not serializable
+          // db.document(context.element().getId()).delete()
+        }
+      }
+    }
+  }
+
 
   // Initializes and returns a Firestore instance.
   private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions)

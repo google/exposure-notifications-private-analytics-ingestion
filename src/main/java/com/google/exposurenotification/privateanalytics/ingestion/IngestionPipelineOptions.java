@@ -95,6 +95,16 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setMinimumParticipantCount(ValueProvider<Long> value);
 
+  /**
+   * Whether to delete documents once they've been processed
+   */
+  @Description(
+      "Delete documents at end of pipeline")
+  @Default.Boolean(false)
+  ValueProvider<Boolean> getDelete();
+
+  void setDelete(ValueProvider<Boolean> value);
+
   static String displayString(IngestionPipelineOptions options){
     return "IngestionPipelineOptions:"
         + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
@@ -102,7 +112,8 @@ public interface IngestionPipelineOptions extends PipelineOptions {
         + "\noutput=" + options.getOutput()
         + "\nstart=" + options.getStartTime()
         + "\nduration=" + options.getDuration()
-        + "\nminParticipant=" + options.getMinimumParticipantCount();
+        + "\nminParticipant=" + options.getMinimumParticipantCount()
+        + "\ndelete=" + options.getDelete();
   }
 >>>>>>> f447de7 (log options during execution, graph during init)
 }

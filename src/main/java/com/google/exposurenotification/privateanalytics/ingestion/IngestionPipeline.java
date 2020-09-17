@@ -15,6 +15,8 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
+import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.nio.ByteBuffer;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
@@ -159,16 +161,21 @@ public class IngestionPipeline {
                 new DoFn<Integer, Integer>() {
                   @ProcessElement
                   public void process(ProcessContext c) {
-                    IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
+                    IngestionPipelineOptions options = c.getPipelineOptions()
+                        .as(IngestionPipelineOptions.class);
                     LOG.info(IngestionPipelineOptions.displayString(options));
                   }
                 }));
 
-    processDataShares(pipeline.apply(new FirestoreReader()), options)
+    PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    processDataShares(dataShares, options)
         .apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()))
         .apply(AvroIO.write(PrioDataSharePacket.class)
             .to(options.getOutput())
             .withSuffix(".avro"));
+    // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
+    dataShares.apply(new FirestoreDeleter());
+
     LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
 >>>>>>> f447de7 (log options during execution, graph during init)
     pipeline.run().waitUntilFinish();
