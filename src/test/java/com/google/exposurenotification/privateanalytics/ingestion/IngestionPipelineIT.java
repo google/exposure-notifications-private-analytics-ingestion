@@ -26,15 +26,25 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -49,12 +59,9 @@ import org.junit.runners.JUnit4;
 public class IngestionPipelineIT {
 
   static final long CREATION_TIME = 12345L;
-  static final Timestamp CREATED = Timestamp.ofTimeSecondsAndNanos(CREATION_TIME, 0);
-  static final String DOC_1_ID = "doc1";
-  static final String DOC_2_ID = "doc2";
+  static final long DURATION = 10000L;
   static final String FIREBASE_PROJECT_ID = "emulator-test-project";
-  static final long MINIMUM_PARTICIPANT_COUNT = 0L;
-  static final long DURATION = 100000000L;
+  static final long MINIMUM_PARTICIPANT_COUNT = 1L;
   static final String SERVICE_ACCOUNT_KEY_PATH = "PATH/TO/SERVICE_ACCOUNT_KEY.json";
   static final String TEST_COLLECTION_NAME = "test-uuid";
 
@@ -64,19 +71,20 @@ public class IngestionPipelineIT {
   public TemporaryFolder tmpFolder = new TemporaryFolder();
 
   @BeforeClass
-  public static void setUp() throws Exception {
+  public static void setUp() {
     FirebaseOptions options = FirebaseOptions.builder()
         .setProjectId(FIREBASE_PROJECT_ID)
         .setCredentials(GoogleCredentials.newBuilder().build())
         .build();
     FirebaseApp.initializeApp(options);
     db = FirestoreClient.getFirestore();
-    seedDatabase(db);
   }
 
   @Test
   @Category(NeedsRunner.class)
-  public void testIngestionPipeline() throws Exception {
+  public void testIngestionPipeline() throws IOException, ExecutionException, InterruptedException {
+    Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db);
+
     File outputFile = tmpFolder.newFile();
     IngestionPipelineOptions options = TestPipeline.testingPipelineOptions().as(
         IngestionPipelineOptions.class);
@@ -85,22 +93,29 @@ public class IngestionPipelineIT {
     options.setServiceAccountKey(StaticValueProvider.of(SERVICE_ACCOUNT_KEY_PATH));
     options.setMetric(StaticValueProvider.of(TEST_COLLECTION_NAME));
     options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
+    options.setStartTime(StaticValueProvider.of(CREATION_TIME));
     options.setDuration(StaticValueProvider.of(DURATION));
 
     IngestionPipeline.runIngestionPipeline(options);
 
-    //TODO(larryjacobs): assert actualOutput == expected. Unable to make this assertion now
-    // because the temporary outputFile is being deleted too soon after the pipeline finishes running.
-    String actualOutput = readFile(outputFile);
-    DataShare ds1 = DataShare.builder().setId(DOC_1_ID).setCreated(CREATION_TIME).build();
-    DataShare ds2 = DataShare.builder().setId(DOC_2_ID).setCreated(CREATION_TIME).build();
+    Map<String, PrioDataSharePacket> actualDataSharepackets = readOutput();
+    for(Map.Entry<String, PrioDataSharePacket> entry : actualDataSharepackets.entrySet()) {
+      Assert.assertTrue("Output contains data which is not present in input", inputDataSharePackets.containsKey(entry.getKey()));
+      comparePrioDataSharePacket(entry.getValue(), inputDataSharePackets.get(entry.getKey()));
+    }
   }
 
-  private String readFile(File outputFile) throws IOException {
-    FileReader fileReader = new FileReader(outputFile);
-    char[] chars = new char[(int) outputFile.length()];
-    fileReader.read(chars);
-    return new String(chars);
+  private Map<String, PrioDataSharePacket> readOutput() throws IOException {
+    Map<String, PrioDataSharePacket> result = new HashMap<>();
+    Stream<Path> paths = Files.walk(Paths.get(tmpFolder.getRoot().getPath()));
+    List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+    for(Path path : pathList) {
+      if(path.toString().endsWith(".avro")) {
+        List<PrioDataSharePacket> packets = PrioSerializer.deserializeDataSharePackets(path.toString());
+        result.putAll(packets.stream().collect(Collectors.toMap(packet -> packet.getUuid().toString(), Function.identity())));
+      }
+    }
+    return result;
   }
 
   private String getFilePath(String filePath) {
@@ -111,26 +126,79 @@ public class IngestionPipelineIT {
   }
 
   /**
-   * Creates test-users collection and adds sample documents to test queries.
+   * Creates test-users collection and adds sample documents to test queries. Returns entry value in form of {@link Map<String, PrioDataSharePacket>}.
    */
-  private static void seedDatabase(Firestore db) throws Exception {
+  private static Map<String, PrioDataSharePacket> seedDatabaseAndReturnEntryVal(Firestore db)
+      throws ExecutionException, InterruptedException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
-    TimeUnit.SECONDS.sleep(20);
+    TimeUnit.SECONDS.sleep(1);
 
     WriteBatch batch = db.batch();
 
-    DocumentReference doc1 = db.collection(TEST_COLLECTION_NAME).document(DOC_1_ID);
     Map<String, Object> docData = new HashMap<>();
-    docData.put("created", CREATED);
-    batch.set(doc1, docData);
-
-    DocumentReference doc2 = db.collection(TEST_COLLECTION_NAME).document(DOC_2_ID);
-    batch.set(doc2, docData);
-    docData.put("created", CREATED);
+    List<DocumentReference> listDocReference = new ArrayList<>();
+    for(int i = 1; i <= 2; i++) {
+      docData.put("id", "id" + i);
+      docData.put("payload", getSamplePayload("uuid" + i, CREATION_TIME));
+      DocumentReference reference = db.collection(TEST_COLLECTION_NAME).document("doc" + i);
+      batch.set(reference, docData);
+      listDocReference.add(reference);
+    }
 
     ApiFuture<List<WriteResult>> future = batch.commit();
     // future.get() blocks on batch commit operation
     future.get();
+
+    Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
+    for(DocumentReference reference : listDocReference) {
+      DataShare dataShare = DataShare.from(reference.get().get());
+      PrioDataSharePacket packet = PrioDataSharePacket.newBuilder()
+          .setEncryptionKeyId("hardCodedID")
+          .setRPit(dataShare.getRPit())
+          .setUuid(dataShare.getUuid())
+          .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
+          .build();
+      dataShareByUuid.put(dataShare.getUuid(), packet);
+    }
+
+    return dataShareByUuid;
+  }
+
+  private static void comparePrioDataSharePacket(PrioDataSharePacket first, PrioDataSharePacket second) {
+    Assert.assertEquals(first.getUuid().toString(),second.getUuid().toString());
+    Assert.assertEquals(first.getEncryptedPayload(), second.getEncryptedPayload());
+    Assert.assertEquals(first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
+  }
+
+  private static Map<String, Object> getSamplePayload(String uuid, long timestampSeconds) {
+    Map<String, Object> samplePayload = new HashMap<>();
+
+    Map<String, Object> samplePrioParams = new HashMap<>();
+    samplePrioParams.put(DataShare.PRIME, 4293918721L);
+    samplePrioParams.put(DataShare.BINS, 2L);
+    samplePrioParams.put(DataShare.EPSILON, 5.2933D);
+    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS, 2L);
+    samplePrioParams.put(DataShare.HAMMING_WEIGHT, 1L);
+    samplePayload.put(DataShare.PRIO_PARAMS, samplePrioParams);
+
+
+    List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
+
+    Map<String, String> sampleDataShare1 = new HashMap<>();
+    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
+    sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
+    sampleEncryptedDataShares.add(sampleDataShare1);
+
+    Map<String, String> sampleDataShare2 = new HashMap<>();
+    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
+    sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
+    sampleEncryptedDataShares.add(sampleDataShare2);
+
+    samplePayload.put(DataShare.CREATED, Timestamp.ofTimeSecondsAndNanos(timestampSeconds, 0));
+    samplePayload.put(DataShare.UUID, uuid);
+    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, sampleEncryptedDataShares);
+
+    return samplePayload;
   }
 }
