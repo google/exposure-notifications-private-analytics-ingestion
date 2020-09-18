@@ -19,6 +19,10 @@ import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConne
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
+import java.util.Map;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
@@ -59,16 +63,58 @@ public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
-  public static class SerializeDataShareFn extends SimpleFunction<DataShare, PrioDataSharePacket> {
+  public static class SerializeDataShareFn extends DoFn<DataShare, List<PrioDataSharePacket>> {
+    private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
+    private final ValueProvider<Integer> numberOfServers;
+    private final Counter dataShareIncluded = Metrics
+            .counter(SerializeDataShareFn.class, "dataShareIncluded");
+    private final Counter dataSharesWrongNumberServers = Metrics
+            .counter(SerializeDataShareFn.class, "dataShareExcluded");
 
-    @Override
-    public PrioDataSharePacket apply(DataShare input) {
-      return PrioDataSharePacket.newBuilder()
-              .setEncryptionKeyId("hardCodedID")
-              .setRPit(input.getRPit())
-              .setUuid(input.getUuid())
-              .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
-              .build();
+    public SerializeDataShareFn(ValueProvider<Integer> numberOfServers) {
+      this.numberOfServers = numberOfServers;
+    }
+
+    @ProcessElement
+    public void processElement(ProcessContext c) {
+
+      List<Map<String, String>> encryptedDataShares = c.element().getEncryptedDataShares();
+      if (encryptedDataShares.size() != numberOfServers.get()) {
+        dataSharesWrongNumberServers.inc();
+        LOG.trace("Excluded element: " + c.element());
+        return;
+      }
+
+      List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
+      for (Map<String, String> dataShare : encryptedDataShares) {
+        splitDataShares.add(
+                PrioDataSharePacket.newBuilder()
+                        .setEncryptionKeyId(dataShare.get(DataShare.ENCRYPTION_KEY_ID))
+                        .setEncryptedPayload(
+                                ByteBuffer.wrap(
+                                        dataShare.get(DataShare.DATA_SHARE_PAYLOAD).getBytes()))
+                        .setRPit(c.element().getRPit())
+                        .setUuid(c.element().getUuid())
+                        .build()
+        );
+      }
+      dataShareIncluded.inc();
+      c.output(splitDataShares);
+    }
+  }
+  public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
+    private final int index;
+    public ForkByIndexFn(int index) {
+      this.index = index;
+    }
+
+    @ProcessElement
+    public void processElement(ProcessContext c) {
+      if (index < c.element().size()) {
+        c.output(c.element().get(index));
+      } else {
+        return;
+      }
     }
   }
 
@@ -94,7 +140,6 @@ public class IngestionPipeline {
     @ProcessElement
     public void processElement(ProcessContext c) {
       if (c.element().getCreated() == null || c.element().getCreated() == 0) {
-        // TODO: fork these documents off somewhere so that they are still deleted downstream and we don't accumulate junk
         return;
       }
       if (c.element().getCreated() >= startTime.get() &&
@@ -133,7 +178,6 @@ public class IngestionPipeline {
         .apply("Filter dates", ParDo.of(new DateFilterFn(options.getStartTime(),
             options.getDuration())))
         .apply(new DeviceAttestation());
-    // TODO: fork data shares for PHA and Facilitator
 
     ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
     PAssert.thatSingleton(dataShares.apply("CountParticipants", Count.globally()))
@@ -148,7 +192,6 @@ public class IngestionPipeline {
 
     return dataShares;
   }
-
 
   static void runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline =  Pipeline.create(options);
@@ -167,12 +210,34 @@ public class IngestionPipeline {
                   }
                 }));
 
+    // Ensure that 'numberOfServers' matches the number of output prefixes provided to 'output' option.
+    ValueProvider<Integer> numberOfServers = options.getNumberOfServers();
+    ValueProvider<List<String>> output = options.getOutput();
+    PAssert.thatSingleton(pipeline.apply(Create.of(Arrays.asList("dummyPcollection"))))
+            .satisfies(input -> {
+              Assert.assertTrue("numberOfServers ("
+                              + numberOfServers.get()
+                              + ") does not match the number of file prefixes provided to the 'output' flag. "
+                              + "output: "
+                              + output.get(),
+                      output.get().size() == numberOfServers.get());
+              return null;
+            });
+
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
-    processDataShares(dataShares, options)
-        .apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()))
-        .apply(AvroIO.write(PrioDataSharePacket.class)
-            .to(options.getOutput())
-            .withSuffix(".avro"));
+    PCollection<List<PrioDataSharePacket>> serializedDataShares =
+      processDataShares(dataShares, options)
+          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
+
+    List<String> filePrefixes = options.getOutput().get();
+    for (int i = 0; i < filePrefixes.size(); i++) {
+      serializedDataShares
+              .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(i)))
+              .apply(AvroIO.write(PrioDataSharePacket.class)
+                      .to(filePrefixes.get(i))
+                      .withSuffix(".avro"));
+    }
+
     // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
     dataShares.apply(new FirestoreDeleter());
 

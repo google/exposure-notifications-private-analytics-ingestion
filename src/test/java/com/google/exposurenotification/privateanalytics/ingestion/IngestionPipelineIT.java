@@ -31,10 +31,13 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -52,6 +55,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
 /**
  * Integration tests for {@link IngestionPipeline}.
  */
@@ -84,11 +88,15 @@ public class IngestionPipelineIT {
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws IOException, ExecutionException, InterruptedException {
     Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db);
-
-    File outputFile = tmpFolder.newFile();
+    File outputFile1 = tmpFolder.newFile();
+    File outputFile2 = tmpFolder.newFile();
     IngestionPipelineOptions options = TestPipeline.testingPipelineOptions().as(
         IngestionPipelineOptions.class);
-    options.setOutput(StaticValueProvider.of(getFilePath(outputFile.getAbsolutePath())));
+    List<String> forkedSharesFilePrefixes = Arrays.asList(
+            getFilePath(outputFile1.getAbsolutePath()),
+            getFilePath(outputFile2.getAbsolutePath())
+    );
+    options.setOutput(StaticValueProvider.of(forkedSharesFilePrefixes));
     options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
     options.setServiceAccountKey(StaticValueProvider.of(SERVICE_ACCOUNT_KEY_PATH));
     options.setMetric(StaticValueProvider.of(TEST_COLLECTION_NAME));
@@ -102,6 +110,7 @@ public class IngestionPipelineIT {
     for(Map.Entry<String, PrioDataSharePacket> entry : actualDataSharepackets.entrySet()) {
       Assert.assertTrue("Output contains data which is not present in input", inputDataSharePackets.containsKey(entry.getKey()));
       comparePrioDataSharePacket(entry.getValue(), inputDataSharePackets.get(entry.getKey()));
+      checkSuccessfulFork(forkedSharesFilePrefixes);
     }
   }
 
@@ -200,5 +209,104 @@ public class IngestionPipelineIT {
     samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, sampleEncryptedDataShares);
 
     return samplePayload;
+  }
+
+  /*
+   *  Within each fork, all packets with the same UUID should have unique encryption key Ids and encrypted payloads.
+   *  The remaining fields (i.e. r_PIT)) should remain the same. This function ensures that this is the case.
+   */
+  private void checkSuccessfulFork(List<String> forkedSharesPrefixes) throws IOException {
+    Stream<Path> paths = Files.walk(Paths.get(tmpFolder.getRoot().getPath()));
+    List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+    List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
+    for(Path path : pathList) {
+      for (String forkedSharesPrefix: forkedSharesPrefixes) {
+        if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(".avro")) {
+          forkedDataShares.add(PrioSerializer.deserializeDataSharePackets(path.toString()));
+        }
+      }
+    }
+
+    Map<String, Set<String>> uuidToKeyIds = new HashMap<>();
+    Map<String, Set<String>> uuidToPayloads = new HashMap<>();
+
+    // Key: UUID, Value: data share packet. This map is initialized with a single fork's packets and used to ensure
+    // that corresponding fields in other forks' packets are equivalent where expected.
+    Map<String, PrioDataSharePacket> packetsToCompare = new HashMap<>();
+    if(!forkedDataShares.isEmpty()) {
+      for (PrioDataSharePacket packet : forkedDataShares.get(0)) {
+        String uuid = packet.getUuid().toString();
+        packetsToCompare.put(uuid, packet);
+        Set<String> uuidKeys = new HashSet<>(Arrays.asList(packet.getEncryptionKeyId().toString()));
+        uuidToKeyIds.put(uuid, uuidKeys);
+        Set<String> uuidPayloads = new HashSet<>(Arrays.asList(packet.getEncryptedPayload().toString()));
+        uuidToPayloads.put(uuid, uuidPayloads);
+      }
+    }
+
+    for (int i = 1; i < forkedDataShares.size(); i++) {
+      List<PrioDataSharePacket> packets = forkedDataShares.get(i);
+      Assert.assertEquals("Number of data shares is not equal in each fork.", packetsToCompare.size(), packets.size());
+      for (PrioDataSharePacket packet: packets) {
+        String uuid = packet.getUuid().toString();
+        Assert.assertTrue(
+                "UUID '"
+                        + uuid
+                        + "' does not appear in each fork.",
+                packetsToCompare.containsKey(uuid));
+
+        PrioDataSharePacket comparePacket = packetsToCompare.get(uuid);
+        Assert.assertEquals(comparePacket.getRPit(), packet.getRPit());
+        Assert.assertEquals(comparePacket.getVersionConfiguration(), packet.getVersionConfiguration());
+        Assert.assertEquals(comparePacket.getDeviceNonce(), packet.getDeviceNonce());
+
+        Set<String> uuidKeyIds = uuidToKeyIds.get(uuid);
+        uuidKeyIds.add(packet.getEncryptionKeyId().toString());
+        uuidToKeyIds.put(uuid, uuidKeyIds);
+        Set<String> uuidPayloads = uuidToPayloads.get(uuid);
+        uuidPayloads.add(packet.getEncryptionKeyId().toString());
+        uuidToPayloads.put(uuid, uuidPayloads);
+      }
+    }
+
+    // Check that each encryption key and payload associated with a UUID is unique.
+    boolean allKeyIdsAreUnique = true;
+    String errorUuid = "";
+    int expectedKeyIdCount = forkedSharesPrefixes.size();
+    for (Map.Entry<String, Set<String>> entry: uuidToKeyIds.entrySet()) {
+      if (entry.getValue().size() != expectedKeyIdCount) {
+        allKeyIdsAreUnique = false;
+        errorUuid = entry.getKey();
+        break;
+      }
+    }
+    Assert.assertTrue(
+            "Number of unique encryption key IDs associated with UUID '"
+                    + errorUuid
+                    + "' does not match the number of forked files provided. (" +
+                    + uuidToKeyIds.get(errorUuid).size()
+                    + " ) vs ("
+                    + expectedKeyIdCount
+                    + ").",
+            allKeyIdsAreUnique);
+
+    boolean allPayloadsAreUnique = true;
+    int expectedPayloadCount = forkedSharesPrefixes.size();
+    for (Map.Entry<String, Set<String>> entry: uuidToPayloads.entrySet()) {
+      if (entry.getValue().size() != expectedPayloadCount) {
+        allPayloadsAreUnique = false;
+        errorUuid = entry.getKey();
+        break;
+      }
+    }
+    Assert.assertTrue(
+            "Number of unique encrypted payloads associated with UUID '"
+                    + errorUuid
+                    + "' does not match the number of forked files provided. (" +
+                    + uuidToPayloads.get(errorUuid).size()
+                    + " ) vs ("
+                    + expectedPayloadCount
+                    + ").",
+            allPayloadsAreUnique);
   }
 }

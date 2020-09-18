@@ -17,12 +17,18 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.SerializeDataShareFn;
+import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ForkByIndexFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import java.lang.AssertionError;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.nio.ByteBuffer;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
+import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
@@ -30,6 +36,7 @@ import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PCollection;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -57,8 +64,8 @@ public class IngestionPipelineTest {
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
     PCollection<DataShare> output =
-        input.apply(
-            ParDo.of(new DateFilterFn(StaticValueProvider.of(2L), StaticValueProvider.of(1L))));
+            input.apply(
+                    ParDo.of(new DateFilterFn(StaticValueProvider.of(2L), StaticValueProvider.of(1L))));
 
     PAssert.that(output).containsInAnyOrder(
         Collections.singletonList(
@@ -70,32 +77,44 @@ public class IngestionPipelineTest {
   @Test
   @Category(ValidatesRunner.class)
   public void testSerializeDataShare() {
+    IngestionPipelineOptions options = TestPipeline
+            .testingPipelineOptions().as(IngestionPipelineOptions.class);
+    options.setNumberOfServers(StaticValueProvider.of(2));
+    List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
+    Map<String, String> sampleDataShare1 = new HashMap<>();
+    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
+    sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
+    Map<String, String> sampleDataShare2 = new HashMap<>();
+    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
+    sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
+    sampleEncryptedDataShares.add(sampleDataShare1);
+    sampleEncryptedDataShares.add(sampleDataShare2);
     List<DataShare> dataShares = Arrays.asList(
-        DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId")
-            .build(),
-        DataShare.builder().setPath("id2").setCreated(2L).setRPit(123456L).setUuid("NotSoUniqueId")
+        DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId").setEpsilon(3.14D)
+                .setPrime(600613L).setBins(10).setNumberOfServers(2).setHammingWeight(10)
+                .setEncryptedDataShares(sampleEncryptedDataShares)
             .build()
     );
 
     List<PrioDataSharePacket> avroDataShares = Arrays.asList(
-        PrioDataSharePacket.newBuilder().setEncryptionKeyId("hardCodedID")
-            .setRPit(12345L)
-            .setUuid("SuperUniqueId")
-            // Current hard-coded value of encrypted payload in pipeline is {0x01, 0x02, 0x03, 0x04, 0x05}.
-            .setEncryptedPayload(ByteBuffer.wrap(new byte[]{0x01, 0x02, 0x03, 0x04, 0x05}))
-            .build(),
-        PrioDataSharePacket.newBuilder().setEncryptionKeyId("hardCodedID")
-            .setRPit(123456L)
-            .setUuid("NotSoUniqueId")
-            .setEncryptedPayload(ByteBuffer.wrap(new byte[]{0x01, 0x02, 0x03, 0x04, 0x05}))
-            .build()
+            PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("fakeEncryptionKeyId1")
+                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
+                    .setRPit(12345L)
+                    .setUuid("SuperUniqueId")
+                    .build(),
+            PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("fakeEncryptionKeyId2")
+                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
+                    .setRPit(12345L)
+                    .setUuid("SuperUniqueId")
+                    .build()
     );
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
+    PCollection<List<PrioDataSharePacket>> output =
+            input.apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
 
-    PCollection<PrioDataSharePacket> output =
-        input.apply("SerializeDataShares", MapElements.via(new SerializeDataShareFn()));
-
-    PAssert.that(output).containsInAnyOrder(avroDataShares.get(0), avroDataShares.get(1));
+    PAssert.that(output).containsInAnyOrder(avroDataShares);
     pipeline.run().waitUntilFinish();
   }
 
@@ -103,7 +122,7 @@ public class IngestionPipelineTest {
   @Category(ValidatesRunner.class)
   public void processDataShares_valid() {
     IngestionPipelineOptions options = TestPipeline
-        .testingPipelineOptions().as(IngestionPipelineOptions.class);
+            .testingPipelineOptions().as(IngestionPipelineOptions.class);
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(1L));
@@ -117,7 +136,7 @@ public class IngestionPipelineTest {
         Arrays.asList(DataShare.builder().setPath("id2").setCreated(2L).build());
 
     PCollection<DataShare> actualOutput = IngestionPipeline
-        .processDataShares(pipeline.apply(Create.of(inputData)), options);
+            .processDataShares(pipeline.apply(Create.of(inputData)), options);
 
     PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
     pipeline.run().waitUntilFinish();
@@ -127,7 +146,7 @@ public class IngestionPipelineTest {
   @Category(ValidatesRunner.class)
   public void processDataShares_participantCountlessThanMinCount() {
     IngestionPipelineOptions options = TestPipeline
-        .testingPipelineOptions().as(IngestionPipelineOptions.class);
+            .testingPipelineOptions().as(IngestionPipelineOptions.class);
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(2L));
@@ -139,7 +158,70 @@ public class IngestionPipelineTest {
     );
 
     IngestionPipeline
-        .processDataShares(pipeline.apply(Create.of(inputData)), options);
+            .processDataShares(pipeline.apply(Create.of(inputData)), options);
     pipeline.run().waitUntilFinish();
   }
+
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void testForkDataSharesFn() {
+    IngestionPipelineOptions options = TestPipeline
+            .testingPipelineOptions().as(IngestionPipelineOptions.class);
+    options.setNumberOfServers(StaticValueProvider.of(2));
+
+    List<List<PrioDataSharePacket>> dataSharesInput =
+            Arrays.asList(
+                    Arrays.asList(
+                            PrioDataSharePacket.newBuilder()
+                                    .setEncryptionKeyId("fakeEncryptionKeyId1")
+                                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
+                                    .setRPit(12345L)
+                                    .setUuid("SuperUniqueId")
+                                    .build(),
+                            PrioDataSharePacket.newBuilder()
+                                    .setEncryptionKeyId("fakeEncryptionKeyId2")
+                                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
+                                    .setRPit(12345L)
+                                    .setUuid("SuperUniqueId")
+                                    .build()
+                    ),
+
+                    Arrays.asList(
+                            PrioDataSharePacket.newBuilder()
+                                    .setEncryptionKeyId("bogusEncryptionKeyId1")
+                                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload1".getBytes()))
+                                    .setRPit(600613L)
+                                    .setUuid("AnotherUniqueId")
+                                    .build(),
+                            PrioDataSharePacket.newBuilder()
+                                    .setEncryptionKeyId("bogusEncryptionKeyId2")
+                                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload2".getBytes()))
+                                    .setRPit(600613L)
+                                    .setUuid("AnotherUniqueId")
+                                    .build()
+                    ));
+
+    int index = 1;
+    List<PrioDataSharePacket> dataSharesInIndex = new ArrayList<>();
+    for (List<PrioDataSharePacket> dataSharePackets : dataSharesInput) {
+      dataSharesInIndex.add(dataSharePackets.get(index));
+    }
+    PCollection<PrioDataSharePacket> output =
+            pipeline.apply(Create.of(dataSharesInput))
+                    .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(index)));
+    PAssert.thatSingleton(output.apply("CountDataShares", Count.globally()))
+            .satisfies(input -> {
+              Assert.assertTrue(
+                      "Number of data shares returned does not match number of data shares in index "
+                              + index
+                              + " from dataSharesInput",
+                      input == dataSharesInIndex.size());
+              return null;
+            });
+
+    PAssert.that(output).containsInAnyOrder(dataSharesInIndex);
+    pipeline.run().waitUntilFinish();
+  }
+
 }
