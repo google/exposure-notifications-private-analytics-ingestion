@@ -49,10 +49,10 @@ public class IngestionPipelineTest {
   @Category(ValidatesRunner.class)
   public void testDateFilter() {
     List<DataShare> dataShares = Arrays.asList(
-        DataShare.builder().setId("id1").setCreated(1L).build(),
-        DataShare.builder().setId("id2").setCreated(2L).build(),
-        DataShare.builder().setId("id3").setCreated(3L).build(),
-        DataShare.builder().setId("missing").build()
+        DataShare.builder().setPath("id1").setCreated(1L).build(),
+        DataShare.builder().setPath("id2").setCreated(2L).build(),
+        DataShare.builder().setPath("id3").setCreated(3L).build(),
+        DataShare.builder().setPath("missing").build()
     );
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
@@ -62,7 +62,7 @@ public class IngestionPipelineTest {
 
     PAssert.that(output).containsInAnyOrder(
         Collections.singletonList(
-            DataShare.builder().setId("id2").setCreated(2L)
+            DataShare.builder().setPath("id2").setCreated(2L)
                 .build()));
     pipeline.run().waitUntilFinish();
   }
@@ -71,9 +71,9 @@ public class IngestionPipelineTest {
   @Category(ValidatesRunner.class)
   public void testSerializeDataShare() {
     List<DataShare> dataShares = Arrays.asList(
-        DataShare.builder().setId("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId")
+        DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId")
             .build(),
-        DataShare.builder().setId("id2").setCreated(2L).setRPit(123456L).setUuid("NotSoUniqueId")
+        DataShare.builder().setPath("id2").setCreated(2L).setRPit(123456L).setUuid("NotSoUniqueId")
             .build()
     );
 
@@ -108,13 +108,13 @@ public class IngestionPipelineTest {
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(1L));
     List<DataShare> inputData = Arrays.asList(
-        DataShare.builder().setId("id1").setCreated(1L).build(),
-        DataShare.builder().setId("id2").setCreated(2L).build(),
-        DataShare.builder().setId("id3").setCreated(4L).build(),
-        DataShare.builder().setId("missing").build()
+        DataShare.builder().setPath("id1").setCreated(1L).build(),
+        DataShare.builder().setPath("id2").setCreated(2L).build(),
+        DataShare.builder().setPath("id3").setCreated(4L).build(),
+        DataShare.builder().setPath("missing").build()
     );
     List<DataShare> expectedOutput =
-        Arrays.asList(DataShare.builder().setId("id2").setCreated(2L).build());
+        Arrays.asList(DataShare.builder().setPath("id2").setCreated(2L).build());
 
     PCollection<DataShare> actualOutput = IngestionPipeline
         .processDataShares(pipeline.apply(Create.of(inputData)), options);
@@ -132,10 +132,10 @@ public class IngestionPipelineTest {
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(2L));
     List<DataShare> inputData = Arrays.asList(
-        DataShare.builder().setId("id1").setCreated(1L).build(),
-        DataShare.builder().setId("id2").setCreated(2L).build(),
-        DataShare.builder().setId("id3").setCreated(4L).build(),
-        DataShare.builder().setId("missing").build()
+        DataShare.builder().setPath("id1").setCreated(1L).build(),
+        DataShare.builder().setPath("id2").setCreated(2L).build(),
+        DataShare.builder().setPath("id3").setCreated(4L).build(),
+        DataShare.builder().setPath("missing").build()
     );
 
     IngestionPipeline

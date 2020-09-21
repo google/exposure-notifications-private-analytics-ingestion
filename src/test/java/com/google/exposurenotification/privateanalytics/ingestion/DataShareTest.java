@@ -40,6 +40,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
@@ -50,7 +51,7 @@ import org.mockito.junit.MockitoRule;
 @RunWith(JUnit4.class)
 public class DataShareTest {
 
-  @Mock
+  @Mock(answer = Answers.RETURNS_DEEP_STUBS)
   DocumentSnapshot documentSnapshot;
 
   @Rule
@@ -71,14 +72,14 @@ public class DataShareTest {
     List<String> certsSerialized = certChains.getValue();
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     DataShare dataShare = DataShare.from(documentSnapshot);
 
-    assertThat(dataShare.getId()).isEqualTo("id");
+    assertThat(dataShare.getPath()).isEqualTo("/path/id");
     assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
     assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < dataShare.getPrime());
     assertThat(dataShare.getPrime()).isEqualTo(4293918721L);
@@ -108,7 +109,7 @@ public class DataShareTest {
     samplePayload.remove(DataShare.PRIO_PARAMS);
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
@@ -126,7 +127,8 @@ public class DataShareTest {
     List<String> certsSerialized = certChains.getValue();
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
+    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(null);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
@@ -147,8 +149,9 @@ public class DataShareTest {
     List<String> certsSerialized = certChains.getValue();
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
+    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(null);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
@@ -167,9 +170,10 @@ public class DataShareTest {
     String signature = "signature";
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
+    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(null);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat()
@@ -192,7 +196,7 @@ public class DataShareTest {
     Map<String, Object> samplePayload = createPayload(prioParamsWithoutPrime, encryptedDataShares);
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
@@ -206,7 +210,7 @@ public class DataShareTest {
 
   @Test
   public void testWrongTypes() {
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
 
     // Construct the payload.
     Map<String, Object> prioParams = createPrioParams();
@@ -222,14 +226,11 @@ public class DataShareTest {
     samplePayload.replace(DataShare.CREATED, 3.14);
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
-
-    when(documentSnapshot.getId()).thenReturn("id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertEquals(
         "Error casting '" + DataShare.CREATED + "' from '" + DataShare.PAYLOAD + "' to " + Timestamp.class.getName(),
@@ -249,7 +250,7 @@ public class DataShareTest {
     certsSerialized.add("Incorrect serialization");
 
     // Specify the documentSnapshot
-    when(documentSnapshot.getId()).thenReturn("id");
+    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
     when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
     when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);

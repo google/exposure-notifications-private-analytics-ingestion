@@ -68,8 +68,8 @@ public abstract class DataShare implements Serializable {
   public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
   public static final String DATA_SHARE_PAYLOAD = "payload";
 
-  /** Firestore document id */
-  public abstract @Nullable String getId();
+  /** Firestore document path */
+  public abstract @Nullable String getPath();
   public abstract @Nullable Long getCreated();
   public abstract @Nullable String getUuid();
   public abstract @Nullable Double getEpsilon();
@@ -87,9 +87,9 @@ public abstract class DataShare implements Serializable {
   public static DataShare from(DocumentSnapshot doc) {
     DataShare.Builder builder = builder();
     try {
-      builder.setId(doc.getId());
+      builder.setPath(doc.getReference().getPath());
     } catch (RuntimeException e) {
-      throw new IllegalArgumentException("Missing required field: ID", e);
+      throw new IllegalArgumentException("Missing required field: Path", e);
     }
 
     // Step 1: Process the payload.
@@ -102,7 +102,7 @@ public abstract class DataShare implements Serializable {
     builder.setUuid(checkThenGet(UUID, String.class, payload, PAYLOAD));
 
     // Get the Prio parameters.
-    Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, HashMap.class, payload, PAYLOAD);
+    Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, Map.class, payload, PAYLOAD);
     Long prime = checkThenGet(PRIME, Long.class, prioParams, PRIO_PARAMS);
     builder.setPrime(prime);
     builder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
@@ -172,7 +172,7 @@ public abstract class DataShare implements Serializable {
   @AutoValue.Builder
   abstract static class Builder {
     abstract DataShare build();
-    abstract Builder setId(@Nullable String value);
+    abstract Builder setPath(@Nullable String value);
     abstract Builder setCreated(@Nullable Long value);
     abstract Builder setUuid(@Nullable String value);
     abstract Builder setEpsilon(@Nullable Double value);
@@ -188,14 +188,16 @@ public abstract class DataShare implements Serializable {
 
   // Returns a casted element from a map and provides detailed exceptions upon
   // failure.
-  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
+  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap,
+      String sourceName) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
-      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new IllegalArgumentException(
+          "Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
     try {
       return fieldClass.cast(sourceMap.get(field));
-    } catch (RuntimeException e) {
+    } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           "Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
     }

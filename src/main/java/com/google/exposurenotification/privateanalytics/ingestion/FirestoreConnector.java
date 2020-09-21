@@ -116,9 +116,9 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) throws Exception {
         IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
         // TODO: way to short circuit this earlier based on a ValueProvider flag?
-        if (options.getDelete().get()) {
-          // TODO: better way to do a delete without retrieving doc again? Can't put DocumentSnapshot's in a PCollection as they're not serializable
-          // db.document(context.element().getId()).delete()
+        if (options.getDelete().get() && context.element() != null
+            && context.element().getPath() != null) {
+          db.document(context.element().getPath()).delete();
         }
       }
     }
@@ -152,11 +152,11 @@ public class FirestoreConnector {
     ApiFuture<QuerySnapshot> querySnapshot = query.get();
     List<DataShare> docs = new ArrayList<>();
     for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
-      LOG.debug("Fetched document from Firestore: " + document.getId());
+      LOG.debug("Fetched document from Firestore: " + document.getReference().getPath());
       try {
         docs.add(DataShare.from(document));
       } catch (RuntimeException e) {
-        LOG.debug("Skipping document: " + document.getId());
+        LOG.debug("Skipping document: " + document.getReference().getPath());
         invalidDocumentCounter.inc();
       }
     }
