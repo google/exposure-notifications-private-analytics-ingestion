@@ -4,7 +4,7 @@
   "description": "test suite for configurations",
   "main": "rules_test.js",
   "scripts": {
-    "test": "jest --env=node"
+    "test": "jest --env=node --verbose --forceExit --runInBand"
   },
   "dependencies": {
     "@firebase/testing": "^0.20.11",

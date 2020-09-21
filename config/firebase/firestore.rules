@@ -37,10 +37,45 @@ service cloud.firestore {
           || datePath == buildDatePath(t - duration.value(1, 'h'));
     }
 
+    // Check schema of uploaded document
+    function checkFields(d) {
+      return
+          // Check top level required fields
+          d.payload != null
+          && d.certificateChain != null
+          && d.certificateChain.size() > 0
+          && d.signature != null
+          // nothing extraneous at top level
+          && d.keys().toSet().hasOnly(['certificateChain', 'signature', 'payload'])
+          // Check payload required fields
+          // uuid, created already enforced elsewhere
+          && d.payload.schemaVersion != null
+          && d.payload.encryptedDataShares != null
+          // nothing extraneous at payload level
+          && d.payload.keys().toSet().hasOnly([
+            'uuid', 'created', 'schemaVersion', 'encryptedDataShares', 'prioParams'
+          ])
+          // share per server
+          && d.payload.encryptedDataShares.size() == d.payload.prioParams.numberServers
+          // Check prioParams required fields
+          && d.payload.prioParams != null
+          && d.payload.prioParams.bins != null
+          && d.payload.prioParams.epsilon != null
+          && d.payload.prioParams.numberServers != null
+          && d.payload.prioParams.prime != null
+          // nothing extraneous at prioParams level
+          && d.payload.prioParams.keys().toSet().hasOnly([
+            'bins', 'epsilon', 'hammingWeight', 'numberServers', 'prime'
+          ]);
+    }
+
     match /uuid/{uuid}/date/{date}/metrics/{metricName} {
       allow create: if request.resource.data.payload.uuid == uuid
                     && request.resource.data.payload.created == request.time
-                    && checkDatePath(date, request.resource.data.payload.created);
+                    // Don't ingest anything with auth tokens attached
+                    && request.auth == null
+                    && checkDatePath(date, request.resource.data.payload.created)
+                    && checkFields(request.resource.data);
     }
   }
 }

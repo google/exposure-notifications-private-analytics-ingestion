@@ -14,33 +14,59 @@
 const firebase = require('@firebase/testing');
 const fs = require('fs');
 const path = require('path');
+const assert = require('assert');
 
 const projectId = "emulator-test-project"
+const adminApp = firebase.initializeAdminApp({ projectId: projectId });
 
 beforeAll(async () => {
   await firebase.loadFirestoreRules({
     projectId: projectId,
     rules: fs.readFileSync("firestore.rules", "utf8")
   });
-  const app = firebase.initializeAdminApp({ projectId: projectId });
-  const doc = app.firestore().collection('uuid').doc('preexisting')
+  const doc = adminApp.firestore().collection('uuid').doc('preexisting')
                 .collection('date').doc('2020-09-03-13')
                 .collection('metrics').doc('testMetric');
   await doc.set({
     'payload': {
       'created': firebase.firestore.FieldValue.serverTimestamp(),
-      'uuid': 'preexisting'
-      }
-    });
-});
-
-afterAll(async () => {
-  await Promise.all(firebase.apps().map((app) => app.delete()));
+      'uuid': 'preexisting',
+     }
+  });
 });
 
 function getPath(date) {
   return date.toISOString().split('T')[0] + "-"
        + date.toISOString().split('T')[1].split(':')[0];
+}
+
+function correctContents(uuid = 'foo') {
+  return {
+     'payload': {
+       'created': firebase.firestore.FieldValue.serverTimestamp(),
+       'uuid': uuid,
+       'schemaVersion': '1',
+       'encryptedDataShares': [
+         {
+          'payload': 'payload1',
+          'encryptionKeyId': 'key1'
+         },
+         {
+          'payload': 'payload2',
+          'encryptionKeyId': 'key2'
+         }
+       ],
+       'prioParams': {
+         'bins': 1,
+         'epsilon': 2,
+         'hammingWeight': 3,
+         'numberServers': 2,
+         'prime': 5
+       }
+      },
+      'certificateChain': ['cert1'],
+      'signature': 'sig'
+   };
 }
 
 describe('Tests of document writes and access', () => {
@@ -52,81 +78,83 @@ describe('Tests of document writes and access', () => {
   const datefmt = getPath(new Date());
   it('document cannot be written at wrong path',
       async () => {
-        const doc = db.collection('random').doc('doc');
-        await firebase.assertFails(doc.set({}));
+        const doc = db.collection('random').doc('wrongpath');
+        await firebase.assertFails(doc.set(correctContents()));
+      });
+  it('document cannot be written without payload',
+      async () => {
+        const doc = db.collection('uuid').doc('nopayload')
+                      .collection('date').doc(datefmt)
+                      .collection('metrics').doc('testMetric');
+        contents = correctContents('nopayload');
+        delete contents['payload'];
+        await firebase.assertFails(doc.set(contents));
       });
   it('document cannot be written without uuid',
       async () => {
-        const doc = db.collection('uuid').doc('foo')
+        const doc = db.collection('uuid').doc('nouuidfield')
                       .collection('date').doc(datefmt)
                       .collection('metrics').doc('testMetric');
-        await firebase.assertFails(doc.set({}));
+        contents = correctContents();
+        delete contents['payload']['uuid'] ;
+        await firebase.assertFails(doc.set(contents));
       });
   it('document cannot be written without created field',
       async () => {
-        const doc = db.collection('uuid').doc('foo')
+        const doc = db.collection('uuid').doc('nocreated')
                       .collection('date').doc(datefmt)
                       .collection('metrics').doc('testMetric');
-        await firebase.assertFails(doc.set({
-          'uuid': 'foo'}));
+        contents = correctContents('nocreated');
+        delete contents['payload']['created'];
+        await firebase.assertFails(doc.set(contents));
+      });
+  it('document cannot be written with extraneous field',
+      async () => {
+        const doc = db.collection('uuid').doc('extraneous')
+                      .collection('date').doc(datefmt)
+                      .collection('metrics').doc('testMetric');
+        contents = correctContents('extraneous');
+        contents['payload']['prioParams']['banana'] = "extra field";
+        await firebase.assertFails(doc.set(contents));
       });
   it('documents cannot be created at very old path',
       async () => {
         var oldDate = new Date();
         oldDate.setHours(oldDate.getHours() - 2);
-        const doc = db.collection('uuid').doc('foo')
+        const doc = db.collection('uuid').doc('old')
                       .collection('date').doc(getPath(oldDate))
                       .collection('metrics').doc('testMetric');
-        await firebase.assertFails(doc.set({
-        'payload': {
-          'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'
-          }
-        }));
+        await firebase.assertFails(doc.set(correctContents('old')));
       });
   it('correct documents can be created',
       async () => {
-        const doc = db.collection('uuid').doc('foo')
+        const doc = db.collection('uuid').doc('correct1')
                       .collection('date').doc(datefmt)
                       .collection('metrics').doc('testMetric');
-        await firebase.assertSucceeds(doc.set({
-        'payload': {
-          'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'
-        }
-        }));
+        await firebase.assertSucceeds(doc.set(correctContents('correct1')));
       });
   it('documents can be created at slightly off path',
       async () => {
         var oldDate = new Date();
         oldDate.setHours(oldDate.getHours() - 1);
-        const doc = db.collection('uuid').doc('foo')
+        const doc = db.collection('uuid').doc('correct2')
                       .collection('date').doc(getPath(oldDate))
                       .collection('metrics').doc('testMetric');
-        await firebase.assertSucceeds(doc.set({
-        'payload': {
-          'created': firebase.firestore.FieldValue.serverTimestamp(),
-          'uuid': 'foo'
-          }
-        }));
+        await firebase.assertSucceeds(doc.set(correctContents('correct2')));
       });
   it('document cannot be deleted',
       async () => {
-        const doc = db.collection('uuid').doc('foo')
-                      .collection('date').doc(datefmt)
+        const doc = db.collection('uuid').doc('preexisting')
+                      .collection('date').doc('2020-09-03-13')
                       .collection('metrics').doc('testMetric');
         await firebase.assertFails(doc.delete());
       });
   it('document cannot be updated',
       async () => {
-        const doc = db.collection('uuid').doc('foo')
-                      .collection('date').doc(datefmt)
+        const doc = db.collection('uuid').doc('preexisting')
+                      .collection('date').doc('2020-09-03-13')
                       .collection('metrics').doc('testMetric');
-        await firebase.assertFails(doc.update({
-        'payload': {
-          'uuid': 'foo'
-          }
-        }));
+        await firebase.assertFails(doc.update(correctContents('preexisting')));
       });
   it('document cannot be read',
       async () => {
@@ -134,5 +162,16 @@ describe('Tests of document writes and access', () => {
                       .collection('date').doc('2020-09-03-13')
                       .collection('metrics').doc('testMetric');
         await firebase.assertFails(doc.get());
+      });
+  it('check final state of firestore',
+      async () => {
+        const querySnapshot = await adminApp.firestore()
+                                .collectionGroup('metrics').get();
+        foundUuids = []
+        querySnapshot.forEach((doc) => {
+          foundUuids.push(doc.data()['payload']['uuid']);
+        });
+        assert.notStrictEqual(foundUuids,
+                [ 'correct1', 'correct2', 'preexisting' ])
       });
 });
