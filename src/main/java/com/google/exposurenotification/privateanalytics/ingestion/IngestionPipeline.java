@@ -17,12 +17,13 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
@@ -34,9 +35,8 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.SimpleFunction;
+import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -230,12 +230,16 @@ public class IngestionPipeline {
           .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
 
     List<String> filePrefixes = options.getOutput().get();
+    List<PCollection<PrioIngestionSignature>> listSignatures = new ArrayList<>();
     for (int i = 0; i < filePrefixes.size(); i++) {
-      serializedDataShares
-              .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(i)))
-              .apply(AvroIO.write(PrioDataSharePacket.class)
-                      .to(filePrefixes.get(i))
-                      .withSuffix(".avro"));
+      PCollection<PrioIngestionSignature> signatures = serializedDataShares
+          .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(i)))
+          .apply(AvroIO.write(PrioDataSharePacket.class)
+              .to(filePrefixes.get(i))
+              .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames().apply(
+              Values.create())
+          .apply("GenerateSignatures", ParDo.of(new SignatureKeyGeneration()));
+      listSignatures.add(signatures);
     }
 
     // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
