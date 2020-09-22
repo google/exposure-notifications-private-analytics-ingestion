@@ -31,8 +31,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.security.cert.X509Certificate;
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,6 +70,12 @@ public class IngestionPipelineIT {
   static final long MINIMUM_PARTICIPANT_COUNT = 1L;
   static final String SERVICE_ACCOUNT_KEY_PATH = "PATH/TO/SERVICE_ACCOUNT_KEY.json";
   static final String TEST_COLLECTION_NAME = "test-uuid";
+  static final String PROJECT_ID = "appa-ingestion";
+  static final String LOCATION_ID = "global";
+  static final String KEY_RING_ID = "appa-signature-key-ring";
+  static final String KEY_ID = "appa-signature-key";
+  static final String KEY_VERSION_ID = "1";
+
 
   static Firestore db;
 
@@ -103,6 +111,11 @@ public class IngestionPipelineIT {
     options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
     options.setStartTime(StaticValueProvider.of(CREATION_TIME));
     options.setDuration(StaticValueProvider.of(DURATION));
+    options.setProjectId(StaticValueProvider.of(PROJECT_ID));
+    options.setLocationId(StaticValueProvider.of(LOCATION_ID));
+    options.setKeyRingId(StaticValueProvider.of(KEY_RING_ID));
+    options.setKeyId(StaticValueProvider.of(KEY_ID));
+    options.setKeyVersionId(StaticValueProvider.of(KEY_VERSION_ID));
 
     IngestionPipeline.runIngestionPipeline(options);
 
@@ -149,7 +162,13 @@ public class IngestionPipelineIT {
     List<DocumentReference> listDocReference = new ArrayList<>();
     for(int i = 1; i <= 2; i++) {
       docData.put("id", "id" + i);
-      docData.put("payload", getSamplePayload("uuid" + i, CREATION_TIME));
+      docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
+      docData.put(DataShare.SIGNATURE, "signature");
+      AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains =
+          DataShareTest.createCertificateChain();
+      List<X509Certificate> certs = certChains.getKey();
+      List<String> certsSerialized = certChains.getValue();
+      docData.put(DataShare.CERT_CHAIN, certsSerialized);
       DocumentReference reference = db.collection(TEST_COLLECTION_NAME).document("doc" + i);
       batch.set(reference, docData);
       listDocReference.add(reference);

@@ -38,6 +38,7 @@ setup the emulator as follows:
 firebase login
 firebase setup:emulators:firestore
 ```
+Copy the Google credentials json file and store it in "credentials/google-application.json"
 
 To run integration tests (includes standing up a Firestore emulator):
 
@@ -55,6 +56,10 @@ FIREBASE_PROJECT_ID=firebase-project-id
 GCP_PROJECT_ID=other-project-id
 SERVICE_ACCOUNT_KEY=/some/key.json
 METRIC=metricOfInterest
+LOCATION_ID=locatio_id_of_key
+KEY_RING_ID=key-ring_id
+KEY_ID=key_id_in_key_ring
+KEY_VERSION_ID=key_version_of_above_key
 ```
 
 ### Locally

@@ -119,6 +119,48 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   @Default.Integer(2)
   ValueProvider<Integer> getNumberOfServers();
   void setNumberOfServers(ValueProvider<Integer> value);
+
+  /**
+   * ProjectID for signature generation
+   */
+  @Description("Project ID for signature generation")
+  @Default.String("")
+  ValueProvider<String> getProjectId();
+  void setProjectId(ValueProvider<String> value);
+
+  /**
+   * Location id
+   */
+  @Description("Location ID")
+  @Default.String("")
+  ValueProvider<String> getLocationId();
+  void setLocationId(ValueProvider<String> value);
+
+  /**
+   * Key Ring id
+   */
+  @Description("Key Ring ID")
+  @Default.String("")
+  ValueProvider<String> getKeyRingId();
+  void setKeyRingId(ValueProvider<String> value);
+
+  /**
+   * Key id
+   */
+  @Description("Key ID")
+  @Default.String("")
+  ValueProvider<String> getKeyId();
+  void setKeyId(ValueProvider<String> value);
+
+  /**
+   * Key Version id
+   */
+  @Description("Key Version ID")
+  @Default.String("")
+  ValueProvider<String> getKeyVersionId();
+  void setKeyVersionId(ValueProvider<String> value);
+
+
   static String displayString(IngestionPipelineOptions options){
     return "IngestionPipelineOptions:"
         + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
@@ -128,7 +170,12 @@ public interface IngestionPipelineOptions extends PipelineOptions {
         + "\nduration=" + options.getDuration()
         + "\nminParticipant=" + options.getMinimumParticipantCount()
         + "\ndelete=" + options.getDelete()
-        + "\nnumberOfServers=" + options.getNumberOfServers();
+        + "\nnumberOfServers=" + options.getNumberOfServers()
+        + "\nprojectId=" + options.getProjectId()
+        + "\nlocationId=" + options.getLocationId()
+        + "\nkeyRingId=" + options.getKeyRingId()
+        + "\nkeyId=" + options.getKeyId()
+        + "\nKeyVersionId=" + options.getKeyVersionId();
   }
 >>>>>>> f447de7 (log options during execution, graph during init)
 }

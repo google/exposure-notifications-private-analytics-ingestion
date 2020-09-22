@@ -17,31 +17,30 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
-import java.util.Map;
-import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Sample;
+import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
@@ -180,7 +179,7 @@ public class IngestionPipeline {
     // Ensure that 'numberOfServers' matches the number of output prefixes provided to 'output' option.
     ValueProvider<Integer> numberOfServers = options.getNumberOfServers();
     ValueProvider<List<String>> output = options.getOutput();
-    PAssert.thatSingleton(pipeline.apply(Create.of(Arrays.asList("dummyPcollection"))))
+    PAssert.thatSingleton(pipeline.apply("Create-dummyPcollection", Create.of(Arrays.asList("dummyPcollection"))))
             .satisfies(input -> {
               Assert.assertTrue("numberOfServers ("
                               + numberOfServers.get()
@@ -206,16 +205,16 @@ public class IngestionPipeline {
           .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
 
     List<String> filePrefixes = options.getOutput().get();
-    List<PCollection<PrioIngestionSignature>> listSignatures = new ArrayList<>();
     for (int i = 0; i < filePrefixes.size(); i++) {
-      PCollection<PrioIngestionSignature> signatures = serializedDataShares
-          .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(i)))
-          .apply(AvroIO.write(PrioDataSharePacket.class)
+      PCollection<String> filenames = serializedDataShares
+          .apply("ForkDataShares-" + i, ParDo.of(new ForkByIndexFn(i)))
+          .apply("Write-PrioDataSharePacket-" + i, AvroIO.write(PrioDataSharePacket.class)
               .to(filePrefixes.get(i))
-              .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames().apply(
-              Values.create())
-          .apply("GenerateSignatures", ParDo.of(new SignatureKeyGeneration()));
-      listSignatures.add(signatures);
+              .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames()
+          .apply("Output-file-names-" + i, Values.create());
+
+      // TODO Write these signatures
+      PCollection<PrioIngestionSignature> packetSignatures = createPacketSignatures(i, filenames);
     }
 
     // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
@@ -226,11 +225,24 @@ public class IngestionPipeline {
     pipeline.run().waitUntilFinish();
   }
 
+  private static PCollection<PrioIngestionSignature> createPacketSignatures(
+      int index, PCollection<String> filenames) {
+     return filenames
+        .apply("Read-output-files-" + index, TextIO.readAll())
+        .apply("GeneratePacketSignatures-" + index, ParDo.of(new SignatureKeyGeneration()))
+        .apply("Create-PrioIngestionSignature-for-packets-" + index, MapElements.via(
+            new SimpleFunction<byte[], PrioIngestionSignature>() {
+              @Override
+              public PrioIngestionSignature apply(byte[] input) {
+                return PrioIngestionSignature.newBuilder().setSignatureOfPackets(ByteBuffer.wrap(input)).build();
+              }
+            }));
+  }
+
   public static void main(String[] args) {
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
-
     try {
       runIngestionPipeline(options);
     } catch (UnsupportedOperationException ignore) {

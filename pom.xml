@@ -123,6 +123,7 @@
             <configuration>
               <environmentVariables>
                 <FIRESTORE_EMULATOR_HOST>127.0.0.1:8080</FIRESTORE_EMULATOR_HOST>
+                <GOOGLE_APPLICATION_CREDENTIALS>${project.basedir}/credentials/google-application.json</GOOGLE_APPLICATION_CREDENTIALS>
               </environmentVariables>
             </configuration>
           </execution>
@@ -395,6 +396,16 @@
       <groupId>org.apache.avro</groupId>
       <artifactId>avro-maven-plugin</artifactId>
       <version>1.10.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-cloudkms</artifactId>
+      <version>v1-rev20200903-1.30.10</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.cloud</groupId>
+      <artifactId>google-cloud-kms</artifactId>
+      <version>1.40.0</version>
     </dependency>
   </dependencies>
 </project>
