@@ -27,11 +27,11 @@ import com.google.cloud.firestore.DocumentSnapshot;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -302,8 +302,9 @@ public class DataShareTest {
       X509Certificate cert = (X509Certificate) cf.generateCertificate(getTestCertificate());
       certificates.add(cert);
       certificates.add(cert); // twice
-      certsSerialized.add(Base64.getEncoder().encodeToString(cert.getEncoded()));
-      certsSerialized.add(Base64.getEncoder().encodeToString(cert.getEncoded()));
+      String certString = new String(cert.getEncoded(), StandardCharsets.UTF_8);
+      certsSerialized.add(certString);
+      certsSerialized.add(certString);
     }
     catch(Exception e) {
       // pass: it's a CertificateException in case we mistyped "X.509".

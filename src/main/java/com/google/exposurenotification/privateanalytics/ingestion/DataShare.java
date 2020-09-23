@@ -22,12 +22,11 @@ import com.google.cloud.firestore.DocumentSnapshot;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -149,10 +148,8 @@ public abstract class DataShare implements Serializable {
     try {
       CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
       for (String cert : certChainString) {
-        // Decode.
-        byte[] certBytes = Base64.getDecoder().decode(cert);
         // Parse as X509 certificate.
-        InputStream in = new ByteArrayInputStream(certBytes);
+        InputStream in = new ByteArrayInputStream(cert.getBytes(StandardCharsets.UTF_8));
         X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(in);
         certChainX509.add(certX509);
       }
