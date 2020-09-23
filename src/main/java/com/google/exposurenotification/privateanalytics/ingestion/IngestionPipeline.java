@@ -17,12 +17,16 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import org.abetterinternet.prio.v1.PrioBatchHeader;
 import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
@@ -30,12 +34,14 @@ import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.Sample;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
@@ -63,45 +69,6 @@ public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
-  public static class SerializeDataShareFn extends DoFn<DataShare, List<PrioDataSharePacket>> {
-    private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
-    private final ValueProvider<Integer> numberOfServers;
-    private final Counter dataShareIncluded = Metrics
-            .counter(SerializeDataShareFn.class, "dataShareIncluded");
-    private final Counter dataSharesWrongNumberServers = Metrics
-            .counter(SerializeDataShareFn.class, "dataShareExcluded");
-
-    public SerializeDataShareFn(ValueProvider<Integer> numberOfServers) {
-      this.numberOfServers = numberOfServers;
-    }
-
-    @ProcessElement
-    public void processElement(ProcessContext c) {
-
-      List<Map<String, String>> encryptedDataShares = c.element().getEncryptedDataShares();
-      if (encryptedDataShares.size() != numberOfServers.get()) {
-        dataSharesWrongNumberServers.inc();
-        LOG.trace("Excluded element: " + c.element());
-        return;
-      }
-
-      List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
-      for (Map<String, String> dataShare : encryptedDataShares) {
-        splitDataShares.add(
-                PrioDataSharePacket.newBuilder()
-                        .setEncryptionKeyId(dataShare.get(DataShare.ENCRYPTION_KEY_ID))
-                        .setEncryptedPayload(
-                                ByteBuffer.wrap(
-                                        dataShare.get(DataShare.DATA_SHARE_PAYLOAD).getBytes()))
-                        .setRPit(c.element().getRPit())
-                        .setUuid(c.element().getUuid())
-                        .build()
-        );
-      }
-      dataShareIncluded.inc();
-      c.output(splitDataShares);
-    }
-  }
   public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
     private final int index;
     public ForkByIndexFn(int index) {
@@ -225,6 +192,15 @@ public class IngestionPipeline {
             });
 
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    dataShares
+            .apply(Sample.any(1))
+            .apply("SerializeHeader",
+                    ParDo.of(new SerializeHeaderFn(options.getStartTime(), options.getDuration())))
+            .apply(AvroIO.write(PrioBatchHeader.class)
+                            .to("prioBatchHeader")
+                            .withSuffix(".avro"));
+
+    // TODO: Make separate batch UUID for each batch of data shares.
     PCollection<List<PrioDataSharePacket>> serializedDataShares =
       processDataShares(dataShares, options)
           .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));

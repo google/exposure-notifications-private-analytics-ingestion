@@ -16,9 +16,11 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
-import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.SerializeDataShareFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ForkByIndexFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import org.abetterinternet.prio.v1.PrioBatchHeader;
 import java.lang.AssertionError;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -71,50 +73,6 @@ public class IngestionPipelineTest {
         Collections.singletonList(
             DataShare.builder().setPath("id2").setCreated(2L)
                 .build()));
-    pipeline.run().waitUntilFinish();
-  }
-
-  @Test
-  @Category(ValidatesRunner.class)
-  public void testSerializeDataShare() {
-    IngestionPipelineOptions options = TestPipeline
-            .testingPipelineOptions().as(IngestionPipelineOptions.class);
-    options.setNumberOfServers(StaticValueProvider.of(2));
-    List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
-    Map<String, String> sampleDataShare1 = new HashMap<>();
-    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-    sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
-    Map<String, String> sampleDataShare2 = new HashMap<>();
-    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-    sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
-    sampleEncryptedDataShares.add(sampleDataShare1);
-    sampleEncryptedDataShares.add(sampleDataShare2);
-    List<DataShare> dataShares = Arrays.asList(
-        DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId").setEpsilon(3.14D)
-                .setPrime(600613L).setBins(10).setNumberOfServers(2).setHammingWeight(10)
-                .setEncryptedDataShares(sampleEncryptedDataShares)
-            .build()
-    );
-
-    List<PrioDataSharePacket> avroDataShares = Arrays.asList(
-            PrioDataSharePacket.newBuilder()
-                    .setEncryptionKeyId("fakeEncryptionKeyId1")
-                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
-                    .setRPit(12345L)
-                    .setUuid("SuperUniqueId")
-                    .build(),
-            PrioDataSharePacket.newBuilder()
-                    .setEncryptionKeyId("fakeEncryptionKeyId2")
-                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
-                    .setRPit(12345L)
-                    .setUuid("SuperUniqueId")
-                    .build()
-    );
-    PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
-    PCollection<List<PrioDataSharePacket>> output =
-            input.apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
-
-    PAssert.that(output).containsInAnyOrder(avroDataShares);
     pipeline.run().waitUntilFinish();
   }
 
