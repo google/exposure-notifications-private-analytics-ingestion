@@ -80,7 +80,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description(
       "Duration of window in seconds")
-  @Default.Long(172800000)
+  @Default.Long(1728000000)
   ValueProvider<Long> getDuration();
 
   void setDuration(ValueProvider<Long> value);
