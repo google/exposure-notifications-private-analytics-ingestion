@@ -20,10 +20,9 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -54,6 +53,7 @@ public abstract class DataShare implements Serializable {
 
   // Signature and certificates fields
   public abstract @Nullable String getSignature();
+
   public abstract @Nullable List<X509Certificate> getCertificateChain();
 
   // Prio Parameters field names
@@ -69,14 +69,23 @@ public abstract class DataShare implements Serializable {
 
   /** Firestore document path */
   public abstract @Nullable String getPath();
+
   public abstract @Nullable Long getCreated();
+
   public abstract @Nullable String getUuid();
+
   public abstract @Nullable Double getEpsilon();
+
   public abstract @Nullable Long getPrime();
+
   public abstract @Nullable Integer getBins();
+
   public abstract @Nullable Integer getNumberOfServers();
+
   public abstract @Nullable Long getRPit();
+
   public abstract @Nullable Integer getHammingWeight();
+
   public abstract @Nullable List<Map<String, String>> getEncryptedDataShares();
 
   /**
@@ -147,10 +156,10 @@ public abstract class DataShare implements Serializable {
     List<X509Certificate> certChainX509 = new ArrayList<>();
     try {
       CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-      for (String cert : certChainString) {
+      for (String certString : certChainString) {
+        byte[] cert = Base64.getDecoder().decode(certString);
         // Parse as X509 certificate.
-        InputStream in = new ByteArrayInputStream(cert.getBytes(StandardCharsets.UTF_8));
-        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(in);
+        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(cert));
         certChainX509.add(certX509);
       }
     } catch (Exception e) {
@@ -169,27 +178,37 @@ public abstract class DataShare implements Serializable {
   @AutoValue.Builder
   abstract static class Builder {
     abstract DataShare build();
+
     abstract Builder setPath(@Nullable String value);
+
     abstract Builder setCreated(@Nullable Long value);
+
     abstract Builder setUuid(@Nullable String value);
+
     abstract Builder setEpsilon(@Nullable Double value);
+
     abstract Builder setPrime(@Nullable Long value);
+
     abstract Builder setBins(@Nullable Integer value);
+
     abstract Builder setNumberOfServers(@Nullable Integer value);
+
     abstract Builder setRPit(@Nullable Long value);
+
     abstract Builder setHammingWeight(@Nullable Integer value);
+
     abstract Builder setEncryptedDataShares(@Nullable List<Map<String, String>> value);
+
     abstract Builder setSignature(@Nullable String value);
+
     abstract Builder setCertificateChain(@Nullable List<X509Certificate> certChain);
   }
 
   // Returns a casted element from a map and provides detailed exceptions upon
   // failure.
-  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap,
-      String sourceName) {
+  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
-      throw new IllegalArgumentException(
-          "Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
     try {

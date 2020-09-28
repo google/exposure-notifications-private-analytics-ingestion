@@ -26,12 +26,11 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +44,15 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Unit tests for {@link DataShare}.
  */
 @RunWith(JUnit4.class)
 public class DataShareTest {
+  private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
 
   @Mock(answer = Answers.RETURNS_DEEP_STUBS)
   DocumentSnapshot documentSnapshot;
@@ -133,16 +136,15 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
-    assertThat(e).hasMessageThat()
-        .contains("Missing required field: " + DataShare.PAYLOAD);
+    assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.PAYLOAD);
   }
 
   @Test
   public void testMissingSignature() {
-     // Construct the payload.
-     Map<String, Object> prioParams = createPrioParams();
-     List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-     Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    // Construct the payload.
+    Map<String, Object> prioParams = createPrioParams();
+    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
 
     // Chain of certificates.
     AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
@@ -155,16 +157,15 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
-    assertThat(e).hasMessageThat()
-        .contains("Missing required field: " + DataShare.SIGNATURE);
+    assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.SIGNATURE);
   }
 
   @Test
   public void testMissingCertChain() {
-     // Construct the payload.
-     Map<String, Object> prioParams = createPrioParams();
-     List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-     Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    // Construct the payload.
+    Map<String, Object> prioParams = createPrioParams();
+    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
 
     // Signature
     String signature = "signature";
@@ -176,8 +177,7 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(null);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
-    assertThat(e).hasMessageThat()
-        .contains("Missing required field: " + DataShare.CERT_CHAIN);
+    assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.CERT_CHAIN);
   }
 
   @Test
@@ -256,11 +256,10 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
-    assertThat(e).hasMessageThat()
-        .contains("Could not parse the chain of certificates: " + DataShare.CERT_CHAIN );
+    assertThat(e).hasMessageThat().contains("Could not parse the chain of certificates: " + DataShare.CERT_CHAIN);
   }
 
-  /** Static functions to create the objects used in the tests above. */ 
+  /** Static functions to create the objects used in the tests above. */
   public static Map<String, Object> createPrioParams() {
     Map<String, Object> samplePrioParams = new HashMap<>();
     samplePrioParams.put(DataShare.PRIME, 4293918721L);
@@ -298,32 +297,23 @@ public class DataShareTest {
     List<X509Certificate> certificates = new ArrayList<>();
     List<String> certsSerialized = new ArrayList<>();
     try {
+      String certBase64 = getTestCertificate();
+      byte[] certBytes = Base64.getDecoder().decode(certBase64);
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
-      X509Certificate cert = (X509Certificate) cf.generateCertificate(getTestCertificate());
+      X509Certificate cert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
+      LOG.info("parsed: " + cert.toString());
       certificates.add(cert);
       certificates.add(cert); // twice
-      String certString = new String(cert.getEncoded(), StandardCharsets.UTF_8);
-      certsSerialized.add(certString);
-      certsSerialized.add(certString);
-    }
-    catch(Exception e) {
+      certsSerialized.add(certBase64);
+      certsSerialized.add(certBase64);
+    } catch (Exception e) {
       // pass: it's a CertificateException in case we mistyped "X.509".
     }
     return new AbstractMap.SimpleEntry<>(certificates, certsSerialized);
   }
 
-  public static InputStream getTestCertificate() {
-    // Valid X509 certificate generated using OpenSSL.
-    final String cert = "-----BEGIN CERTIFICATE-----"
-        + "MIIBsjCCAVegAwIBAgIUPXQ5XjNVNijqr4tJ/TL9NmRBCo8wCgYIKoZIzj0EAwIw"
-        + "LjELMAkGA1UEBhMCVVMxEzARBgNVBAgMClNvbWUtU3RhdGUxCjAIBgNVBAoMASAw"
-        + "HhcNMjAwOTE3MjMxNzAzWhcNMjEwOTE3MjMxNzAzWjAuMQswCQYDVQQGEwJVUzET"
-        + "MBEGA1UECAwKU29tZS1TdGF0ZTEKMAgGA1UECgwBIDBZMBMGByqGSM49AgEGCCqG"
-        + "SM49AwEHA0IABB2JVqnNEkLl5slL9fAN5n4gAiSYas7zJ9NopSkRXqrZ/VWIYbK+"
-        + "sbGdK1YigR4xc0P2Fky1zqIara4aVPduFXujUzBRMB0GA1UdDgQWBBSFBpKi66Dr"
-        + "1Mw5BqiruZehqWcx4jAfBgNVHSMEGDAWgBSFBpKi66Dr1Mw5BqiruZehqWcx4jAP"
-        + "BgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQC52jryRk3uN/ML0POm"
-        + "aiCFkohiPX6EEmP53kkpnQM8NgIhAOVumygGGJqdJdtKJc+RRnMUYKztpyYw/eKd" + "1xDFK4Le" + "-----END CERTIFICATE-----";
-    return new ByteArrayInputStream(cert.getBytes());
+  public static String getTestCertificate() {
+    // Valid certificate as exported by our client code.
+    return "MIICyDCCAm2gAwIBAgIBATAMBggqhkjOPQQDAgUAMC8xGTAXBgNVBAUTEDkwZThkYTNjYWRmYzc4MjAxEjAQBgNVBAwMCVN0cm9uZ0JveDAeFw0xMzA3MjUxMjU2NTRaFw0xNjAzMzAxNjU2NDJaMB8xHTAbBgNVBAMMFEFuZHJvaWQgS2V5c3RvcmUgS2V5MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES3oA8SxQRQfTnBDdMFTERIC38T1y5DQdtVqosqjB3V/o05aczU20EDulfobidcr1N4UspphJhEF9QKIbb18YtKOCAYYwggGCMA4GA1UdDwEB/wQEAwIHgDCCAW4GCisGAQQB1nkCAREEggFeMIIBWgIBBAoBAgIBKQoBAgQg6hlB6Biw0IWHMrxnsmalvx6wFd5e6N7hGlrjhsq1KJ0EADCBhb+DEQgCBgF02q9YSr+DEggCBgF02q9YSr+FPQgCBgF01aRzlr+FRV0EWzBZMTMwMQQsY29tLmdvb2dsZS5hbmRyb2lkLmFwcHMuZXhwb3N1cmVub3RpZmljYXRpb24CAQExIgQgN3X23FDoH2zp6mldxSrVqY4oBntFBDYM4HdzkJUFZH8wgZ+hCDEGAgECAgEDogMCAQOjBAICAQClBTEDAgEEv4N3AgUAv4U+AwIBAL+FQEwwSgQgrmMWtHU8YfWFW5W5uYSEr3hPLoNkjQ/MgQf8p1LK6jQBAf8KAQAEIFvj6AqMmElSJ8eBKUhqgsb8USJq/9FGNDsO7PW0mIw5v4VBBQIDAa2wv4VCBQIDAxUav4VOBgIEATQ+Lb+FTwYCBAE0Pi0wDAYIKoZIzj0EAwIFAANHADBEAiAjXwY3sMOoce6mWycLSssC0kjrMXSURzwTIl6gSQmK5AIgYUFCdKpJDfoZEkLwcT+k3lXDXbLGXwjywsAxYOZhgX4=";
   }
 }
