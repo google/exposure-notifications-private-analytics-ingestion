@@ -16,7 +16,7 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import static org.junit.Assert.assertEquals;
-import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import java.io.File;
@@ -38,9 +38,9 @@ public class PrioSerializerTest {
 
     @Test
     public void testPrioBatchHeaderSerialization() throws IOException {
-        List<PrioBatchHeader> batchHeaders = new ArrayList<>();
-        PrioBatchHeader header1 =
-                PrioBatchHeader.newBuilder()
+        List<PrioIngestionHeader> ingestionHeaders = new ArrayList<>();
+        PrioIngestionHeader header1 =
+                PrioIngestionHeader.newBuilder()
                         .setBatchUuid("id123")
                         .setName("secretname")
                         .setBins(123)
@@ -50,9 +50,10 @@ public class PrioSerializerTest {
                         .setHammingWeight(5)
                         .setBatchStartTime(1600000000)
                         .setBatchEndTime(1700000000)
+                        .setPacketFileDigest(ByteBuffer.wrap("placeholder1".getBytes()))
                         .build();
-        PrioBatchHeader header2 =
-                PrioBatchHeader.newBuilder()
+        PrioIngestionHeader header2 =
+                PrioIngestionHeader.newBuilder()
                         .setBatchUuid("id987")
                         .setName("simplename")
                         .setBins(4)
@@ -62,15 +63,15 @@ public class PrioSerializerTest {
                         .setHammingWeight(8)
                         .setBatchStartTime(1650000000)
                         .setBatchEndTime(1710000000)
+                        .setPacketFileDigest(ByteBuffer.wrap("placeholder2".getBytes()))
                         .build();
-        batchHeaders.add(header1);
-        batchHeaders.add(header2);
-
+        ingestionHeaders.add(header1);
+        ingestionHeaders.add(header2);
         File serializedHeaders = tmpFolder.newFile();
-        PrioSerializer.serializeBatchHeaders(batchHeaders, serializedHeaders.getAbsolutePath());
-        List<PrioBatchHeader> deserializedHeaders =
-                PrioSerializer.deserializeBatchHeaders(serializedHeaders.getAbsolutePath());
-        assertEquals(batchHeaders, deserializedHeaders);
+        PrioSerializer.serializeIngestionHeaders(ingestionHeaders, serializedHeaders.getAbsolutePath());
+        List<PrioIngestionHeader> deserializedHeaders =
+                PrioSerializer.deserializeIngestionHeaders(serializedHeaders.getAbsolutePath());
+        assertEquals(ingestionHeaders, deserializedHeaders);
     }
 
     @Test
@@ -79,12 +80,10 @@ public class PrioSerializerTest {
         PrioIngestionSignature signature1 =
                 PrioIngestionSignature.newBuilder()
                         .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}))
-                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x04, 0x05, 0x06, 0x07}))
                         .build();
         PrioIngestionSignature signature2 =
                 PrioIngestionSignature.newBuilder()
                         .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x05, 0x04}))
-                        .setSignatureOfPackets(ByteBuffer.wrap(new byte[] {0x03, 0x02, 0x01}))
                         .build();
         signatures.add(signature1);
         signatures.add(signature2);

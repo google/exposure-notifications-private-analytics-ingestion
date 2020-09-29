@@ -18,11 +18,11 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
@@ -193,10 +193,10 @@ public class IngestionPipeline {
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
     dataShares
             .apply(Sample.any(1))
-            .apply("SerializeHeader",
-                    ParDo.of(new SerializeHeaderFn(options.getStartTime(), options.getDuration())))
-            .apply(AvroIO.write(PrioBatchHeader.class)
-                            .to("prioBatchHeader")
+            .apply("SerializeIngestionHeaders",
+                    ParDo.of(new SerializeIngestionHeaderFn(options.getStartTime(), options.getDuration())))
+            .apply(AvroIO.write(PrioIngestionHeader.class)
+                            .to("ingestionHeader")
                             .withSuffix(".avro"));
 
     // TODO: Make separate batch UUID for each batch of data shares.
@@ -213,8 +213,8 @@ public class IngestionPipeline {
               .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames()
           .apply("Output-file-names-" + i, Values.create());
 
-      // TODO Write these signatures
-      PCollection<PrioIngestionSignature> packetSignatures = createPacketSignatures(i, filenames);
+      // TODO (justinowusu) Write these signatures
+      PCollection<ByteBuffer> packetSignatures = createPacketSignatures(i, filenames);
     }
 
     // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
@@ -225,18 +225,11 @@ public class IngestionPipeline {
     pipeline.run().waitUntilFinish();
   }
 
-  private static PCollection<PrioIngestionSignature> createPacketSignatures(
+  private static PCollection<ByteBuffer> createPacketSignatures(
       int index, PCollection<String> filenames) {
      return filenames
         .apply("Read-output-files-" + index, TextIO.readAll())
-        .apply("GeneratePacketSignatures-" + index, ParDo.of(new SignatureKeyGeneration()))
-        .apply("Create-PrioIngestionSignature-for-packets-" + index, MapElements.via(
-            new SimpleFunction<byte[], PrioIngestionSignature>() {
-              @Override
-              public PrioIngestionSignature apply(byte[] input) {
-                return PrioIngestionSignature.newBuilder().setSignatureOfPackets(ByteBuffer.wrap(input)).build();
-              }
-            }));
+        .apply("GeneratePacketSignatures-" + index, ParDo.of(new SignatureKeyGeneration()));
   }
 
   public static void main(String[] args) {

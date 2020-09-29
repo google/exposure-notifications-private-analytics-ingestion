@@ -17,10 +17,10 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ForkByIndexFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import java.lang.AssertionError;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -120,8 +120,8 @@ public class SerializationFunctionsTest {
                         .build()
         );
 
-        PrioBatchHeader expectedHeader =
-                PrioBatchHeader.newBuilder()
+        PrioIngestionHeader expectedHeader =
+                PrioIngestionHeader.newBuilder()
                         .setBatchUuid("placeholderUuid")
                         .setName("BatchUuid=placeholderUuid")
                         .setBatchStartTime(1L)
@@ -131,11 +131,12 @@ public class SerializationFunctionsTest {
                         .setHammingWeight(15)
                         .setPrime(600613L)
                         .setEpsilon(3.14D)
+                        .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
                         .build();
         PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
-        PCollection<PrioBatchHeader> output =
-                input.apply("SerializeHeader", ParDo.of(
-                        new SerializeHeaderFn(
+        PCollection<PrioIngestionHeader> output =
+                input.apply("SerializeIngestionHeaders", ParDo.of(
+                        new SerializeIngestionHeaderFn(
                                 options.getStartTime(),
                                 options.getDuration())
                 ));

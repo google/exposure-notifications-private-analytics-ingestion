@@ -17,7 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.DateFilterFn;
 import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ForkByIndexFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioBatchHeader;

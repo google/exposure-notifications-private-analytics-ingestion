@@ -7,6 +7,7 @@ import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -14,7 +15,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 /**
  * Generate signature for input message.
  */
-public class SignatureKeyGeneration extends DoFn<String, byte[]> {
+public class SignatureKeyGeneration extends DoFn<String, ByteBuffer> {
 
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
@@ -40,6 +41,6 @@ public class SignatureKeyGeneration extends DoFn<String, byte[]> {
     Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(hash)).build();
 
     AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digest);
-    c.output(result.getSignature().toByteArray());
+    c.output(ByteBuffer.wrap(result.getSignature().toByteArray()));
   }
 }

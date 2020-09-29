@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Map;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.ValueProvider;
@@ -72,12 +72,12 @@ public class SerializationFunctions {
         }
     }
 
-    public static class SerializeHeaderFn extends DoFn<DataShare, PrioBatchHeader> {
+    public static class SerializeIngestionHeaderFn extends DoFn<DataShare, PrioIngestionHeader> {
         private final ValueProvider<Long> startTime;
         private final ValueProvider<Long> duration;
         private final ValueProvider<String> batchUuid;
 
-        public SerializeHeaderFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
+        public SerializeIngestionHeaderFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
             this.startTime = startTime;
             this.duration = duration;
             this.batchUuid = StaticValueProvider.of("placeholderUuid");
@@ -86,7 +86,7 @@ public class SerializationFunctions {
         @ProcessElement
         public void processElement(ProcessContext c) {
             c.output(
-                    PrioBatchHeader.newBuilder()
+                    PrioIngestionHeader.newBuilder()
                             .setBatchUuid(batchUuid.get())
                             .setName("BatchUuid=" + batchUuid.get())
                             .setBatchStartTime(startTime.get())
@@ -96,6 +96,7 @@ public class SerializationFunctions {
                             .setHammingWeight(c.element().getHammingWeight())
                             .setPrime(c.element().getPrime())
                             .setEpsilon(c.element().getEpsilon())
+                            .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
                             .build()
             );
         }
