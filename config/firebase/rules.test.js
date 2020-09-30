@@ -69,6 +69,34 @@ function correctContents(uuid = 'foo') {
    };
 }
 
+function correctContentsAttestationFailed(uuid = 'foo') {
+  return {
+     'payload': {
+       'created': firebase.firestore.FieldValue.serverTimestamp(),
+       'uuid': uuid,
+       'schemaVersion': '1',
+       'encryptedDataShares': [
+         {
+          'payload': 'payload1',
+          'encryptionKeyId': 'key1'
+         },
+         {
+          'payload': 'payload2',
+          'encryptionKeyId': 'key2'
+         }
+       ],
+       'prioParams': {
+         'bins': 1,
+         'epsilon': 2,
+         'hammingWeight': 3,
+         'numberServers': 2,
+         'prime': 5
+       }
+      },
+      'exception': 'exception message'
+   };
+}
+
 describe('Tests of document writes and access', () => {
   const app = firebase.initializeTestApp({
     projectId: projectId,
@@ -173,5 +201,12 @@ describe('Tests of document writes and access', () => {
         });
         assert.notStrictEqual(foundUuids,
                 [ 'correct1', 'correct2', 'preexisting' ])
+      });
+  it('document can contain an exception message',
+      async () => {
+        const doc = db.collection('uuid').doc('correctAttestationFailed')
+                      .collection('date').doc(datefmt)
+                      .collection('metrics').doc('testMetric');
+        await firebase.assertSucceeds(doc.set(correctContentsAttestationFailed('correctAttestationFailed')));
       });
 });

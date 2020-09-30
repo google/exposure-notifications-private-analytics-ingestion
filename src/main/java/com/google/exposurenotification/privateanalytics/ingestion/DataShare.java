@@ -18,17 +18,15 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.auto.value.AutoValue;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
-
 import java.io.ByteArrayInputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -50,6 +48,7 @@ public abstract class DataShare implements Serializable {
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
+  public static final String EXCEPTION = "exception";
 
   // Signature and certificates fields
   public abstract @Nullable String getSignature();
@@ -73,6 +72,8 @@ public abstract class DataShare implements Serializable {
   public abstract @Nullable Long getCreated();
 
   public abstract @Nullable String getUuid();
+
+  public abstract @Nullable String getException();
 
   public abstract @Nullable Double getEpsilon();
 
@@ -140,14 +141,26 @@ public abstract class DataShare implements Serializable {
     }
     builder.setEncryptedDataShares(encryptedDataShares);
 
-    // Step 2: Get the signature.
+    // Step 2: Get the exception message (if it's present)
+    if (doc.containsKey(EXCEPTION) && doc.get(EXCEPTION) != null) {
+      try {
+        builder.setException(String.class.cast(doc.get(EXCEPTION)));
+        // If the exception is present, no need to check for signature or cerficates
+        return builder.build();
+      } catch (ClassCastException e) {
+        throw new IllegalArgumentException(
+            "Error casting 'exception' from 'payload' to exception", e);
+      }
+    }
+
+    // Step 3: Get the signature.
     String signature = (String) doc.get(SIGNATURE);
     if (signature == null) {
       throw new IllegalArgumentException("Missing required field: " + SIGNATURE);
     }
     builder.setSignature(signature);
 
-    // Step 3: Get the chain of X509 certificates.
+    // Step 4: Get the chain of X509 certificates.
     List<String> certChainString = (List<String>) doc.get(CERT_CHAIN);
     if (certChainString == null) {
       throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
@@ -184,6 +197,8 @@ public abstract class DataShare implements Serializable {
     abstract Builder setCreated(@Nullable Long value);
 
     abstract Builder setUuid(@Nullable String value);
+
+    abstract Builder setException(@Nullable String value);
 
     abstract Builder setEpsilon(@Nullable Double value);
 
