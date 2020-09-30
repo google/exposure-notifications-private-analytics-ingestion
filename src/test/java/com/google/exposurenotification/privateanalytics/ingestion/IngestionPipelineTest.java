@@ -20,7 +20,7 @@ import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipel
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioBatchHeader;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import java.lang.AssertionError;
 import java.util.Arrays;
 import java.util.ArrayList;

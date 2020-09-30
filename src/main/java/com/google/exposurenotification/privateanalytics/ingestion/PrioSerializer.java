@@ -16,7 +16,6 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
-import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import java.io.File;
 import java.io.IOException;
@@ -42,20 +41,6 @@ public class PrioSerializer {
         dataFileWriter.create(PrioIngestionHeader.getClassSchema(), new File(pathname));
         for (PrioIngestionHeader ingestionHeader : ingestionHeaders) {
             dataFileWriter.append(ingestionHeader);
-        }
-        dataFileWriter.close();
-    }
-
-    public static void serializeIngestionSignatures(
-            List<PrioIngestionSignature> prioIngestionSignatures, String pathname)
-            throws IOException {
-        DatumWriter<PrioIngestionSignature> signatureDatumWriter =
-                new SpecificDatumWriter<>(PrioIngestionSignature.class);
-        DataFileWriter<PrioIngestionSignature> dataFileWriter =
-                new DataFileWriter<>(signatureDatumWriter);
-        dataFileWriter.create(PrioIngestionSignature.getClassSchema(), new File(pathname));
-        for (PrioIngestionSignature prioIngestionSignature : prioIngestionSignatures) {
-            dataFileWriter.append(prioIngestionSignature);
         }
         dataFileWriter.close();
     }
@@ -86,22 +71,6 @@ public class PrioSerializer {
             ingestionHeaders.add(ingestionHeader);
         }
         return ingestionHeaders;
-    }
-
-    public static List<PrioIngestionSignature> deserializeIngestionSignatures(String pathname)
-            throws IOException {
-        DatumReader<PrioIngestionSignature> signatureDatumReader =
-                new SpecificDatumReader<>(PrioIngestionSignature.class);
-        DataFileReader<PrioIngestionSignature> dataFileReader =
-                new DataFileReader<>(new File(pathname), signatureDatumReader);
-        List<PrioIngestionSignature> prioIngestionSignatures = new ArrayList<>();
-        PrioIngestionSignature prioIngestionSignature;
-        while (dataFileReader.hasNext()) {
-            prioIngestionSignature = new PrioIngestionSignature();
-            prioIngestionSignature = dataFileReader.next(prioIngestionSignature);
-            prioIngestionSignatures.add(prioIngestionSignature);
-        }
-        return prioIngestionSignatures;
     }
 
     public static List<PrioDataSharePacket> deserializeDataSharePackets(String pathname)

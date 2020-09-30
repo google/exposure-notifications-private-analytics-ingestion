@@ -18,7 +18,6 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import static org.junit.Assert.assertEquals;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -72,28 +71,6 @@ public class PrioSerializerTest {
         List<PrioIngestionHeader> deserializedHeaders =
                 PrioSerializer.deserializeIngestionHeaders(serializedHeaders.getAbsolutePath());
         assertEquals(ingestionHeaders, deserializedHeaders);
-    }
-
-    @Test
-    public void testIngestionSignatureSerialization() throws IOException {
-        List<PrioIngestionSignature> signatures = new ArrayList<>();
-        PrioIngestionSignature signature1 =
-                PrioIngestionSignature.newBuilder()
-                        .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03}))
-                        .build();
-        PrioIngestionSignature signature2 =
-                PrioIngestionSignature.newBuilder()
-                        .setBatchHeaderSignature(ByteBuffer.wrap(new byte[] {0x05, 0x04}))
-                        .build();
-        signatures.add(signature1);
-        signatures.add(signature2);
-
-        File serializedSignatures = tmpFolder.newFile();
-        PrioSerializer.serializeIngestionSignatures(
-                signatures, serializedSignatures.getAbsolutePath());
-        List<PrioIngestionSignature> deserializedSignatures =
-                PrioSerializer.deserializeIngestionSignatures(serializedSignatures.getAbsolutePath());
-        assertEquals(signatures, deserializedSignatures);
     }
 
     @Test

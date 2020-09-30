@@ -6,7 +6,6 @@ import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,7 +36,7 @@ public class SignatureKeyGeneration extends DoFn<String, ByteBuffer> {
     //TODO(amanraj): What happens if we fail an individual signing, should we fail that batch or the
     // full pipeline?
     MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-    byte[] hash = sha256.digest(c.element().getBytes(StandardCharsets.UTF_8));
+    byte[] hash = sha256.digest(c.element().getBytes());
     Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(hash)).build();
 
     AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digest);

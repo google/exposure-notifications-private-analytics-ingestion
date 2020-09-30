@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioIngestionSignature;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
