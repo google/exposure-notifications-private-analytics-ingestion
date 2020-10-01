@@ -181,13 +181,21 @@ public class IngestionPipelineIT {
     Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
     for(DocumentReference reference : listDocReference) {
       DataShare dataShare = DataShare.from(reference.get().get());
-      PrioDataSharePacket packet = PrioDataSharePacket.newBuilder()
-          .setEncryptionKeyId("hardCodedID")
-          .setRPit(dataShare.getRPit())
-          .setUuid(dataShare.getUuid())
-          .setEncryptedPayload(ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}))
-          .build();
-      dataShareByUuid.put(dataShare.getUuid(), packet);
+      List<Map<String, String>> encryptedDataShares = dataShare.getEncryptedDataShares();
+      List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
+      for (Map<String, String> entry : encryptedDataShares) {
+        splitDataShares.add(
+            PrioDataSharePacket.newBuilder()
+                .setEncryptionKeyId(entry.get(DataShare.ENCRYPTION_KEY_ID))
+                .setEncryptedPayload(
+                    ByteBuffer.wrap(entry.get(DataShare.DATA_SHARE_PAYLOAD).getBytes()))
+                .setRPit(dataShare.getRPit())
+                .setUuid(dataShare.getUuid())
+                .build()
+        );
+      }
+
+      dataShareByUuid.put(dataShare.getUuid(), splitDataShares.get(0));
     }
 
     return dataShareByUuid;
