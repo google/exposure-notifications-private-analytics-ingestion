@@ -142,7 +142,7 @@ public abstract class DataShare implements Serializable {
     builder.setEncryptedDataShares(encryptedDataShares);
 
     // Step 2: Get the exception message (if it's present)
-    if (doc.containsKey(EXCEPTION) && doc.get(EXCEPTION) != null) {
+    if (doc.contains(EXCEPTION) && doc.get(EXCEPTION) != null) {
       try {
         builder.setException(String.class.cast(doc.get(EXCEPTION)));
         // If the exception is present, no need to check for signature or cerficates
