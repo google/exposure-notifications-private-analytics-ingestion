@@ -58,8 +58,9 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   /**
    * Comma-separated prefixes of where to write the output.
    * Note: Number of prefixes should equal number of servers.
+   * Note: The first output prefix should be for the PHA
    */
-  @Description("List of prefixes of where to write the output files to")
+  @Description("List of prefixes of where to write the output files to (PHA first)")
   @Required
   ValueProvider<List<String>> getOutput();
 
