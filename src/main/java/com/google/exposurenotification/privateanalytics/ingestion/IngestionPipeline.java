@@ -26,8 +26,6 @@ import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.AvroIO;
-import org.apache.beam.sdk.metrics.Counter;
-import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
@@ -80,6 +78,7 @@ public class IngestionPipeline {
   }
 
   /**
+<<<<<<< HEAD
    * A DoFn that filters documents in particular time window
    */
   public static class DateFilterFn extends DoFn<DataShare, DataShare> {
@@ -115,28 +114,10 @@ public class IngestionPipeline {
     }
   }
 
-<<<<<<< HEAD
-  static void runIngestionPipeline(IngestionPipelineOptions options) throws Exception {
-    Pipeline pipeline = Pipeline.create(options);
-    pipeline.apply(new FirestoreReader())
-        .apply("Filter dates",
-            ParDo.of(new DateFilterFn(options.getStartTime(), options.getDuration())))
-        // TODO: fork data shares for PHA and Facilitator
-        // TODO(guray): bail if not enough data shares to ensure min-k anonymity:
-        //  https://beam.apache.org/releases/javadoc/2.0.0/org/apache/beam/sdk/transforms/Count.html#globally--
-        // TODO(justinowusu): s/TextIO/AvroIO/
-        //  https://beam.apache.org/releases/javadoc/2.4.0/org/apache/beam/sdk/io/AvroIO.html
-        .apply("SerializeElements", MapElements.via(new FormatAsTextFn()))
-        .apply("WriteBatches", TextIO.write().to(options.getOutput()));
-
-=======
-  /**
-   * Process input {@link PCollection<DataShare>}, and make them available for final serialization.
-   */
   static PCollection<DataShare> processDataShares(
       PCollection<DataShare> inputDataShares, IngestionPipelineOptions options) {
     PCollection<DataShare> dataShares = inputDataShares
-        .apply("Filter dates", ParDo.of(new DateFilterFn(options.getStartTime(),
+        .apply("FilterDates", ParDo.of(new DateFilterFn(options.getStartTime(),
             options.getDuration())))
         .apply(new DeviceAttestation());
 
@@ -186,8 +167,37 @@ public class IngestionPipeline {
             });
 
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    PCollection<String> headerFilenames = writeIngestionHeader(options, dataShares);
+    headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
 
-    PCollection<String> headerFilenames = dataShares
+    // TODO: Make separate batch UUID for each batch of data shares.
+    PCollection<List<PrioDataSharePacket>> serializedDataShares =
+      processDataShares(dataShares, options)
+          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
+    writePrioDataSharePackets(options, serializedDataShares);
+
+    // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
+    dataShares.apply(new FirestoreDeleter());
+
+    LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
+    pipeline.run().waitUntilFinish();
+  }
+
+  private static void writePrioDataSharePackets(IngestionPipelineOptions options,
+      PCollection<List<PrioDataSharePacket>> serializedDataShares) {
+    List<String> filePrefixes = options.getOutput().get();
+    for (int i = 0; i < filePrefixes.size(); i++) {
+      serializedDataShares
+          .apply("ForkDataShares-" + i, ParDo.of(new ForkByIndexFn(i)))
+          .apply("Write-PrioDataSharePacket-" + i, AvroIO.write(PrioDataSharePacket.class)
+              .to(filePrefixes.get(i))
+              .withSuffix(".avro"));
+    }
+  }
+  
+  private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,
+      PCollection<DataShare> dataShares) {
+    return dataShares
         .apply(Sample.any(1))
         .apply("SerializeIngestionHeaders",
             ParDo.of(new SerializeIngestionHeaderFn(options.getStartTime(), options.getDuration())))
@@ -195,30 +205,6 @@ public class IngestionPipeline {
             .to("ingestionHeader")
             .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames()
         .apply(Values.create());
-
-    headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
-
-    // TODO: Make separate batch UUID for each batch of data shares.
-    PCollection<List<PrioDataSharePacket>> serializedDataShares =
-      processDataShares(dataShares, options)
-          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
-
-    List<String> filePrefixes = options.getOutput().get();
-    for (int i = 0; i < filePrefixes.size(); i++) {
-      PCollection<String> filenames = serializedDataShares
-          .apply("ForkDataShares-" + i, ParDo.of(new ForkByIndexFn(i)))
-          .apply("Write-PrioDataSharePacket-" + i, AvroIO.write(PrioDataSharePacket.class)
-              .to(filePrefixes.get(i))
-              .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames()
-          .apply("Output-file-names-" + i, Values.create());
-    }
-
-    // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
-    dataShares.apply(new FirestoreDeleter());
-
-    LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
->>>>>>> f447de7 (log options during execution, graph during init)
-    pipeline.run().waitUntilFinish();
   }
 
   public static void main(String[] args) {
