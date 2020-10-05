@@ -15,17 +15,27 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-
-import com.google.api.core.ApiFuture;
+import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.rpc.ServerStream;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
-import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
+import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import com.google.firestore.v1.Cursor;
+import com.google.firestore.v1.PartitionQueryRequest;
+import com.google.firestore.v1.RunQueryRequest;
+import com.google.firestore.v1.RunQueryResponse;
+import com.google.firestore.v1.StructuredQuery;
+import com.google.firestore.v1.StructuredQuery.CollectionSelector;
+import com.google.firestore.v1.StructuredQuery.Direction;
+import com.google.firestore.v1.StructuredQuery.FieldReference;
+import com.google.firestore.v1.StructuredQuery.Order;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
@@ -36,6 +46,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PDone;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,33 +69,95 @@ public class FirestoreConnector {
 
   /** Reads documents from Firestore */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
+    private static final Logger LOG = LoggerFactory.getLogger(
+        FirestoreReader.class);
+    // Order must be name ascending. Right now, this is the only ordering that the
+    // Firestore SDK supports.
+    private final String NAME_FIELD = "__name__";
 
     @Override
     public PCollection<DataShare> expand(PBegin input) {
+      StructuredQuery query = StructuredQuery.newBuilder()
+          .addFrom(
+              CollectionSelector.newBuilder()
+                  .setCollectionId(METRIC_COLLECTION_NAME)
+                  .setAllDescendants(true)
+                  .build())
+          .addOrderBy(
+              Order.newBuilder()
+                  .setField(FieldReference.newBuilder()
+                      .setFieldPath(NAME_FIELD)
+                      .build())
+                  .setDirection(Direction.ASCENDING)
+                  .build())
+          .build();
+
       return input
           // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
           .apply(Create.of(""))
-          // TODO(larryjacobs): run partition query to split into cursors, and pass that to ReadFn
-          //      apparently the Source idiom is no longer favored?
-          //        https://beam.apache.org/documentation/io/developing-io-overview/#sources
-          //        https://beam.apache.org/blog/splittable-do-fn/
-          // TODO(larryjacobs): reshuffle
-          .apply(ParDo.of(new ReadFn()));
+          .apply(ParDo.of(new PartitionQueryFn(query)))
+          // TODO(larryjacobs): reshuffle if necessary at scale
+          .apply(ParDo.of(new ReadFn(query)));
     }
 
-    // TODO(larryjacobs): switch to take partitioned query cursors as input
-    static class ReadFn extends DoFn<String, DataShare> {
+    static class PartitionQueryFn extends DoFn<String, ImmutablePair<Cursor, Cursor>> {
+      private StructuredQuery query;
+      private com.google.cloud.firestore.v1.FirestoreClient client;
 
-      private Firestore db;
+      public PartitionQueryFn(StructuredQuery query) {
+        this.query = query;
+      }
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
-        db = initializeFirestore(context.getPipelineOptions().as(IngestionPipelineOptions.class));
+        client = getFirestoreClient();
       }
 
       @ProcessElement
-      public void processElement(ProcessContext context) throws Exception {
-        for (DataShare ds : readDocumentsFromFirestore(db, METRIC_COLLECTION_NAME)) {
+      public void processElement(ProcessContext context) {
+        IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        PartitionQueryRequest request =
+            PartitionQueryRequest.newBuilder()
+                .setPartitionCount(options.getPartitionCount().get())
+                .setParent(
+                    getParentPath(options))
+                .setStructuredQuery(query)
+                .build();
+        PartitionQueryPagedResponse response =
+            client.partitionQuery(request);
+        Iterator<Cursor> iterator = response.iterateAll().iterator();
+
+        // Return a Cursor pair to represent the start and end points within which to run the query.
+        Cursor start = null;
+        Cursor end;
+        while (iterator.hasNext()) {
+          end = iterator.next();
+          context.output(ImmutablePair.of(start, end));
+          start = end;
+        }
+        context.output(ImmutablePair.of(start, null));
+      }
+    }
+
+    static class ReadFn extends DoFn<ImmutablePair<Cursor, Cursor>, DataShare> {
+
+      private com.google.cloud.firestore.v1.FirestoreClient client;
+      private StructuredQuery query;
+
+      public ReadFn(StructuredQuery query) {
+        this.query = query;
+      }
+
+      @StartBundle
+      public void startBundle(StartBundleContext context) throws Exception {
+        client = getFirestoreClient();
+      }
+
+      @ProcessElement
+      public void processElement(ProcessContext context) {
+        for (DataShare ds : readDocumentsFromFirestore(client,
+            context.getPipelineOptions().as(IngestionPipelineOptions.class), query,
+            context.element())) {
           context.output(ds);
         }
       }
@@ -141,26 +214,47 @@ public class FirestoreConnector {
     return FirestoreClient.getFirestore();
   }
 
-  // Returns all document id's in the collections and subcollections with the given collection id.
-  private static List<DataShare> readDocumentsFromFirestore(Firestore db, String collection)
-      throws Exception {
-    // Create a reference to all collections and subcollections with the given collection id
-    Query query = db.collectionGroup(collection);
-    // Retrieve query results asynchronously using query.get()
-    // TODO(larryjacobs): scalable io connector to Firestore
-    ApiFuture<QuerySnapshot> querySnapshot = query.get();
+  private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
+      throws IOException {
+    FirestoreSettings settings =
+        FirestoreSettings.newBuilder().setCredentialsProvider(
+            FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault())).build();
+    return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
+  }
+
+  private static String getParentPath(IngestionPipelineOptions options) {
+    return "projects/" + options.getFirebaseProjectId() + "/databases/(default)/documents";
+  }
+
+  // Returns a list of DataShares for documents captured within the given query Cursor pair.
+  private static List<DataShare> readDocumentsFromFirestore(
+      com.google.cloud.firestore.v1.FirestoreClient firestoreClient, IngestionPipelineOptions options, StructuredQuery query,
+      ImmutablePair<Cursor, Cursor> cursors) {
+    StructuredQuery.Builder queryBuilder = query.toBuilder();
+    if (cursors.getLeft() != null)  {
+      queryBuilder.setStartAt(cursors.getLeft());
+    }
+    if (cursors.getRight() != null) {
+      queryBuilder.setEndAt(cursors.getRight());
+    }
+    ServerStream<RunQueryResponse> responseIterator =
+        firestoreClient.runQueryCallable()
+            .call(RunQueryRequest.newBuilder()
+                .setStructuredQuery(queryBuilder.build())
+                .setParent(getParentPath(options))
+                .build());
     List<DataShare> docs = new ArrayList<>();
     // TODO(larryjacobs): rather than retrieve all documents (and filter for time later) retrieve only the date subcollection corresponding to the window of interest +/- an hour
-    for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
-      LOG.debug("Fetched document from Firestore: " + document.getReference().getPath());
+    responseIterator.forEach(res -> {
+      LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
       documentsRead.inc();
       try {
-        docs.add(DataShare.from(document));
+        docs.add(DataShare.from(res.getDocument()));
       } catch (RuntimeException e) {
-        LOG.warn("Unable to read document " + document.getReference().getPath(), e);
+        LOG.warn("Unable to read document " + res.getDocument().getName(), e);
         invalidDocumentCounter.inc();
       }
-    }
+    });
     return docs;
   }
 }

@@ -16,8 +16,9 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.auto.value.AutoValue;
-import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.firestore.v1.Document;
+import com.google.firestore.v1.Value;
+import com.google.firestore.v1.Value.ValueTypeCase;
 import java.io.ByteArrayInputStream;
 import java.io.Serializable;
 import java.security.SecureRandom;
@@ -25,6 +26,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.beam.sdk.metrics.Counter;
@@ -39,6 +41,7 @@ public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
   private static final int NUMBER_OF_SERVERS = 2;
+  private static final String ROOT_COLLECTION_NAME = "uuid";
   private static final Counter missingRequiredCounter = Metrics
       .counter(DataShare.class, "datashare-missingRequired");
   private static final Counter castExceptionCounter = Metrics
@@ -48,6 +51,7 @@ public abstract class DataShare implements Serializable {
 
   // Firestore document field names. See
   // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
+  public static final String DOCUMENT_FIELDS = "documentFields";
   public static final String PAYLOAD = "payload";
   public static final String SIGNATURE = "signature";
   public static final String CERT_CHAIN = "certificateChain";
@@ -97,43 +101,53 @@ public abstract class DataShare implements Serializable {
   /**
    * @return Pipeline projection of Firestore document
    */
-  public static DataShare from(DocumentSnapshot doc) {
+  public static DataShare from(Document doc) {
     DataShare.Builder builder = builder();
     try {
-      builder.setPath(doc.getReference().getPath());
+      // doc.getName() returns the fully qualified name of the document:
+      // e.g.: projects/{project_id}/databases/{database_id}/documents/uuid/...
+      // We need the path relative to the beginning of the root collection, "uuid/"
+      builder.setPath(doc.getName().substring(doc.getName().indexOf(ROOT_COLLECTION_NAME)));
     } catch (RuntimeException e) {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: Path", e);
     }
 
     // Step 1: Process the payload.
-    Map<String, Object> payload = (Map<String, Object>) doc.get(PAYLOAD);
-    if (payload == null) {
+    if (doc.getFieldsMap().get(PAYLOAD) == null) {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + PAYLOAD);
     }
+    Map<String, Value> payload = doc.getFieldsMap().get(PAYLOAD).getMapValue().getFieldsMap();
 
-    builder.setCreated(checkThenGet(CREATED, Timestamp.class, payload, PAYLOAD).getSeconds());
-    builder.setUuid(checkThenGet(UUID, String.class, payload, PAYLOAD));
+    checkValuePresent(CREATED, payload, PAYLOAD, ValueTypeCase.TIMESTAMP_VALUE);
+    checkValuePresent(UUID, payload, PAYLOAD, ValueTypeCase.STRING_VALUE);
+    builder.setCreated(payload.get(CREATED).getTimestampValue().getSeconds());
+    builder.setUuid(payload.get(UUID).getStringValue());
 
     // Get the Prio parameters.
-    Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, Map.class, payload, PAYLOAD);
-    Long prime = checkThenGet(PRIME, Long.class, prioParams, PRIO_PARAMS);
+    checkValuePresent(PRIO_PARAMS, payload, PAYLOAD, ValueTypeCase.MAP_VALUE);
+    Map<String, Value> prioParams = payload.get(PRIO_PARAMS).getMapValue().getFieldsMap();
+    checkValuePresent(PRIME, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+    Long prime = prioParams.get(PRIME).getIntegerValue();
 
     DataShareMetadata.Builder metadataBuilder = DataShareMetadata.builder();
     metadataBuilder.setPrime(prime);
-    metadataBuilder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
-    metadataBuilder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
-    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS_FIELD, Long.class, prioParams, PRIO_PARAMS)
-        .intValue();
+    checkValuePresent(EPSILON, prioParams, PRIO_PARAMS, ValueTypeCase.DOUBLE_VALUE);
+    metadataBuilder.setEpsilon(prioParams.get(EPSILON).getDoubleValue());
+    checkValuePresent(BINS, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+    metadataBuilder.setBins((int) prioParams.get(BINS).getIntegerValue());
+    checkValuePresent(NUMBER_OF_SERVERS_FIELD, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+    int numberOfServers = (int) prioParams.get(NUMBER_OF_SERVERS_FIELD).getIntegerValue();
     if (numberOfServers != NUMBER_OF_SERVERS) {
       illegalArgCounter.inc();
       throw new UnsupportedOperationException("Unsupported number of servers: " + numberOfServers);
     }
     metadataBuilder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
-      metadataBuilder.setHammingWeight(
-          checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
+      // This will type-check the hamming weight field.
+      checkValuePresent(HAMMING_WEIGHT, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+      metadataBuilder.setHammingWeight((int) prioParams.get(HAMMING_WEIGHT).getIntegerValue());
     }
 
     builder.setDataShareMetadata(metadataBuilder.build());
@@ -143,21 +157,21 @@ public abstract class DataShare implements Serializable {
     builder.setRPit(rPit);
 
     // Get the encrypted shares.
-    List<Map<String, String>> encryptedDataShares = checkThenGet(ENCRYPTED_DATA_SHARES,
-        ArrayList.class, payload,
-        PAYLOAD);
+    checkValuePresent(ENCRYPTED_DATA_SHARES, payload, PAYLOAD, ValueTypeCase.ARRAY_VALUE);
+    List<Value> encryptedDataShares = payload.get(ENCRYPTED_DATA_SHARES).getArrayValue().getValuesList();
     if (encryptedDataShares.size() != numberOfServers) {
       illegalArgCounter.inc();
       throw new IllegalArgumentException("Mismatch between number of servers (" + numberOfServers
           + ") and number of data shares (" + encryptedDataShares.size() + ")");
     }
     List<EncryptedShare> shares = new ArrayList<>(NUMBER_OF_SERVERS);
+    // Ensure data shares are of correct type and convert to DataShare-compatible type.
     for (int i = 0; i < encryptedDataShares.size(); i++) {
-      String keyId = checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i),
-          ENCRYPTED_DATA_SHARES + "[" + i + "]");
-      String base64payload = checkThenGet(DATA_SHARE_PAYLOAD, String.class,
-          encryptedDataShares.get(i),
-          ENCRYPTED_DATA_SHARES + "[" + i + "]");
+      Map<String, Value> encryptedDataShare = encryptedDataShares.get(i).getMapValue().getFieldsMap();
+      checkValuePresent(ENCRYPTION_KEY_ID, encryptedDataShare, ENCRYPTED_DATA_SHARES + "[" + i + "]", ValueTypeCase.STRING_VALUE);
+      checkValuePresent(DATA_SHARE_PAYLOAD, encryptedDataShare, ENCRYPTED_DATA_SHARES + "[" + i + "]", ValueTypeCase.STRING_VALUE);
+      String keyId = encryptedDataShare.get(ENCRYPTION_KEY_ID).getStringValue();
+      String base64payload = encryptedDataShare.get(DATA_SHARE_PAYLOAD).getStringValue();
       byte[] decodedPayload;
       try {
         decodedPayload = Base64.getDecoder().decode(base64payload);
@@ -173,43 +187,40 @@ public abstract class DataShare implements Serializable {
     builder.setEncryptedDataShares(shares);
 
     // Step 2: Get the exception message (if it's present)
-    if (doc.contains(EXCEPTION) && doc.get(EXCEPTION) != null) {
-      try {
-        builder.setException((String) doc.get(EXCEPTION));
-        // If the exception is present, no need to check for signature or certificates
-        return builder.build();
-      } catch (ClassCastException e) {
+    Map<String, Value> fields = doc.getFieldsMap();
+    if (fields.containsKey(EXCEPTION) && fields.get(EXCEPTION) != null) {
+      if (!fields.get(EXCEPTION).getValueTypeCase().equals(ValueTypeCase.STRING_VALUE)) {
         castExceptionCounter.inc();
         throw new IllegalArgumentException(
-            "Error casting 'exception' from 'payload' to exception", e);
+            "Error casting 'exception' from 'payload' to string");
       }
+      builder.setException(fields.get(EXCEPTION).getStringValue());
+      // If the exception is present, no need to check for signature or certificates
+      return builder.build();
     }
 
     // Step 3: Get the signature.
-    String signature = (String) doc.get(SIGNATURE);
-    if (signature == null) {
-      missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: " + SIGNATURE);
-    }
-    builder.setSignature(signature);
+    checkValuePresent(SIGNATURE, fields, DOCUMENT_FIELDS, ValueTypeCase.STRING_VALUE);
+    builder.setSignature(fields.get(SIGNATURE).getStringValue());
 
     // Step 4: Get the chain of X509 certificates.
-    List<String> certChainString = (List<String>) doc.get(CERT_CHAIN);
-    if (certChainString == null) {
+    if (fields.get(CERT_CHAIN) == null) {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
     }
+    List<Value> certChainString = fields.get(CERT_CHAIN).getArrayValue().getValuesList();
 
     List<X509Certificate> certChainX509 = new ArrayList<>();
     try {
       CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-      for (String certString : certChainString) {
-        byte[] cert = Base64.getDecoder().decode(certString);
+      for (Value certString : certChainString) {
+        byte[] cert = Base64.getDecoder().decode(certString.getStringValue());
         // Parse as X509 certificate.
-        X509Certificate certX509 = (X509Certificate) certFactory
-            .generateCertificate(new ByteArrayInputStream(cert));
+        // TODO figure out why this throws 'CertificateException: Could not parse certificate:
+        //  java.io.IOException: Empty input' for all documents
+        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(cert));
         certChainX509.add(certX509);
-      }
+       }
     } catch (Exception e) {
       illegalArgCounter.inc();
       throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN,
@@ -249,22 +260,18 @@ public abstract class DataShare implements Serializable {
     abstract Builder setCertificateChain(@Nullable List<X509Certificate> certChain);
   }
 
-  // Returns a casted element from a map and provides detailed exceptions upon
-  // failure.
-  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap,
-      String sourceName) {
+  // Checks for the presence of the given field in the sourceMap and provides detailed exceptions
+  // if the field is absent or of the wrong type.
+  private static void checkValuePresent(String field,  Map<String, Value> sourceMap, String sourceName, ValueTypeCase type) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       missingRequiredCounter.inc();
-      throw new IllegalArgumentException(
-          "Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
-    try {
-      return fieldClass.cast(sourceMap.get(field));
-    } catch (ClassCastException e) {
+    if (!sourceMap.get(field).getValueTypeCase().equals(type)) {
       castExceptionCounter.inc();
       throw new IllegalArgumentException(
-          "Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
+          "Error casting '" + field + "' from '" + sourceName + "' to " + type.name());
     }
   }
 

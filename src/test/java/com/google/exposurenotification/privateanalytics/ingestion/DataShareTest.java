@@ -22,6 +22,11 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
+import com.google.firestore.v1.ArrayValue;
+import com.google.firestore.v1.Document;
+import com.google.firestore.v1.MapValue;
+import com.google.firestore.v1.Value;
+import com.google.firestore.v1.Value.ValueTypeCase;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
@@ -38,8 +43,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.mockito.Answers;
-import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.slf4j.Logger;
@@ -51,43 +54,47 @@ import org.slf4j.LoggerFactory;
 @RunWith(JUnit4.class)
 public class DataShareTest {
   private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
+  public static final String PATH_ID = "uuid/path/id";
+  public static final String UUID = "uniqueuserid";
+  public static final long PRIME = 4293918721L;
+  public static final String SIGNATURE = "signature";
+  public static final long BINS = 2L;
+  public static final long HAMMING_WEIGHT = 1L;
+  public static final double EPSILON = 5.2933D;
 
-  @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-  DocumentSnapshot documentSnapshot;
+  Document document;
 
   @Rule
   public MockitoRule mockitoRule = MockitoJUnit.rule();
 
   @Test
   public void testHappyCase() {
-
+    Document.Builder docBuilder = Document.newBuilder();
     // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
-
-    // Signature and chain of certificates.
-    String signature = "signature";
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
     List<X509Certificate> certs = certChains.getKey();
-    List<String> certsSerialized = certChains.getValue();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
-
-    DataShare dataShare = DataShare.from(documentSnapshot);
+    DataShare dataShare = DataShare.from(document);
     DataShareMetadata metadata = dataShare.getDataShareMetadata();
 
-    assertThat(dataShare.getPath()).isEqualTo("/path/id");
-    assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
+    assertThat(dataShare.getPath()).isEqualTo(PATH_ID);
+    assertThat(dataShare.getUuid()).isEqualTo(UUID);
     assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < metadata.getPrime());
-    assertThat(metadata.getPrime()).isEqualTo(4293918721L);
-    assertThat(metadata.getBins()).isEqualTo(2L);
-    assertThat(metadata.getHammingWeight()).isEqualTo(1L);
-    assertThat(metadata.getEpsilon()).isEqualTo(5.2933D);
+    assertThat(metadata.getPrime()).isEqualTo(PRIME);
+    assertThat(metadata.getBins()).isEqualTo(BINS);
+    assertThat(metadata.getHammingWeight()).isEqualTo(HAMMING_WEIGHT);
+    assertThat(metadata.getEpsilon()).isEqualTo(EPSILON);
     assertThat(dataShare.getEncryptedDataShares()).hasSize(2);
     assertThat(dataShare.getEncryptedDataShares().get(0).getEncryptionKeyId())
         .isEqualTo("fakeEncryptionKeyId1");
@@ -98,117 +105,113 @@ public class DataShareTest {
     assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptedPayload())
         .isEqualTo("fakePayload2".getBytes());
     assertThat(dataShare.getCertificateChain()).isEqualTo(certs);
-    assertThat(dataShare.getSignature()).isEqualTo(signature);
+    assertThat(dataShare.getSignature()).isEqualTo(SIGNATURE);
   }
 
   /** Tests with missing fields */
 
   @Test
   public void testMissingPrioParams() {
+    Document.Builder docBuilder = Document.newBuilder();
     // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
-
-    // Signature and chain of certificates.
-    String signature = "signature";
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
-    List<String> certsSerialized = certChains.getValue();
-
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
     // Remove the Prio params
-    samplePayload.remove(DataShare.PRIO_PARAMS);
+    samplePayload.remove(DataShare.PRIO_PARAMS);Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat()
         .contains("Missing required field: '" + DataShare.PRIO_PARAMS + "' from '" + DataShare.PAYLOAD + "'");
   }
 
   @Test
   public void testMissingPayload() {
-    // Signature and chain of certificates.
-    String signature = "signature";
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
-    List<String> certsSerialized = certChains.getValue();
+    Document.Builder docBuilder = Document.newBuilder();
+    Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(null);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.PAYLOAD);
   }
 
   @Test
   public void testMissingSignature() {
+    Document.Builder docBuilder = Document.newBuilder();
     // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Chain of certificates.
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
-    List<String> certsSerialized = certChains.getValue();
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(null);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
-    assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.SIGNATURE);
+    assertThat(e).hasMessageThat().contains("Missing required field: '" + DataShare.SIGNATURE);
   }
 
   @Test
   public void testMissingCertChain() {
+    Document.Builder docBuilder = Document.newBuilder();
     // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Signature
-    String signature = "signature";
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(null);
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.CERT_CHAIN);
   }
 
   @Test
   public void testMissingPrime() {
-    // Construct the payload.
-    Map<String, Object> prioParamsWithoutPrime = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
+    Document.Builder docBuilder = Document.newBuilder();
+    Map<String, Value> prioParams = createPrioParams();
+    // Remove prime from Prio params
+    prioParams.remove(DataShare.PRIME);
+    // Construct payload
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Signature and chain of certificates.
-    String signature = "signature";
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
-    List<String> certsSerialized = certChains.getValue();
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    // Remove the prime
-    prioParamsWithoutPrime.remove(DataShare.PRIME);
-    Map<String, Object> samplePayload = createPayload(prioParamsWithoutPrime, encryptedDataShares);
-
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat()
         .contains("Missing required field: '" + DataShare.PRIME + "' from '" + DataShare.PRIO_PARAMS + "'");
   }
@@ -217,94 +220,91 @@ public class DataShareTest {
 
   @Test
   public void testWrongTypes() {
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct the payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    // Set a payload field, CREATED, to invalid type
+    samplePayload.replace(DataShare.CREATED, Value.newBuilder().setStringValue("false").build());
+    Map<String, Value> fields = new HashMap<>();
+    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
+    List<Value> certsSerialized = certChains.getValue();
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    // Signature and chain of certificates.
-    String signature = "signature";
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains = createCertificateChain();
-    List<String> certsSerialized = certChains.getValue();
-
-    // Modify the payload
-    samplePayload.replace(DataShare.CREATED, 3.14);
-
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertEquals(
-        "Error casting '" + DataShare.CREATED + "' from '" + DataShare.PAYLOAD + "' to " + Timestamp.class.getName(),
+        "Error casting '" + DataShare.CREATED + "' from '" + DataShare.PAYLOAD + "' to " + ValueTypeCase.TIMESTAMP_VALUE.name(),
         e.getMessage());
   }
 
   @Test
   public void testIncorrectCertificates() {
-    // Construct the payload.
-    Map<String, Object> prioParams = createPrioParams();
-    List<Map<String, String>> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Object> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    List<Value> certsSerialized = new ArrayList<>();
+    certsSerialized.add(Value.newBuilder().setStringValue("Incorrect serialization").build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
 
-    // Signature and chain of certificates.
-    String signature = "signature";
-    List<String> certsSerialized = new ArrayList<>();
-    certsSerialized.add("Incorrect serialization");
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
 
-    // Specify the documentSnapshot
-    when(documentSnapshot.getReference().getPath()).thenReturn("/path/id");
-    when(documentSnapshot.get(eq(DataShare.PAYLOAD))).thenReturn(samplePayload);
-    when(documentSnapshot.get(eq(DataShare.SIGNATURE))).thenReturn(signature);
-    when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(documentSnapshot));
     assertThat(e).hasMessageThat().contains("Could not parse the chain of certificates: " + DataShare.CERT_CHAIN);
   }
 
   /** Static functions to create the objects used in the tests above. */
-  public static Map<String, Object> createPrioParams() {
-    Map<String, Object> samplePrioParams = new HashMap<>();
-    samplePrioParams.put(DataShare.PRIME, 4293918721L);
-    samplePrioParams.put(DataShare.BINS, 2L);
-    samplePrioParams.put(DataShare.EPSILON, 5.2933D);
-    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS_FIELD, 2L);
-    samplePrioParams.put(DataShare.HAMMING_WEIGHT, 1L);
+  public static Map<String, Value> createPrioParams() {
+    Map<String, Value> samplePrioParams = new HashMap<>();
+    samplePrioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(PRIME).build());
+    samplePrioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(BINS).build());
+    samplePrioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(EPSILON).build());
+    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(BINS).build());
+    samplePrioParams.put(DataShare.HAMMING_WEIGHT, Value.newBuilder().setIntegerValue(
+        HAMMING_WEIGHT).build());
     return samplePrioParams;
   }
 
-  public static List<Map<String, String>> createEncryptedDataShares() {
-    List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
-    Map<String, String> sampleDataShare1 = new HashMap<>();
-    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-    sampleDataShare1
-        .put(DataShare.PAYLOAD, Base64.getEncoder().encodeToString("fakePayload1".getBytes()));
-    Map<String, String> sampleDataShare2 = new HashMap<>();
-    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-    sampleDataShare2
-        .put(DataShare.PAYLOAD, Base64.getEncoder().encodeToString("fakePayload2".getBytes()));
-    sampleEncryptedDataShares.add(sampleDataShare1);
-    sampleEncryptedDataShares.add(sampleDataShare2);
+  public static List<Value> createEncryptedDataShares() {
+    List<Value> sampleEncryptedDataShares = new ArrayList<>();
+    Map<String, Value> sampleDataShare1 = new HashMap<>();
+    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, Value.newBuilder().setStringValue("fakeEncryptionKeyId1").build());
+    sampleDataShare1.put(DataShare.PAYLOAD, Value.newBuilder().setStringValue(Base64.getEncoder().encodeToString("fakePayload1".getBytes())).build());
+    Map<String, Value> sampleDataShare2 = new HashMap<>();
+    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, Value.newBuilder().setStringValue("fakeEncryptionKeyId2").build());
+    sampleDataShare2.put(DataShare.PAYLOAD, Value.newBuilder().setStringValue(Base64.getEncoder().encodeToString("fakePayload2".getBytes())).build());
+    sampleEncryptedDataShares.add(Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(sampleDataShare1).build()).build());
+    sampleEncryptedDataShares.add(Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(sampleDataShare2).build()).build());
     return sampleEncryptedDataShares;
   }
 
-  public static Map<String, Object> createPayload(Map<String, Object> prioParams,
-      List<Map<String, String>> encryptedDataShares) {
-    Map<String, Object> samplePayload = new HashMap<>();
-    samplePayload.put(DataShare.CREATED, Timestamp.ofTimeSecondsAndNanos(1234, 0));
-    samplePayload.put(DataShare.UUID, "uniqueuserid");
-    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, encryptedDataShares);
-    samplePayload.put(DataShare.PRIO_PARAMS, prioParams);
+  public static Map<String, Value> createPayload(Map<String, Value> prioParams,
+      List<Value> encryptedDataShares) {
+    Map<String, Value> samplePayload = new HashMap<>();
+    samplePayload.put(DataShare.CREATED, Value.newBuilder().setTimestampValue(
+        com.google.protobuf.Timestamp.newBuilder().setSeconds(1234).build()).build());
+    samplePayload.put(DataShare.UUID, Value.newBuilder().setStringValue(UUID).build());
+    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(encryptedDataShares)).build());
+    samplePayload.put(DataShare.PRIO_PARAMS, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(prioParams).build()).build());
     return samplePayload;
   }
 
-  public static AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> createCertificateChain() {
+  public static AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> createCertificateChain() {
     List<X509Certificate> certificates = new ArrayList<>();
-    List<String> certsSerialized = new ArrayList<>();
+    List<Value> certsSerialized = new ArrayList<>();
     try {
       String certBase64 = getTestCertificate();
       byte[] certBytes = Base64.getDecoder().decode(certBase64);
@@ -313,8 +313,8 @@ public class DataShareTest {
       LOG.info("parsed: " + cert.toString());
       certificates.add(cert);
       certificates.add(cert); // twice
-      certsSerialized.add(certBase64);
-      certsSerialized.add(certBase64);
+      certsSerialized.add(Value.newBuilder().setStringValue(certBase64).build());
+      certsSerialized.add(Value.newBuilder().setStringValue(certBase64).build());
     } catch (Exception e) {
       // pass: it's a CertificateException in case we mistyped "X.509".
     }

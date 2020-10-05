@@ -25,14 +25,12 @@ import org.apache.beam.sdk.options.ValueProvider;
  * Specific options for the pipeline.
  */
 public interface IngestionPipelineOptions extends PipelineOptions {
-
   /**
    * Firebase project to read from.
    */
   @Description("Firebase Project Id to read from")
   @Required
   ValueProvider<String> getFirebaseProjectId();
-
   void setFirebaseProjectId(ValueProvider<String> value);
 
   /**
@@ -95,6 +93,15 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   ValueProvider<Boolean> getDelete();
 
   void setDelete(ValueProvider<Boolean> value);
+
+  /**
+   * Maximum number of query partitions to create for running Firestore read.
+   */
+  @Description("Maximum number of partitions to create for Firestore query.")
+  @Default.Long(10000)
+  ValueProvider<Long> getPartitionCount();
+
+  void setPartitionCount(ValueProvider<Long> value);
 
   /**
    * Whether to check device hardware attestations

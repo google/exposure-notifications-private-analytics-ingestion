@@ -16,6 +16,7 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.api.core.ApiFuture;
+import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
@@ -23,9 +24,13 @@ import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import com.google.firestore.v1.Document;
+import com.google.firestore.v1.GetDocumentRequest;
+import com.google.firestore.v1.Value;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -91,7 +96,6 @@ public class IngestionPipelineIT {
   @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws IOException, ExecutionException, InterruptedException {
-    Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db);
     File phaFile = tmpFolder.newFile();
     File facilitatorFile = tmpFolder.newFile();
     IngestionPipelineOptions options = TestPipeline.testingPipelineOptions().as(
@@ -107,6 +111,7 @@ public class IngestionPipelineIT {
     options.setStartTime(StaticValueProvider.of(CREATION_TIME));
     options.setDuration(StaticValueProvider.of(DURATION));
     options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
+    Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db, options);
 
     IngestionPipeline.runIngestionPipeline(options);
 
@@ -116,6 +121,14 @@ public class IngestionPipelineIT {
       comparePrioDataSharePacket(entry.getValue(), inputDataSharePackets.get(entry.getKey()));
       checkSuccessfulFork(forkedSharesFilePrefixes);
     }
+  }
+
+  private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
+      throws IOException {
+    FirestoreSettings settings =
+        FirestoreSettings.newBuilder().setCredentialsProvider(FixedCredentialsProvider.create(
+            GoogleCredentials.newBuilder().build())).build();
+    return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
   }
 
   private Map<String, PrioDataSharePacket> readOutput() throws IOException {
@@ -141,8 +154,8 @@ public class IngestionPipelineIT {
   /**
    * Creates test-users collection and adds sample documents to test queries. Returns entry value in form of {@link Map<String, PrioDataSharePacket>}.
    */
-  private static Map<String, PrioDataSharePacket> seedDatabaseAndReturnEntryVal(Firestore db)
-      throws ExecutionException, InterruptedException {
+  private static Map<String, PrioDataSharePacket> seedDatabaseAndReturnEntryVal(Firestore db, IngestionPipelineOptions options)
+      throws ExecutionException, InterruptedException, IOException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
@@ -155,10 +168,11 @@ public class IngestionPipelineIT {
       docData.put("id", "id" + i);
       docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
       docData.put(DataShare.SIGNATURE, "signature");
-      AbstractMap.SimpleEntry<List<X509Certificate>, List<String>> certChains =
+      AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains =
           DataShareTest.createCertificateChain();
-      List<X509Certificate> certs = certChains.getKey();
-      List<String> certsSerialized = certChains.getValue();
+      List<String> certsSerialized = certChains.getValue().stream()
+          .map(elem -> elem.getStringValue())
+          .collect(Collectors.toList());
       docData.put(DataShare.CERT_CHAIN, certsSerialized);
       DocumentReference reference = db.collection(TEST_COLLECTION_NAME).document("doc" + i);
       batch.set(reference, docData);
@@ -169,9 +183,13 @@ public class IngestionPipelineIT {
     // future.get() blocks on batch commit operation
     future.get();
 
+    com.google.cloud.firestore.v1.FirestoreClient client = getFirestoreClient();
+
     Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
     for(DocumentReference reference : listDocReference) {
-      DataShare dataShare = DataShare.from(reference.get().get());
+      // TODO(larryjacobs): this doesn't work. Figure out how to read data as Document from emulator.
+      Document doc = client.getDocument(GetDocumentRequest.newBuilder().setName("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents/" + reference.getPath()).build());
+      DataShare dataShare = DataShare.from(doc);
       List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
       List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
       for (EncryptedShare entry : encryptedDataShares) {
