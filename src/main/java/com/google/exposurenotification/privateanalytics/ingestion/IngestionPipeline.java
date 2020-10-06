@@ -19,7 +19,6 @@ import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConne
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
-import java.util.Arrays;
 import java.util.List;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
@@ -60,26 +59,11 @@ import org.slf4j.LoggerFactory;
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+
+  // TODO: support arbitrary number of servers
   private static final int NUMBER_OF_SERVERS = 2;
 
-  public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
-    private final int index;
-    public ForkByIndexFn(int index) {
-      this.index = index;
-    }
-
-    @ProcessElement
-    public void processElement(ProcessContext c) {
-      if (index < c.element().size()) {
-        c.output(c.element().get(index));
-      } else {
-        return;
-      }
-    }
-  }
-
   /**
-<<<<<<< HEAD
    * A DoFn that filters documents in particular time window
    */
   public static class DateFilterFn extends DoFn<DataShare, DataShare> {
@@ -175,15 +159,29 @@ public class IngestionPipeline {
       serializedDataShares
           .apply("ForkDataSharesForPHA", ParDo.of(new ForkByIndexFn(0)))
           .apply("WriteToPhaOutput", AvroIO.write(PrioDataSharePacket.class)
-              .to("options.getPhaOutput()")
+              .to(options.getPHAOutput())
               .withSuffix(".avro"));
       serializedDataShares
         .apply("ForkDataSharesForFacilitator", ParDo.of(new ForkByIndexFn(1)))
         .apply("WriteToFacilitatorOutput", AvroIO.write(PrioDataSharePacket.class)
-          .to("options.getFacilitatorOutput()")
+          .to(options.getFacilitatorOutput())
           .withSuffix(".avro"));
   }
-  
+
+  public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
+    private final int index;
+    public ForkByIndexFn(int index) {
+      this.index = index;
+    }
+
+    @ProcessElement
+    public void processElement(ProcessContext c) {
+      if (index < c.element().size()) {
+        c.output(c.element().get(index));
+      }
+    }
+  }
+
   private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,
       PCollection<DataShare> dataShares) {
     return dataShares

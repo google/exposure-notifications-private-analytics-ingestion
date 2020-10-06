@@ -96,15 +96,16 @@ public class IngestionPipelineIT {
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws IOException, ExecutionException, InterruptedException {
     Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db);
-    File outputFile1 = tmpFolder.newFile();
-    File outputFile2 = tmpFolder.newFile();
+    File phaFile = tmpFolder.newFile();
+    File facilitatorFile = tmpFolder.newFile();
     IngestionPipelineOptions options = TestPipeline.testingPipelineOptions().as(
         IngestionPipelineOptions.class);
     List<String> forkedSharesFilePrefixes = Arrays.asList(
-            getFilePath(outputFile1.getAbsolutePath()),
-            getFilePath(outputFile2.getAbsolutePath())
+            getFilePath(phaFile.getAbsolutePath()),
+            getFilePath(facilitatorFile.getAbsolutePath())
     );
-    options.setOutput(StaticValueProvider.of(forkedSharesFilePrefixes));
+    options.setPHAOutput(StaticValueProvider.of(phaFile.getAbsolutePath()));
+    options.setFacilitatorOutput(StaticValueProvider.of(facilitatorFile.getAbsolutePath()));
     options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
     options.setServiceAccountKey(StaticValueProvider.of(SERVICE_ACCOUNT_KEY_PATH));
     options.setMetric(StaticValueProvider.of(TEST_COLLECTION_NAME));

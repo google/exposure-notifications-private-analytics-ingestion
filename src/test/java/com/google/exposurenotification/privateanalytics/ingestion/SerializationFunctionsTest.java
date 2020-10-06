@@ -52,7 +52,6 @@ public class SerializationFunctionsTest {
     public void testSerializeDataShares() {
         IngestionPipelineOptions options = TestPipeline
                 .testingPipelineOptions().as(IngestionPipelineOptions.class);
-        options.setNumberOfServers(StaticValueProvider.of(2));
         List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
         Map<String, String> sampleDataShare1 = new HashMap<>();
         sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
@@ -85,7 +84,7 @@ public class SerializationFunctionsTest {
         );
         PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
         PCollection<List<PrioDataSharePacket>> output =
-                input.apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
+                input.apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(2)));
 
         PAssert.that(output).containsInAnyOrder(avroDataShares);
         pipeline.run().waitUntilFinish();

@@ -37,8 +37,8 @@ public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  // Firestore document field names
-  // TODO: link to ENX app github repo where these are defined
+  // Firestore document field names. See
+  // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
   public static final String PAYLOAD = "payload";
   public static final String SIGNATURE = "signature";
   public static final String CERT_CHAIN = "certificateChain";
@@ -92,7 +92,6 @@ public abstract class DataShare implements Serializable {
   /**
    * @return Pipeline projection of Firestore document
    */
-
   public static DataShare from(DocumentSnapshot doc) {
     DataShare.Builder builder = builder();
     try {
@@ -116,10 +115,12 @@ public abstract class DataShare implements Serializable {
     builder.setPrime(prime);
     builder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
     builder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
-    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS).intValue();
+    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS)
+        .intValue();
     builder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
-      builder.setHammingWeight(checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
+      builder.setHammingWeight(
+          checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
     }
 
     // Generate a r_PIT randomly for every data share.
@@ -127,7 +128,8 @@ public abstract class DataShare implements Serializable {
     builder.setRPit(rPit);
 
     // Get the encrypted shares.
-    List<Map<String, String>> encryptedDataShares = checkThenGet(ENCRYPTED_DATA_SHARES, ArrayList.class, payload,
+    List<Map<String, String>> encryptedDataShares = checkThenGet(ENCRYPTED_DATA_SHARES,
+        ArrayList.class, payload,
         PAYLOAD);
     if (encryptedDataShares.size() != numberOfServers) {
       throw new IllegalArgumentException("Mismatch between number of servers (" + numberOfServers
@@ -136,8 +138,10 @@ public abstract class DataShare implements Serializable {
 
     // Ensure data shares are of correct type.
     for (int i = 0; i < encryptedDataShares.size(); i++) {
-      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" + i + "]");
-      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i), ENCRYPTED_DATA_SHARES + "[" + i + "]");
+      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i),
+          ENCRYPTED_DATA_SHARES + "[" + i + "]");
+      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i),
+          ENCRYPTED_DATA_SHARES + "[" + i + "]");
     }
     builder.setEncryptedDataShares(encryptedDataShares);
 
@@ -172,11 +176,13 @@ public abstract class DataShare implements Serializable {
       for (String certString : certChainString) {
         byte[] cert = Base64.getDecoder().decode(certString);
         // Parse as X509 certificate.
-        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(cert));
+        X509Certificate certX509 = (X509Certificate) certFactory
+            .generateCertificate(new ByteArrayInputStream(cert));
         certChainX509.add(certX509);
       }
     } catch (Exception e) {
-      throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN, e);
+      throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN,
+          e);
     }
 
     builder.setCertificateChain(certChainX509);
@@ -221,9 +227,11 @@ public abstract class DataShare implements Serializable {
 
   // Returns a casted element from a map and provides detailed exceptions upon
   // failure.
-  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap, String sourceName) {
+  private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap,
+      String sourceName) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
-      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new IllegalArgumentException(
+          "Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
     try {

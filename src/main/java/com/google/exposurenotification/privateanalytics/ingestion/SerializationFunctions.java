@@ -96,6 +96,7 @@ public class SerializationFunctions {
                             .setHammingWeight(c.element().getHammingWeight())
                             .setPrime(c.element().getPrime())
                             .setEpsilon(c.element().getEpsilon())
+                            // TODO: implement packet digest
                             .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
                             .build()
             );

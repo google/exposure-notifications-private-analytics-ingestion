@@ -118,7 +118,6 @@ public class IngestionPipelineTest {
   public void testForkDataSharesFn() {
     IngestionPipelineOptions options = TestPipeline
             .testingPipelineOptions().as(IngestionPipelineOptions.class);
-    options.setNumberOfServers(StaticValueProvider.of(2));
 
     List<List<PrioDataSharePacket>> dataSharesInput =
             Arrays.asList(
