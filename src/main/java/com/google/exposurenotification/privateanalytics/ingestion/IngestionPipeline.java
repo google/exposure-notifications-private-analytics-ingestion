@@ -17,6 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.ForkByIndexFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import java.util.List;
@@ -166,20 +167,6 @@ public class IngestionPipeline {
         .apply("WriteToFacilitatorOutput", AvroIO.write(PrioDataSharePacket.class)
           .to(options.getFacilitatorOutput())
           .withSuffix(".avro"));
-  }
-
-  public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
-    private final int index;
-    public ForkByIndexFn(int index) {
-      this.index = index;
-    }
-
-    @ProcessElement
-    public void processElement(ProcessContext c) {
-      if (index < c.element().size()) {
-        c.output(c.element().get(index));
-      }
-    }
   }
 
   private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,

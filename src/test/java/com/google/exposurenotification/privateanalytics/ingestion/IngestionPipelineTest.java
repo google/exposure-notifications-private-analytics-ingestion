@@ -15,7 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline.ForkByIndexFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.ForkByIndexFn;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;

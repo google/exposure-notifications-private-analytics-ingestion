@@ -103,4 +103,18 @@ public class SerializationFunctions {
         }
     }
 
+    public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
+        private final int index;
+        public ForkByIndexFn(int index) {
+            this.index = index;
+        }
+
+        @ProcessElement
+        public void processElement(ProcessContext c) {
+            if (index < c.element().size()) {
+                c.output(c.element().get(index));
+            }
+        }
+    }
+
 }
