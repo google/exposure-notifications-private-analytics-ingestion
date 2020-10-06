@@ -34,13 +34,13 @@ import org.slf4j.LoggerFactory;
 public class SerializationFunctions {
     public static class SerializeDataShareFn extends DoFn<DataShare, List<PrioDataSharePacket>> {
         private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
-        private final ValueProvider<Integer> numberOfServers;
+        private final int numberOfServers;
         private final Counter dataShareIncluded = Metrics
                 .counter(SerializeDataShareFn.class, "dataShareIncluded");
         private final Counter dataSharesWrongNumberServers = Metrics
                 .counter(SerializeDataShareFn.class, "dataSharesWrongNumberServers");
 
-        public SerializeDataShareFn(ValueProvider<Integer> numberOfServers) {
+        public SerializeDataShareFn(int numberOfServers) {
             this.numberOfServers = numberOfServers;
         }
 
@@ -48,7 +48,7 @@ public class SerializationFunctions {
         public void processElement(ProcessContext c) {
 
             List<Map<String, String>> encryptedDataShares = c.element().getEncryptedDataShares();
-            if (encryptedDataShares.size() != numberOfServers.get()) {
+            if (encryptedDataShares.size() != numberOfServers) {
                 dataSharesWrongNumberServers.inc();
                 LOG.trace("Excluded element: " + c.element());
                 return;

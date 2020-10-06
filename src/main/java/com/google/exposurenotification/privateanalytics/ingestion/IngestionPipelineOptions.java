@@ -55,16 +55,15 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setMetric(ValueProvider<String> value);
 
-  /**
-   * Comma-separated prefixes of where to write the output.
-   * Note: Number of prefixes should equal number of servers.
-   * Note: The first output prefix should be for the PHA
-   */
-  @Description("List of prefixes of where to write the output files to (PHA first)")
+  @Description("File prefix of where to write the output files to for PHA.")
   @Required
-  ValueProvider<List<String>> getOutput();
+  ValueProvider<String> getPHAOutput();
+  void setPHAOutput(ValueProvider<String> value);
 
-  void setOutput(ValueProvider<List<String>> value);
+  @Description("File prefix of where to write the output files to for Facilitator.")
+  @Required
+  ValueProvider<String> getFacilitatorOutput();
+  void setFacilitatorOutput(ValueProvider<String> value);
 
   /**
    * Start time of window to process
@@ -112,16 +111,6 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setDelete(ValueProvider<Boolean> value);
 
   /**
-   * Number of servers that the prio data shares will be split with.
-   * Note: The number of servers must match the number of file prefixes specified in 'output' option.
-   */
-  @Description(
-          "Number of servers that the prio data shares will be split with.")
-  @Default.Integer(2)
-  ValueProvider<Integer> getNumberOfServers();
-  void setNumberOfServers(ValueProvider<Integer> value);
-
-  /**
    * ProjectID for signature generation
    */
   @Description("Project ID for signature generation")
@@ -166,17 +155,17 @@ public interface IngestionPipelineOptions extends PipelineOptions {
     return "IngestionPipelineOptions:"
         + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
         + "\nmetric=" + options.getMetric()
-        + "\noutput=" + options.getOutput()
         + "\nstart=" + options.getStartTime()
         + "\nduration=" + options.getDuration()
         + "\nminParticipant=" + options.getMinimumParticipantCount()
         + "\ndelete=" + options.getDelete()
-        + "\nnumberOfServers=" + options.getNumberOfServers()
         + "\nprojectId=" + options.getProjectId()
         + "\nlocationId=" + options.getLocationId()
         + "\nkeyRingId=" + options.getKeyRingId()
         + "\nkeyId=" + options.getKeyId()
-        + "\nKeyVersionId=" + options.getKeyVersionId();
+        + "\nKeyVersionId=" + options.getKeyVersionId()
+        + "\nphaOutput=" + options.getPHAOutput()
+        + "\nfacilitatorOutput=" + options.getFacilitatorOutput();
   }
 >>>>>>> f447de7 (log options during execution, graph during init)
 }

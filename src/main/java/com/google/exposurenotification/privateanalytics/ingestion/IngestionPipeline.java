@@ -60,6 +60,7 @@ import org.slf4j.LoggerFactory;
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+  private static final int NUMBER_OF_SERVERS = 2;
 
   public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
     private final int index;
@@ -152,20 +153,6 @@ public class IngestionPipeline {
                   }
                 }));
 
-    // Ensure that 'numberOfServers' matches the number of output prefixes provided to 'output' option.
-    ValueProvider<Integer> numberOfServers = options.getNumberOfServers();
-    ValueProvider<List<String>> output = options.getOutput();
-    PAssert.thatSingleton(pipeline.apply("Create-dummyPcollection", Create.of(Arrays.asList("dummyPcollection"))))
-            .satisfies(input -> {
-              Assert.assertTrue("numberOfServers ("
-                              + numberOfServers.get()
-                              + ") does not match the number of file prefixes provided to the 'output' flag. "
-                              + "output: "
-                              + output.get(),
-                      output.get().size() == numberOfServers.get());
-              return null;
-            });
-
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
     PCollection<String> headerFilenames = writeIngestionHeader(options, dataShares);
     headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
@@ -173,7 +160,7 @@ public class IngestionPipeline {
     // TODO: Make separate batch UUID for each batch of data shares.
     PCollection<List<PrioDataSharePacket>> serializedDataShares =
       processDataShares(dataShares, options)
-          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(options.getNumberOfServers())));
+          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(NUMBER_OF_SERVERS)));
     writePrioDataSharePackets(options, serializedDataShares);
 
     // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
@@ -185,14 +172,16 @@ public class IngestionPipeline {
 
   private static void writePrioDataSharePackets(IngestionPipelineOptions options,
       PCollection<List<PrioDataSharePacket>> serializedDataShares) {
-    List<String> filePrefixes = options.getOutput().get();
-    for (int i = 0; i < filePrefixes.size(); i++) {
       serializedDataShares
-          .apply("ForkDataShares-" + i, ParDo.of(new ForkByIndexFn(i)))
-          .apply("Write-PrioDataSharePacket-" + i, AvroIO.write(PrioDataSharePacket.class)
-              .to(filePrefixes.get(i))
+          .apply("ForkDataSharesForPHA", ParDo.of(new ForkByIndexFn(0)))
+          .apply("WriteToPhaOutput", AvroIO.write(PrioDataSharePacket.class)
+              .to("options.getPhaOutput()")
               .withSuffix(".avro"));
-    }
+      serializedDataShares
+        .apply("ForkDataSharesForFacilitator", ParDo.of(new ForkByIndexFn(1)))
+        .apply("WriteToFacilitatorOutput", AvroIO.write(PrioDataSharePacket.class)
+          .to("options.getFacilitatorOutput()")
+          .withSuffix(".avro"));
   }
   
   private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,
