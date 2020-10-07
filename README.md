@@ -51,27 +51,23 @@ mvn verify
 Set the following local variables that will be used in the commands below.
 
 ```shell script
-OUTPUT_LOCATION=gs://some/output/folder
 FIREBASE_PROJECT_ID=firebase-project-id
-GCP_PROJECT_ID=other-project-id
-SERVICE_ACCOUNT_KEY=/some/key.json
-METRIC=metricOfInterest
-LOCATION_ID=locatio_id_of_key
-KEY_RING_ID=key-ring_id
-KEY_ID=key_id_in_key_ring
-KEY_VERSION_ID=key_version_of_above_key
+GCP_PROJECT_ID=some-ingestion-project-id
+PHA_OUTPUT=gs://some/output/folder/pha
+FACILITATOR_OUTPUT=gs://some/output/folder/faciliator
+KEY_RESOURCE_NAME=projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1
 ```
 
 ### Locally
 
 ```shell script
-mvn -Pdirect-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--output=$OUTPUT_LOCATION --firebaseProjectId=$FIREBASE_PROJECT_ID --serviceAccountKey=$SERVICE_ACCOUNT_KEY --metric=$METRIC"
+mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 ### On Cloud
 
 ```shell script
-mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=$GCP_PROJECT_ID --stagingLocation=$OUTPUT_LOCATION/staging/  --output=$OUTPUT_LOCATION --runner=DataflowRunner  --region=us-central1 --serviceAccountKey=$SERVICE_ACCOUNT_KEY --firebaseProjectId=$FIREBASE_PROJECT_ID"
+mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=$GCP_PROJECT_ID --stagingLocation=$OUTPUT_LOCATION/staging/ --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 ## Deploying

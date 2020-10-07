@@ -17,9 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.Map;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
@@ -31,7 +29,11 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Holder of various DoFn's for aspects of serialization
+ */
 public class SerializationFunctions {
+
     public static class SerializeDataShareFn extends DoFn<DataShare, List<PrioDataSharePacket>> {
         private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
         private final int numberOfServers;

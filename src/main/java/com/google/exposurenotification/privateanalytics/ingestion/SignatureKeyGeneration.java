@@ -24,12 +24,7 @@ public class SignatureKeyGeneration extends DoFn<String, Void> {
   public void startBundle(StartBundleContext context) throws IOException {
     client = KeyManagementServiceClient.create();
     IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
-    keyVersionName = CryptoKeyVersionName.of(
-        options.getProjectId().get(),
-        options.getLocationId().get(),
-        options.getKeyRingId().get(),
-        options.getKeyId().get(),
-        options.getKeyVersionId().get());
+    keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName().get());
   }
 
   @ProcessElement

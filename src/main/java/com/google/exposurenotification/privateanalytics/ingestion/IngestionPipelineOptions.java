@@ -15,7 +15,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import java.util.List;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -28,39 +27,26 @@ import org.apache.beam.sdk.options.ValueProvider;
 public interface IngestionPipelineOptions extends PipelineOptions {
 
   /**
-   * Path to the service account key json file.
-   */
-  @Description("Path to the service account key json file")
-  @Required
-  ValueProvider<String> getServiceAccountKey();
-
-  void setServiceAccountKey(ValueProvider<String> value);
-
-  /**
    * Firebase project to read from.
    */
-  @Description("Firebase Project Id")
+  @Description("Firebase Project Id to read from")
   @Required
-
   ValueProvider<String> getFirebaseProjectId();
 
   void setFirebaseProjectId(ValueProvider<String> value);
 
   /**
-   * Metric to aggregate
+   * File prefix for output files for PHA
    */
-  @Description("Metric to aggregate")
-  @Required
-  ValueProvider<String> getMetric();
-
-  void setMetric(ValueProvider<String> value);
-
-  @Description("File prefix of where to write the output files to for PHA.")
+  @Description("File prefix for output files for PHA.")
   @Required
   ValueProvider<String> getPHAOutput();
   void setPHAOutput(ValueProvider<String> value);
 
-  @Description("File prefix of where to write the output files to for Facilitator.")
+  /**
+   * File prefix for output files for Facilitator
+   */
+  @Description("File prefix for output files for Facilitator.")
   @Required
   ValueProvider<String> getFacilitatorOutput();
   void setFacilitatorOutput(ValueProvider<String> value);
@@ -80,7 +66,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description(
       "Duration of window in seconds")
-  @Default.Long(172800000)
+  @Default.Long(1728000000)
   ValueProvider<Long> getDuration();
 
   void setDuration(ValueProvider<Long> value);
@@ -111,59 +97,32 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setDelete(ValueProvider<Boolean> value);
 
   /**
-   * ProjectID for signature generation
+   * Whether to check device hardware attestations
    */
-  @Description("Project ID for signature generation")
-  @Default.String("")
-  ValueProvider<String> getProjectId();
-  void setProjectId(ValueProvider<String> value);
+  @Description(
+      "Verify device attestations")
+  @Default.Boolean(true)
+  ValueProvider<Boolean> getDeviceAttestation();
+
+  void setDeviceAttestation(ValueProvider<Boolean> value);
 
   /**
-   * Location id
+   * Signing key resource name. See https://cloud.google.com/kms/docs/resource-hierarchy
+   * E.g., projects/$PROJECT_NAME/locations/global/keyRings/$RING/cryptoKeys/$KEY/cryptoKeyVersions/$VERSION
    */
-  @Description("Location ID")
+  @Description("KMS resource name for signature generation")
   @Default.String("")
-  ValueProvider<String> getLocationId();
-  void setLocationId(ValueProvider<String> value);
-
-  /**
-   * Key Ring id
-   */
-  @Description("Key Ring ID")
-  @Default.String("")
-  ValueProvider<String> getKeyRingId();
-  void setKeyRingId(ValueProvider<String> value);
-
-  /**
-   * Key id
-   */
-  @Description("Key ID")
-  @Default.String("")
-  ValueProvider<String> getKeyId();
-  void setKeyId(ValueProvider<String> value);
-
-  /**
-   * Key Version id
-   */
-  @Description("Key Version ID")
-  @Default.String("")
-  ValueProvider<String> getKeyVersionId();
-  void setKeyVersionId(ValueProvider<String> value);
-
+  ValueProvider<String> getKeyResourceName();
+  void setKeyResourceName(ValueProvider<String> value);
 
   static String displayString(IngestionPipelineOptions options){
     return "IngestionPipelineOptions:"
         + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
-        + "\nmetric=" + options.getMetric()
         + "\nstart=" + options.getStartTime()
         + "\nduration=" + options.getDuration()
         + "\nminParticipant=" + options.getMinimumParticipantCount()
         + "\ndelete=" + options.getDelete()
-        + "\nprojectId=" + options.getProjectId()
-        + "\nlocationId=" + options.getLocationId()
-        + "\nkeyRingId=" + options.getKeyRingId()
-        + "\nkeyId=" + options.getKeyId()
-        + "\nKeyVersionId=" + options.getKeyVersionId()
+        + "\nkeyResourceName=" + options.getKeyResourceName()
         + "\nphaOutput=" + options.getPHAOutput()
         + "\nfacilitatorOutput=" + options.getFacilitatorOutput();
   }

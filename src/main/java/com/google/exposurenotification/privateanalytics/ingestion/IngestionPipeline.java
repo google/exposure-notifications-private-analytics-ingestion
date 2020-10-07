@@ -25,7 +25,9 @@ import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.AvroIO;
+import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
@@ -121,7 +123,7 @@ public class IngestionPipeline {
     return dataShares;
   }
 
-  static void runIngestionPipeline(IngestionPipelineOptions options) {
+  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline =  Pipeline.create(options);
     // Log pipeline options.
     // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
@@ -142,19 +144,20 @@ public class IngestionPipeline {
     PCollection<String> headerFilenames = writeIngestionHeader(options, dataShares);
     headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
 
-    // TODO: Make separate batch UUID for each batch of data shares.
+    // TODO(amanraj): Make separate batch UUID for each batch of data shares.
     PCollection<List<PrioDataSharePacket>> serializedDataShares =
       processDataShares(dataShares, options)
           .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(NUMBER_OF_SERVERS)));
     writePrioDataSharePackets(options, serializedDataShares);
 
-    // TODO: use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
+    // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
     dataShares.apply(new FirestoreDeleter());
 
     LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
-    pipeline.run().waitUntilFinish();
+    return pipeline.run();
   }
 
+  // TODO(justinowusu): move to SerializationFunctions
   private static void writePrioDataSharePackets(IngestionPipelineOptions options,
       PCollection<List<PrioDataSharePacket>> serializedDataShares) {
       serializedDataShares
@@ -169,6 +172,7 @@ public class IngestionPipeline {
           .withSuffix(".avro"));
   }
 
+  // TODO(amanraj): move to SerializationFunctions
   private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,
       PCollection<DataShare> dataShares) {
     return dataShares
@@ -186,7 +190,10 @@ public class IngestionPipeline {
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
     try {
-      runIngestionPipeline(options);
+      PipelineResult result = runIngestionPipeline(options);
+      result.waitUntilFinish();
+      MetricResults metrics = result.metrics();
+      LOG.info(metrics.allMetrics().toString());
     } catch (UnsupportedOperationException ignore) {
       // Known issue that this can throw when generating a template:
       // https://issues.apache.org/jira/browse/BEAM-9337

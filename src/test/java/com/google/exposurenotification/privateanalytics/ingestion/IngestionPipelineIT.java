@@ -68,14 +68,9 @@ public class IngestionPipelineIT {
   static final long DURATION = 10000L;
   static final String FIREBASE_PROJECT_ID = "emulator-test-project";
   static final long MINIMUM_PARTICIPANT_COUNT = 1L;
-  static final String SERVICE_ACCOUNT_KEY_PATH = "PATH/TO/SERVICE_ACCOUNT_KEY.json";
   static final String TEST_COLLECTION_NAME = "test-uuid";
-  static final String PROJECT_ID = "appa-ingestion";
-  static final String LOCATION_ID = "global";
-  static final String KEY_RING_ID = "appa-signature-key-ring";
-  static final String KEY_ID = "appa-signature-key";
-  static final String KEY_VERSION_ID = "1";
-
+  // TODO(amanraj): figure out way to not check this in
+  static final String KEY_RESOURCE_NAME = "projects/appa-ingestion/locations/global/keyRings/appa-signature-key-ring/cryptoKeys/appa-signature-key/cryptoKeyVersions/1";
 
   static Firestore db;
 
@@ -107,16 +102,10 @@ public class IngestionPipelineIT {
     options.setPHAOutput(StaticValueProvider.of(phaFile.getAbsolutePath()));
     options.setFacilitatorOutput(StaticValueProvider.of(facilitatorFile.getAbsolutePath()));
     options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
-    options.setServiceAccountKey(StaticValueProvider.of(SERVICE_ACCOUNT_KEY_PATH));
-    options.setMetric(StaticValueProvider.of(TEST_COLLECTION_NAME));
     options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
     options.setStartTime(StaticValueProvider.of(CREATION_TIME));
     options.setDuration(StaticValueProvider.of(DURATION));
-    options.setProjectId(StaticValueProvider.of(PROJECT_ID));
-    options.setLocationId(StaticValueProvider.of(LOCATION_ID));
-    options.setKeyRingId(StaticValueProvider.of(KEY_RING_ID));
-    options.setKeyId(StaticValueProvider.of(KEY_ID));
-    options.setKeyVersionId(StaticValueProvider.of(KEY_VERSION_ID));
+    options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
 
     IngestionPipeline.runIngestionPipeline(options);
 

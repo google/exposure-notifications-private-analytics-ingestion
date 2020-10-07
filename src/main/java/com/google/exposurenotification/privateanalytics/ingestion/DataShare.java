@@ -48,6 +48,7 @@ public abstract class DataShare implements Serializable {
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
+  // TODO: delete this field prior to launch/open source - this is just a convenient way to analyze exceptions from different test devices
   public static final String EXCEPTION = "exception";
 
   // Signature and certificates fields
@@ -60,7 +61,7 @@ public abstract class DataShare implements Serializable {
   public static final String BINS = "bins";
   public static final String EPSILON = "epsilon";
   public static final String NUMBER_OF_SERVERS = "numberServers";
-  public static final String HAMMING_WEIGHT = "hammingWeight"; // Optional field
+  public static final String HAMMING_WEIGHT = "hammingWeight";
 
   // Encrypted Data Share fields
   public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";

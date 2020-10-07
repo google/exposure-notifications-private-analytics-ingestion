@@ -25,8 +25,6 @@ import com.google.cloud.firestore.QuerySnapshot;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.metrics.Counter;
@@ -50,8 +48,13 @@ public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
+  private static final String METRIC_COLLECTION_NAME = "metrics";
+
   private static final Counter invalidDocumentCounter = Metrics
       .counter(FirestoreConnector.class, "invalidDocuments");
+
+  private static final Counter documentsRead = Metrics
+      .counter(FirestoreConnector.class, "documentsRead");
 
   /** Reads documents from Firestore */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
@@ -59,7 +62,7 @@ public class FirestoreConnector {
     @Override
     public PCollection<DataShare> expand(PBegin input) {
       return input
-          // XXX: total hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
+          // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
           .apply(Create.of(""))
           // TODO(larryjacobs): run partition query to split into cursors, and pass that to ReadFn
           //      apparently the Source idiom is no longer favored?
@@ -81,9 +84,7 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) throws Exception {
-        String metric = context.getPipelineOptions().as(IngestionPipelineOptions.class).getMetric()
-            .get();
-        for (DataShare ds : readDocumentsFromFirestore(db, metric)) {
+        for (DataShare ds : readDocumentsFromFirestore(db, METRIC_COLLECTION_NAME)) {
           context.output(ds);
         }
       }
@@ -129,9 +130,7 @@ public class FirestoreConnector {
   private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions)
       throws Exception {
     if (FirebaseApp.getApps().isEmpty()) {
-      InputStream serviceAccount = new FileInputStream(
-          pipelineOptions.getServiceAccountKey().get());
-      GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
+      GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
       FirebaseOptions options = new FirebaseOptions.Builder()
           .setProjectId(pipelineOptions.getFirebaseProjectId().get())
           .setCredentials(credentials)
@@ -153,10 +152,11 @@ public class FirestoreConnector {
     List<DataShare> docs = new ArrayList<>();
     for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
       LOG.debug("Fetched document from Firestore: " + document.getReference().getPath());
+      documentsRead.inc();
       try {
         docs.add(DataShare.from(document));
       } catch (RuntimeException e) {
-        LOG.debug("Skipping document: " + document.getReference().getPath());
+        LOG.warn("Unable to read document " + document.getReference().getPath(), e);
         invalidDocumentCounter.inc();
       }
     }
