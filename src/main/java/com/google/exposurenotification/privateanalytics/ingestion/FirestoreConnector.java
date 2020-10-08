@@ -150,6 +150,7 @@ public class FirestoreConnector {
     // TODO(larryjacobs): scalable io connector to Firestore
     ApiFuture<QuerySnapshot> querySnapshot = query.get();
     List<DataShare> docs = new ArrayList<>();
+    // TODO(larryjacobs): rather than retrieve all documents (and filter for time later) retrieve only the date subcollection corresponding to the window of interest +/- an hour
     for (DocumentSnapshot document : querySnapshot.get().getDocuments()) {
       LOG.debug("Fetched document from Firestore: " + document.getReference().getPath());
       documentsRead.inc();

@@ -82,6 +82,7 @@ public class SerializationFunctions {
         public SerializeIngestionHeaderFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
             this.startTime = startTime;
             this.duration = duration;
+            // TODO: generate batch uuid
             this.batchUuid = StaticValueProvider.of("placeholderUuid");
         }
 
