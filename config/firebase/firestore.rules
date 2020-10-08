@@ -75,13 +75,26 @@ service cloud.firestore {
           ]);
     }
 
+    // Check metric name
+    function checkMetricName(n) {
+      return n in [
+          // Currently supported metrics:
+          // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/metrics
+          'fakeMetric-v1',
+          'histogramMetric-v1',
+          'PeriodicExposureNotificationInteraction-v1',
+          'PeriodicExposureNotification-v1'
+      ];
+    }
+
     match /uuid/{uuid}/date/{date}/metrics/{metricName} {
       allow create: if request.resource.data.payload.uuid == uuid
                     && request.resource.data.payload.created == request.time
                     // Don't ingest anything with auth tokens attached
                     && request.auth == null
                     && checkDatePath(date, request.resource.data.payload.created)
-                    && checkFields(request.resource.data);
+                    && checkFields(request.resource.data)
+                    && checkMetricName(metricName);
     }
   }
 }
