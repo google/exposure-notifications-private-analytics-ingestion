@@ -113,6 +113,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   @Description("KMS resource name for signature generation")
   @Default.String("")
   ValueProvider<String> getKeyResourceName();
+
   void setKeyResourceName(ValueProvider<String> value);
 
   static String displayString(IngestionPipelineOptions options){

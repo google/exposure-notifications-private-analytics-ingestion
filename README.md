@@ -46,9 +46,12 @@ To run integration tests (includes standing up a Firestore emulator):
 mvn verify
 ```
 
-## Running
+## Deploying / Building DataFlow template
 
-Set the following local variables that will be used in the commands below.
+We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
+that takes all pipeline options as runtime parameters.
+
+Set the following environment variables are useful for the commands below.
 
 ```shell script
 FIREBASE_PROJECT_ID=firebase-project-id
@@ -58,6 +61,13 @@ FACILITATOR_OUTPUT=gs://some/output/folder/faciliator
 KEY_RESOURCE_NAME=projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1
 ```
 
+
+```shell script
+mvn -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--project=$GCP_PROJECT_ID --runner=DataflowRunner --region=us-central1 --stagingLocation=$STAGING --templateLocation=gs://$TEMPLATE_BUCKET/templates/local-build-"`date +'%Y-%m-%d-%H-%M'`
+```
+
+## Running the pipeline
+
 ### Locally
 
 ```shell script
@@ -66,15 +76,14 @@ mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.pr
 
 ### On Cloud
 
+#### From local build
+
 ```shell script
 mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
-## Deploying
-
-We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
-that takes all pipeline options as runtime parameters.
+#### From previously built template
 
 ```shell script
-mvn -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--project=appa-ingestion --runner=DataflowRunner --region=us-central1 --stagingLocation=gs://appa-batch-output/staging/ --templateLocation=gs://appa-test-bucket/templates/test-template-1"
+gcloud dataflow jobs run "ingestion-manual-run-${USER}-"`date +'%Y-%m-%d-%H-%M'` --gcs-location=$TEMPLATE_LOCATION --region=us-central1 --parameters="PHAOutput=$PHA_OUTPUT,facilitatorOutput=$FACILITATOR_OUTPUT,firebaseProjectId=$FIREBASE_PROJECT_ID,deviceAttestation=false,keyResourceName=$KEY_RESOURCE_NAME" 
 ```
