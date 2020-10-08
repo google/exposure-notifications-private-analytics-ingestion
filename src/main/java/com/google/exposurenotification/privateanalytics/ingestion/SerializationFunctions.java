@@ -26,6 +26,7 @@ import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,8 @@ import org.slf4j.LoggerFactory;
  */
 public class SerializationFunctions {
 
-    public static class SerializeDataShareFn extends DoFn<DataShare, List<PrioDataSharePacket>> {
+    public static class SerializeDataShareFn extends DoFn<DataShare,
+        KV<DataShareMetadata, List<PrioDataSharePacket>>> {
         private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
         private final int numberOfServers;
         private final Counter dataShareIncluded = Metrics
@@ -70,7 +72,7 @@ public class SerializationFunctions {
                 );
             }
             dataShareIncluded.inc();
-            c.output(splitDataShares);
+            c.output(KV.of(c.element().getDataShareMetadata(), splitDataShares));
         }
     }
 
@@ -107,7 +109,8 @@ public class SerializationFunctions {
         }
     }
 
-    public static class ForkByIndexFn extends DoFn<List<PrioDataSharePacket>, PrioDataSharePacket> {
+    public static class ForkByIndexFn extends DoFn<KV<DataShareMetadata, List<PrioDataSharePacket>>,
+        KV<DataShareMetadata, PrioDataSharePacket>> {
         private final int index;
         public ForkByIndexFn(int index) {
             this.index = index;
@@ -115,8 +118,8 @@ public class SerializationFunctions {
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-            if (index < c.element().size()) {
-                c.output(c.element().get(index));
+            if (index < c.element().getValue().size()) {
+                c.output(KV.of(c.element().getKey(), c.element().getValue().get(index)));
             }
         }
     }

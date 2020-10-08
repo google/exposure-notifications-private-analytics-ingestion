@@ -29,6 +29,8 @@ import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.WithKeys;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -117,55 +119,57 @@ public class IngestionPipelineTest {
   @Category(ValidatesRunner.class)
   public void testForkDataSharesFn() {
     IngestionPipelineOptions options = TestPipeline
-            .testingPipelineOptions().as(IngestionPipelineOptions.class);
+        .testingPipelineOptions().as(IngestionPipelineOptions.class);
 
     List<List<PrioDataSharePacket>> dataSharesInput =
+        Arrays.asList(
             Arrays.asList(
-                    Arrays.asList(
-                            PrioDataSharePacket.newBuilder()
-                                    .setEncryptionKeyId("fakeEncryptionKeyId1")
-                                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
-                                    .setRPit(12345L)
-                                    .setUuid("SuperUniqueId")
-                                    .build(),
-                            PrioDataSharePacket.newBuilder()
-                                    .setEncryptionKeyId("fakeEncryptionKeyId2")
-                                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
-                                    .setRPit(12345L)
-                                    .setUuid("SuperUniqueId")
-                                    .build()
-                    ),
+                PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("fakeEncryptionKeyId1")
+                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
+                    .setRPit(12345L)
+                    .setUuid("SuperUniqueId")
+                    .build(),
+                PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("fakeEncryptionKeyId2")
+                    .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
+                    .setRPit(12345L)
+                    .setUuid("SuperUniqueId")
+                    .build()),
 
-                    Arrays.asList(
-                            PrioDataSharePacket.newBuilder()
-                                    .setEncryptionKeyId("bogusEncryptionKeyId1")
-                                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload1".getBytes()))
-                                    .setRPit(600613L)
-                                    .setUuid("AnotherUniqueId")
-                                    .build(),
-                            PrioDataSharePacket.newBuilder()
-                                    .setEncryptionKeyId("bogusEncryptionKeyId2")
-                                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload2".getBytes()))
-                                    .setRPit(600613L)
-                                    .setUuid("AnotherUniqueId")
-                                    .build()
-                    ));
+            Arrays.asList(
+                PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("bogusEncryptionKeyId1")
+                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload1".getBytes()))
+                    .setRPit(600613L)
+                    .setUuid("AnotherUniqueId")
+                    .build(),
+                    PrioDataSharePacket.newBuilder()
+                    .setEncryptionKeyId("bogusEncryptionKeyId2")
+                    .setEncryptedPayload(ByteBuffer.wrap("bogusPayload2".getBytes()))
+                    .setRPit(600613L)
+                    .setUuid("AnotherUniqueId")
+                    .build()));
 
     int index = 1;
-    List<PrioDataSharePacket> dataSharesInIndex = new ArrayList<>();
+    DataShareMetadata metadata = DataShareMetadata.builder().build();
+    List<KV<DataShareMetadata, PrioDataSharePacket>> dataSharesInIndex = new ArrayList<>();
     for (List<PrioDataSharePacket> dataSharePackets : dataSharesInput) {
-      dataSharesInIndex.add(dataSharePackets.get(index));
+      dataSharesInIndex.add(KV.of(metadata, dataSharePackets.get(index)));
     }
-    PCollection<PrioDataSharePacket> output =
-            pipeline.apply(Create.of(dataSharesInput))
-                    .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(index)));
+
+    PCollection<KV<DataShareMetadata, PrioDataSharePacket>> output =
+        pipeline.apply(Create.of(dataSharesInput))
+            .apply(WithKeys.of(metadata))
+            .apply("ForkDataShares", ParDo.of(new ForkByIndexFn(index)));
+
     PAssert.thatSingleton(output.apply("CountDataShares", Count.globally()))
-            .satisfies(input -> {
-              Assert.assertTrue(
-                      "Number of data shares returned does not match number of data shares in index "
-                              + index
-                              + " from dataSharesInput",
-                      input == dataSharesInIndex.size());
+        .satisfies(input -> {
+          Assert.assertTrue(
+              "Number of data shares returned does not match number of data shares in index "
+                  + index
+                  + " from dataSharesInput",
+              input == dataSharesInIndex.size());
               return null;
             });
 

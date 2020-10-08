@@ -31,6 +31,7 @@ import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
 import org.junit.Test;
@@ -61,6 +62,13 @@ public class SerializationFunctionsTest {
         sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
         sampleEncryptedDataShares.add(sampleDataShare1);
         sampleEncryptedDataShares.add(sampleDataShare2);
+        DataShareMetadata metadata = DataShareMetadata.builder()
+            .setEpsilon(3.14D)
+            .setPrime(600613L)
+            .setBins(10)
+            .setNumberOfServers(2)
+            .setHammingWeight(10)
+            .build();
         List<DataShare> dataShares = Arrays.asList(
             DataShare.builder()
                 .setPath("id1")
@@ -68,36 +76,31 @@ public class SerializationFunctionsTest {
                 .setRPit(12345L)
                 .setUuid("SuperUniqueId")
                 .setDataShareMetadata(
-                    DataShareMetadata.builder()
-                        .setEpsilon(3.14D)
-                        .setPrime(600613L)
-                        .setBins(10)
-                        .setNumberOfServers(2)
-                        .setHammingWeight(10)
-                        .build())
+                    metadata)
                     .setEncryptedDataShares(sampleEncryptedDataShares)
                     .build()
         );
 
         List<PrioDataSharePacket> avroDataShares = Arrays.asList(
-                PrioDataSharePacket.newBuilder()
-                        .setEncryptionKeyId("fakeEncryptionKeyId1")
-                        .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
-                        .setRPit(12345L)
-                        .setUuid("SuperUniqueId")
-                        .build(),
-                PrioDataSharePacket.newBuilder()
-                        .setEncryptionKeyId("fakeEncryptionKeyId2")
-                        .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
-                        .setRPit(12345L)
-                        .setUuid("SuperUniqueId")
-                        .build()
+            PrioDataSharePacket.newBuilder()
+                .setEncryptionKeyId("fakeEncryptionKeyId1")
+                .setEncryptedPayload(ByteBuffer.wrap("fakePayload1".getBytes()))
+                .setRPit(12345L)
+                .setUuid("SuperUniqueId")
+                .build(),
+            PrioDataSharePacket.newBuilder()
+                .setEncryptionKeyId("fakeEncryptionKeyId2")
+                .setEncryptedPayload(ByteBuffer.wrap("fakePayload2".getBytes()))
+                .setRPit(12345L)
+                .setUuid("SuperUniqueId")
+                .build()
         );
         PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
-        PCollection<List<PrioDataSharePacket>> output =
-                input.apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(2)));
+        PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> output =
+            input.apply("SerializeDataShares",
+                ParDo.of(new SerializeDataShareFn(2)));
 
-        PAssert.that(output).containsInAnyOrder(avroDataShares);
+        PAssert.that(output).containsInAnyOrder(KV.of(metadata, avroDataShares));
         pipeline.run().waitUntilFinish();
     }
 

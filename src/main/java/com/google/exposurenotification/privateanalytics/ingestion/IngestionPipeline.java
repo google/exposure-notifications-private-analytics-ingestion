@@ -37,6 +37,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Sample;
 import org.apache.beam.sdk.transforms.Values;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -145,7 +146,7 @@ public class IngestionPipeline {
     headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
 
     // TODO(amanraj): Make separate batch UUID for each batch of data shares.
-    PCollection<List<PrioDataSharePacket>> serializedDataShares =
+    PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
       processDataShares(dataShares, options)
           .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(NUMBER_OF_SERVERS)));
     writePrioDataSharePackets(options, serializedDataShares);
@@ -159,14 +160,16 @@ public class IngestionPipeline {
 
   // TODO(justinowusu): move to SerializationFunctions
   private static void writePrioDataSharePackets(IngestionPipelineOptions options,
-      PCollection<List<PrioDataSharePacket>> serializedDataShares) {
+      PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares) {
       serializedDataShares
           .apply("ForkDataSharesForPHA", ParDo.of(new ForkByIndexFn(0)))
+          .apply("ExtractPacketPha", Values.create())
           .apply("WriteToPhaOutput", AvroIO.write(PrioDataSharePacket.class)
               .to(options.getPHAOutput())
               .withSuffix(".avro"));
       serializedDataShares
         .apply("ForkDataSharesForFacilitator", ParDo.of(new ForkByIndexFn(1)))
+          .apply("ExtractPacketFacilitator", Values.create())
         .apply("WriteToFacilitatorOutput", AvroIO.write(PrioDataSharePacket.class)
           .to(options.getFacilitatorOutput())
           .withSuffix(".avro"));
