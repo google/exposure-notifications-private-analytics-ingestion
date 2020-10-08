@@ -51,7 +51,7 @@ public class SerializationFunctionsTest {
     @Category(ValidatesRunner.class)
     public void testSerializeDataShares() {
         IngestionPipelineOptions options = TestPipeline
-                .testingPipelineOptions().as(IngestionPipelineOptions.class);
+            .testingPipelineOptions().as(IngestionPipelineOptions.class);
         List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
         Map<String, String> sampleDataShare1 = new HashMap<>();
         sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
@@ -62,10 +62,21 @@ public class SerializationFunctionsTest {
         sampleEncryptedDataShares.add(sampleDataShare1);
         sampleEncryptedDataShares.add(sampleDataShare2);
         List<DataShare> dataShares = Arrays.asList(
-                DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId").setEpsilon(3.14D)
-                        .setPrime(600613L).setBins(10).setNumberOfServers(2).setHammingWeight(10)
-                        .setEncryptedDataShares(sampleEncryptedDataShares)
-                        .build()
+            DataShare.builder()
+                .setPath("id1")
+                .setCreated(1L)
+                .setRPit(12345L)
+                .setUuid("SuperUniqueId")
+                .setDataShareMetadata(
+                    DataShareMetadata.builder()
+                        .setEpsilon(3.14D)
+                        .setPrime(600613L)
+                        .setBins(10)
+                        .setNumberOfServers(2)
+                        .setHammingWeight(10)
+                        .build())
+                    .setEncryptedDataShares(sampleEncryptedDataShares)
+                    .build()
         );
 
         List<PrioDataSharePacket> avroDataShares = Arrays.asList(
@@ -108,10 +119,20 @@ public class SerializationFunctionsTest {
         sampleEncryptedDataShares.add(sampleDataShare1);
         sampleEncryptedDataShares.add(sampleDataShare2);
         List<DataShare> dataShares = Arrays.asList(
-                DataShare.builder().setPath("id1").setCreated(1L).setRPit(12345L).setUuid("SuperUniqueId").setEpsilon(3.14D)
-                        .setPrime(600613L).setBins(10).setNumberOfServers(2).setHammingWeight(15)
-                        .setEncryptedDataShares(sampleEncryptedDataShares)
-                        .build()
+            DataShare.builder()
+                .setPath("id1")
+                .setCreated(1L)
+                .setRPit(12345L)
+                .setUuid("SuperUniqueId")
+                .setDataShareMetadata(DataShareMetadata.builder()
+                    .setEpsilon(3.14D)
+                    .setPrime(600613L)
+                    .setBins(10)
+                    .setNumberOfServers(2)
+                    .setHammingWeight(15)
+                    .build())
+                .setEncryptedDataShares(sampleEncryptedDataShares)
+                .build()
         );
 
         PrioIngestionHeader expectedHeader =

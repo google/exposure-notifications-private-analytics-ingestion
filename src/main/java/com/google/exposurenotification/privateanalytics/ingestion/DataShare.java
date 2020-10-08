@@ -76,19 +76,12 @@ public abstract class DataShare implements Serializable {
 
   public abstract @Nullable String getException();
 
-  public abstract @Nullable Double getEpsilon();
-
-  public abstract @Nullable Long getPrime();
-
-  public abstract @Nullable Integer getBins();
-
-  public abstract @Nullable Integer getNumberOfServers();
-
   public abstract @Nullable Long getRPit();
 
-  public abstract @Nullable Integer getHammingWeight();
-
   public abstract @Nullable List<Map<String, String>> getEncryptedDataShares();
+
+  public abstract @Nullable DataShareMetadata getDataShareMetadata();
+
 
   /**
    * @return Pipeline projection of Firestore document
@@ -113,16 +106,20 @@ public abstract class DataShare implements Serializable {
     // Get the Prio parameters.
     Map<String, Object> prioParams = checkThenGet(PRIO_PARAMS, Map.class, payload, PAYLOAD);
     Long prime = checkThenGet(PRIME, Long.class, prioParams, PRIO_PARAMS);
-    builder.setPrime(prime);
-    builder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
-    builder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
+
+    DataShareMetadata.Builder metadataBuilder = DataShareMetadata.builder();
+    metadataBuilder.setPrime(prime);
+    metadataBuilder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
+    metadataBuilder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
     int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS)
         .intValue();
-    builder.setNumberOfServers(numberOfServers);
+    metadataBuilder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
-      builder.setHammingWeight(
+      metadataBuilder.setHammingWeight(
           checkThenGet(HAMMING_WEIGHT, Long.class, prioParams, PRIO_PARAMS).intValue());
     }
+
+    builder.setDataShareMetadata(metadataBuilder.build());
 
     // Generate a r_PIT randomly for every data share.
     Long rPit = generateRandom(prime);
@@ -207,19 +204,11 @@ public abstract class DataShare implements Serializable {
 
     abstract Builder setException(@Nullable String value);
 
-    abstract Builder setEpsilon(@Nullable Double value);
-
-    abstract Builder setPrime(@Nullable Long value);
-
-    abstract Builder setBins(@Nullable Integer value);
-
-    abstract Builder setNumberOfServers(@Nullable Integer value);
-
     abstract Builder setRPit(@Nullable Long value);
 
-    abstract Builder setHammingWeight(@Nullable Integer value);
-
     abstract Builder setEncryptedDataShares(@Nullable List<Map<String, String>> value);
+
+    abstract Builder setDataShareMetadata(@Nullable DataShareMetadata value);
 
     abstract Builder setSignature(@Nullable String value);
 
@@ -258,5 +247,39 @@ public abstract class DataShare implements Serializable {
       v >>= Long.numberOfLeadingZeros(p);
     }
     return v;
+  }
+}
+
+@AutoValue
+abstract class DataShareMetadata implements Serializable {
+  private static final long serialVersionUID = 1L;
+
+  public abstract @Nullable Double getEpsilon();
+
+  public abstract @Nullable Long getPrime();
+
+  public abstract @Nullable Integer getBins();
+
+  public abstract @Nullable Integer getNumberOfServers();
+
+  public abstract @Nullable Integer getHammingWeight();
+
+  static DataShareMetadata.Builder builder() {
+    return new AutoValue_DataShareMetadata.Builder();
+  }
+
+  @AutoValue.Builder
+  abstract static class Builder {
+    abstract DataShareMetadata build();
+
+    abstract Builder setEpsilon(@Nullable Double value);
+
+    abstract Builder setPrime(@Nullable Long value);
+
+    abstract Builder setBins(@Nullable Integer value);
+
+    abstract Builder setNumberOfServers(@Nullable Integer value);
+
+    abstract Builder setHammingWeight(@Nullable Integer value);
   }
 }

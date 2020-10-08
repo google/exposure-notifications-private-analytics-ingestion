@@ -81,14 +81,15 @@ public class DataShareTest {
     when(documentSnapshot.get(eq(DataShare.CERT_CHAIN))).thenReturn(certsSerialized);
 
     DataShare dataShare = DataShare.from(documentSnapshot);
+    DataShareMetadata metadata = dataShare.getDataShareMetadata();
 
     assertThat(dataShare.getPath()).isEqualTo("/path/id");
     assertThat(dataShare.getUuid()).isEqualTo("uniqueuserid");
-    assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < dataShare.getPrime());
-    assertThat(dataShare.getPrime()).isEqualTo(4293918721L);
-    assertThat(dataShare.getBins()).isEqualTo(2L);
-    assertThat(dataShare.getHammingWeight()).isEqualTo(1L);
-    assertThat(dataShare.getEpsilon()).isEqualTo(5.2933D);
+    assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < metadata.getPrime());
+    assertThat(metadata.getPrime()).isEqualTo(4293918721L);
+    assertThat(metadata.getBins()).isEqualTo(2L);
+    assertThat(metadata.getHammingWeight()).isEqualTo(1L);
+    assertThat(metadata.getEpsilon()).isEqualTo(5.2933D);
     assertThat(dataShare.getEncryptedDataShares()).isEqualTo(encryptedDataShares);
     assertThat(dataShare.getCertificateChain()).isEqualTo(certs);
     assertThat(dataShare.getSignature()).isEqualTo(signature);

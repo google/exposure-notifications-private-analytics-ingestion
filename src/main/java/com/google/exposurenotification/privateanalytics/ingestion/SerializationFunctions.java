@@ -88,20 +88,21 @@ public class SerializationFunctions {
 
         @ProcessElement
         public void processElement(ProcessContext c) {
+            DataShareMetadata metadata = c.element().getDataShareMetadata();
             c.output(
-                    PrioIngestionHeader.newBuilder()
-                            .setBatchUuid(batchUuid.get())
-                            .setName("BatchUuid=" + batchUuid.get())
-                            .setBatchStartTime(startTime.get())
-                            .setBatchEndTime(startTime.get() + duration.get())
-                            .setNumberOfServers(c.element().getNumberOfServers())
-                            .setBins(c.element().getBins())
-                            .setHammingWeight(c.element().getHammingWeight())
-                            .setPrime(c.element().getPrime())
-                            .setEpsilon(c.element().getEpsilon())
-                            // TODO: implement packet digest
-                            .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
-                            .build()
+                PrioIngestionHeader.newBuilder()
+                    .setBatchUuid(batchUuid.get())
+                    .setName("BatchUuid=" + batchUuid.get())
+                    .setBatchStartTime(startTime.get())
+                    .setBatchEndTime(startTime.get() + duration.get())
+                    .setNumberOfServers(metadata.getNumberOfServers())
+                    .setBins(metadata.getBins())
+                    .setHammingWeight(metadata.getHammingWeight())
+                    .setPrime(metadata.getPrime())
+                    .setEpsilon(metadata.getEpsilon())
+                    // TODO: implement packet digest
+                    .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
+                    .build()
             );
         }
     }
