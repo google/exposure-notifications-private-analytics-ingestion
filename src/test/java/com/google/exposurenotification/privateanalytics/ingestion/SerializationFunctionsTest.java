@@ -15,6 +15,8 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import java.nio.ByteBuffer;
@@ -53,15 +55,15 @@ public class SerializationFunctionsTest {
     public void testSerializeDataShares() {
         IngestionPipelineOptions options = TestPipeline
             .testingPipelineOptions().as(IngestionPipelineOptions.class);
-        List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
-        Map<String, String> sampleDataShare1 = new HashMap<>();
-        sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-        sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
-        Map<String, String> sampleDataShare2 = new HashMap<>();
-        sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-        sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
-        sampleEncryptedDataShares.add(sampleDataShare1);
-        sampleEncryptedDataShares.add(sampleDataShare2);
+        List<EncryptedShare> sampleEncryptedDataShares = new ArrayList<>();
+        sampleEncryptedDataShares.add(EncryptedShare.builder()
+            .setEncryptionKeyId("fakeEncryptionKeyId1")
+            .setEncryptedPayload("fakePayload1".getBytes())
+            .build());
+        sampleEncryptedDataShares.add(EncryptedShare.builder()
+            .setEncryptionKeyId("fakeEncryptionKeyId2")
+            .setEncryptedPayload("fakePayload2".getBytes())
+            .build());
         DataShareMetadata metadata = DataShareMetadata.builder()
             .setEpsilon(3.14D)
             .setPrime(600613L)
@@ -98,7 +100,7 @@ public class SerializationFunctionsTest {
         PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
         PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> output =
             input.apply("SerializeDataShares",
-                ParDo.of(new SerializeDataShareFn(2)));
+                ParDo.of(new SerializeDataShareFn()));
 
         PAssert.that(output).containsInAnyOrder(KV.of(metadata, avroDataShares));
         pipeline.run().waitUntilFinish();
@@ -112,15 +114,15 @@ public class SerializationFunctionsTest {
         options.setStartTime(StaticValueProvider.of(1L));
         options.setDuration(StaticValueProvider.of(2L));
 
-        List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
-        Map<String, String> sampleDataShare1 = new HashMap<>();
-        sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-        sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
-        Map<String, String> sampleDataShare2 = new HashMap<>();
-        sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-        sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
-        sampleEncryptedDataShares.add(sampleDataShare1);
-        sampleEncryptedDataShares.add(sampleDataShare2);
+        List<EncryptedShare> sampleEncryptedDataShares = new ArrayList<>();
+        sampleEncryptedDataShares.add(EncryptedShare.builder()
+            .setEncryptionKeyId("fakeEncryptionKeyId1")
+            .setEncryptedPayload("fakePayload1".getBytes())
+            .build());
+        sampleEncryptedDataShares.add(EncryptedShare.builder()
+            .setEncryptionKeyId("fakeEncryptionKeyId2")
+            .setEncryptedPayload("fakePayload2".getBytes())
+            .build());
         List<DataShare> dataShares = Arrays.asList(
             DataShare.builder()
                 .setPath("id1")

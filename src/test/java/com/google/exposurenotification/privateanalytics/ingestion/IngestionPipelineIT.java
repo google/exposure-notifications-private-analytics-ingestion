@@ -22,6 +22,7 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
@@ -171,14 +172,14 @@ public class IngestionPipelineIT {
     Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
     for(DocumentReference reference : listDocReference) {
       DataShare dataShare = DataShare.from(reference.get().get());
-      List<Map<String, String>> encryptedDataShares = dataShare.getEncryptedDataShares();
+      List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
       List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
-      for (Map<String, String> entry : encryptedDataShares) {
+      for (EncryptedShare entry : encryptedDataShares) {
         splitDataShares.add(
             PrioDataSharePacket.newBuilder()
-                .setEncryptionKeyId(entry.get(DataShare.ENCRYPTION_KEY_ID))
+                .setEncryptionKeyId(entry.getEncryptionKeyId())
                 .setEncryptedPayload(
-                    ByteBuffer.wrap(entry.get(DataShare.DATA_SHARE_PAYLOAD).getBytes()))
+                    ByteBuffer.wrap(entry.getEncryptedPayload()))
                 .setRPit(dataShare.getRPit())
                 .setUuid(dataShare.getUuid())
                 .build()
@@ -204,7 +205,7 @@ public class IngestionPipelineIT {
     samplePrioParams.put(DataShare.PRIME, 4293918721L);
     samplePrioParams.put(DataShare.BINS, 2L);
     samplePrioParams.put(DataShare.EPSILON, 5.2933D);
-    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS, 2L);
+    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS_FIELD, 2L);
     samplePrioParams.put(DataShare.HAMMING_WEIGHT, 1L);
     samplePayload.put(DataShare.PRIO_PARAMS, samplePrioParams);
 

@@ -16,15 +16,15 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
-
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -34,7 +34,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,7 +42,6 @@ import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +88,15 @@ public class DataShareTest {
     assertThat(metadata.getBins()).isEqualTo(2L);
     assertThat(metadata.getHammingWeight()).isEqualTo(1L);
     assertThat(metadata.getEpsilon()).isEqualTo(5.2933D);
-    assertThat(dataShare.getEncryptedDataShares()).isEqualTo(encryptedDataShares);
+    assertThat(dataShare.getEncryptedDataShares()).hasSize(2);
+    assertThat(dataShare.getEncryptedDataShares().get(0).getEncryptionKeyId())
+        .isEqualTo("fakeEncryptionKeyId1");
+    assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptionKeyId())
+        .isEqualTo("fakeEncryptionKeyId2");
+    assertThat(dataShare.getEncryptedDataShares().get(0).getEncryptedPayload())
+        .isEqualTo("fakePayload1".getBytes());
+    assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptedPayload())
+        .isEqualTo("fakePayload2".getBytes());
     assertThat(dataShare.getCertificateChain()).isEqualTo(certs);
     assertThat(dataShare.getSignature()).isEqualTo(signature);
   }
@@ -266,7 +272,7 @@ public class DataShareTest {
     samplePrioParams.put(DataShare.PRIME, 4293918721L);
     samplePrioParams.put(DataShare.BINS, 2L);
     samplePrioParams.put(DataShare.EPSILON, 5.2933D);
-    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS, 2L);
+    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS_FIELD, 2L);
     samplePrioParams.put(DataShare.HAMMING_WEIGHT, 1L);
     return samplePrioParams;
   }
@@ -275,10 +281,12 @@ public class DataShareTest {
     List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
     Map<String, String> sampleDataShare1 = new HashMap<>();
     sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-    sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
+    sampleDataShare1
+        .put(DataShare.PAYLOAD, Base64.getEncoder().encodeToString("fakePayload1".getBytes()));
     Map<String, String> sampleDataShare2 = new HashMap<>();
     sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-    sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
+    sampleDataShare2
+        .put(DataShare.PAYLOAD, Base64.getEncoder().encodeToString("fakePayload2".getBytes()));
     sampleEncryptedDataShares.add(sampleDataShare1);
     sampleEncryptedDataShares.add(sampleDataShare2);
     return sampleEncryptedDataShares;

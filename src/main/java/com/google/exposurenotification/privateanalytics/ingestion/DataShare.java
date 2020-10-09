@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -36,6 +38,13 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
+  private static final int NUMBER_OF_SERVERS = 2;
+  private static final Counter missingRequiredCounter = Metrics
+      .counter(DataShare.class, "datashare-missingRequired");
+  private static final Counter castExceptionCounter = Metrics
+      .counter(DataShare.class, "datashare-castException");
+  private static final Counter illegalArgCounter = Metrics
+      .counter(DataShare.class, "datashare-illegalArg");
 
   // Firestore document field names. See
   // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
@@ -60,14 +69,16 @@ public abstract class DataShare implements Serializable {
   public static final String PRIME = "prime";
   public static final String BINS = "bins";
   public static final String EPSILON = "epsilon";
-  public static final String NUMBER_OF_SERVERS = "numberServers";
+  public static final String NUMBER_OF_SERVERS_FIELD = "numberServers";
   public static final String HAMMING_WEIGHT = "hammingWeight";
 
   // Encrypted Data Share fields
   public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
   public static final String DATA_SHARE_PAYLOAD = "payload";
 
-  /** Firestore document path */
+  /**
+   * Firestore document path
+   */
   public abstract @Nullable String getPath();
 
   public abstract @Nullable Long getCreated();
@@ -78,7 +89,7 @@ public abstract class DataShare implements Serializable {
 
   public abstract @Nullable Long getRPit();
 
-  public abstract @Nullable List<Map<String, String>> getEncryptedDataShares();
+  public abstract @Nullable List<EncryptedShare> getEncryptedDataShares();
 
   public abstract @Nullable DataShareMetadata getDataShareMetadata();
 
@@ -91,12 +102,14 @@ public abstract class DataShare implements Serializable {
     try {
       builder.setPath(doc.getReference().getPath());
     } catch (RuntimeException e) {
+      missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: Path", e);
     }
 
     // Step 1: Process the payload.
     Map<String, Object> payload = (Map<String, Object>) doc.get(PAYLOAD);
     if (payload == null) {
+      missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + PAYLOAD);
     }
 
@@ -111,8 +124,12 @@ public abstract class DataShare implements Serializable {
     metadataBuilder.setPrime(prime);
     metadataBuilder.setEpsilon(checkThenGet(EPSILON, Double.class, prioParams, PRIO_PARAMS));
     metadataBuilder.setBins(checkThenGet(BINS, Long.class, prioParams, PRIO_PARAMS).intValue());
-    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS, Long.class, prioParams, PRIO_PARAMS)
+    int numberOfServers = checkThenGet(NUMBER_OF_SERVERS_FIELD, Long.class, prioParams, PRIO_PARAMS)
         .intValue();
+    if (numberOfServers != NUMBER_OF_SERVERS) {
+      illegalArgCounter.inc();
+      throw new UnsupportedOperationException("Unsupported number of servers: " + numberOfServers);
+    }
     metadataBuilder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
       metadataBuilder.setHammingWeight(
@@ -130,26 +147,39 @@ public abstract class DataShare implements Serializable {
         ArrayList.class, payload,
         PAYLOAD);
     if (encryptedDataShares.size() != numberOfServers) {
+      illegalArgCounter.inc();
       throw new IllegalArgumentException("Mismatch between number of servers (" + numberOfServers
           + ") and number of data shares (" + encryptedDataShares.size() + ")");
     }
-
-    // Ensure data shares are of correct type.
+    List<EncryptedShare> shares = new ArrayList<>(NUMBER_OF_SERVERS);
     for (int i = 0; i < encryptedDataShares.size(); i++) {
-      checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i),
+      String keyId = checkThenGet(ENCRYPTION_KEY_ID, String.class, encryptedDataShares.get(i),
           ENCRYPTED_DATA_SHARES + "[" + i + "]");
-      checkThenGet(DATA_SHARE_PAYLOAD, String.class, encryptedDataShares.get(i),
+      String base64payload = checkThenGet(DATA_SHARE_PAYLOAD, String.class,
+          encryptedDataShares.get(i),
           ENCRYPTED_DATA_SHARES + "[" + i + "]");
+      byte[] decodedPayload;
+      try {
+        decodedPayload = Base64.getDecoder().decode(base64payload);
+      } catch (IllegalArgumentException e) {
+        illegalArgCounter.inc();
+        throw new IllegalArgumentException("Unable to base64 decode payload", e);
+      }
+      shares.add(EncryptedShare.builder()
+          .setEncryptionKeyId(keyId)
+          .setEncryptedPayload(decodedPayload)
+          .build());
     }
-    builder.setEncryptedDataShares(encryptedDataShares);
+    builder.setEncryptedDataShares(shares);
 
     // Step 2: Get the exception message (if it's present)
     if (doc.contains(EXCEPTION) && doc.get(EXCEPTION) != null) {
       try {
-        builder.setException(String.class.cast(doc.get(EXCEPTION)));
-        // If the exception is present, no need to check for signature or cerficates
+        builder.setException((String) doc.get(EXCEPTION));
+        // If the exception is present, no need to check for signature or certificates
         return builder.build();
       } catch (ClassCastException e) {
+        castExceptionCounter.inc();
         throw new IllegalArgumentException(
             "Error casting 'exception' from 'payload' to exception", e);
       }
@@ -158,6 +188,7 @@ public abstract class DataShare implements Serializable {
     // Step 3: Get the signature.
     String signature = (String) doc.get(SIGNATURE);
     if (signature == null) {
+      missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + SIGNATURE);
     }
     builder.setSignature(signature);
@@ -165,6 +196,7 @@ public abstract class DataShare implements Serializable {
     // Step 4: Get the chain of X509 certificates.
     List<String> certChainString = (List<String>) doc.get(CERT_CHAIN);
     if (certChainString == null) {
+      missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
     }
 
@@ -179,6 +211,7 @@ public abstract class DataShare implements Serializable {
         certChainX509.add(certX509);
       }
     } catch (Exception e) {
+      illegalArgCounter.inc();
       throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN,
           e);
     }
@@ -194,6 +227,7 @@ public abstract class DataShare implements Serializable {
 
   @AutoValue.Builder
   abstract static class Builder {
+
     abstract DataShare build();
 
     abstract Builder setPath(@Nullable String value);
@@ -206,7 +240,7 @@ public abstract class DataShare implements Serializable {
 
     abstract Builder setRPit(@Nullable Long value);
 
-    abstract Builder setEncryptedDataShares(@Nullable List<Map<String, String>> value);
+    abstract Builder setEncryptedDataShares(@Nullable List<EncryptedShare> value);
 
     abstract Builder setDataShareMetadata(@Nullable DataShareMetadata value);
 
@@ -220,6 +254,7 @@ public abstract class DataShare implements Serializable {
   private static <T, E> T checkThenGet(String field, Class<T> fieldClass, Map<String, E> sourceMap,
       String sourceName) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
+      missingRequiredCounter.inc();
       throw new IllegalArgumentException(
           "Missing required field: '" + field + "' from '" + sourceName + "'");
     }
@@ -227,6 +262,7 @@ public abstract class DataShare implements Serializable {
     try {
       return fieldClass.cast(sourceMap.get(field));
     } catch (ClassCastException e) {
+      castExceptionCounter.inc();
       throw new IllegalArgumentException(
           "Error casting '" + field + "' from '" + sourceName + "' to " + fieldClass.getName(), e);
     }
@@ -248,38 +284,70 @@ public abstract class DataShare implements Serializable {
     }
     return v;
   }
-}
 
-@AutoValue
-abstract class DataShareMetadata implements Serializable {
-  private static final long serialVersionUID = 1L;
+  /**
+   * Represents the grouping key by which data shares should be aggregated together.
+   */
+  @AutoValue
+  public static abstract class DataShareMetadata implements Serializable {
 
-  public abstract @Nullable Double getEpsilon();
+    private static final long serialVersionUID = 1L;
 
-  public abstract @Nullable Long getPrime();
+    public abstract @Nullable Double getEpsilon();
 
-  public abstract @Nullable Integer getBins();
+    public abstract @Nullable Long getPrime();
 
-  public abstract @Nullable Integer getNumberOfServers();
+    public abstract @Nullable Integer getBins();
 
-  public abstract @Nullable Integer getHammingWeight();
+    public abstract @Nullable Integer getNumberOfServers();
 
-  static DataShareMetadata.Builder builder() {
-    return new AutoValue_DataShareMetadata.Builder();
+    public abstract @Nullable Integer getHammingWeight();
+
+    static DataShareMetadata.Builder builder() {
+      return new AutoValue_DataShare_DataShareMetadata.Builder();
+    }
+
+    @AutoValue.Builder
+    public static abstract class Builder {
+
+      abstract DataShareMetadata build();
+
+      abstract Builder setEpsilon(@Nullable Double value);
+
+      abstract Builder setPrime(@Nullable Long value);
+
+      abstract Builder setBins(@Nullable Integer value);
+
+      abstract Builder setNumberOfServers(@Nullable Integer value);
+
+      abstract Builder setHammingWeight(@Nullable Integer value);
+    }
   }
 
-  @AutoValue.Builder
-  abstract static class Builder {
-    abstract DataShareMetadata build();
+  /**
+   * Represents the core encrypted Prio data payload
+   */
+  @AutoValue
+  public static abstract class EncryptedShare implements Serializable {
 
-    abstract Builder setEpsilon(@Nullable Double value);
+    private static final long serialVersionUID = 1L;
 
-    abstract Builder setPrime(@Nullable Long value);
+    public abstract @Nullable byte[] getEncryptedPayload();
 
-    abstract Builder setBins(@Nullable Integer value);
+    public abstract @Nullable String getEncryptionKeyId();
 
-    abstract Builder setNumberOfServers(@Nullable Integer value);
+    static EncryptedShare.Builder builder() {
+      return new AutoValue_DataShare_EncryptedShare.Builder();
+    }
 
-    abstract Builder setHammingWeight(@Nullable Integer value);
+    @AutoValue.Builder
+    public static abstract class Builder {
+
+      abstract EncryptedShare build();
+
+      abstract Builder setEncryptedPayload(byte[] value);
+
+      abstract Builder setEncryptionKeyId(String value);
+    }
   }
 }

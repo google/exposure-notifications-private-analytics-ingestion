@@ -15,10 +15,11 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.metrics.Counter;
@@ -38,37 +39,23 @@ public class SerializationFunctions {
     public static class SerializeDataShareFn extends DoFn<DataShare,
         KV<DataShareMetadata, List<PrioDataSharePacket>>> {
         private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
-        private final int numberOfServers;
         private final Counter dataShareIncluded = Metrics
                 .counter(SerializeDataShareFn.class, "dataShareIncluded");
-        private final Counter dataSharesWrongNumberServers = Metrics
-                .counter(SerializeDataShareFn.class, "dataSharesWrongNumberServers");
-
-        public SerializeDataShareFn(int numberOfServers) {
-            this.numberOfServers = numberOfServers;
-        }
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-
-            List<Map<String, String>> encryptedDataShares = c.element().getEncryptedDataShares();
-            if (encryptedDataShares.size() != numberOfServers) {
-                dataSharesWrongNumberServers.inc();
-                LOG.trace("Excluded element: " + c.element());
-                return;
-            }
-
+            List<EncryptedShare> encryptedDataShares = c.element().getEncryptedDataShares();
             List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
-            for (Map<String, String> dataShare : encryptedDataShares) {
+            for (EncryptedShare dataShare : encryptedDataShares) {
                 splitDataShares.add(
-                        PrioDataSharePacket.newBuilder()
-                                .setEncryptionKeyId(dataShare.get(DataShare.ENCRYPTION_KEY_ID))
-                                .setEncryptedPayload(
-                                        ByteBuffer.wrap(
-                                                dataShare.get(DataShare.DATA_SHARE_PAYLOAD).getBytes()))
-                                .setRPit(c.element().getRPit())
-                                .setUuid(c.element().getUuid())
-                                .build()
+                    PrioDataSharePacket.newBuilder()
+                        .setEncryptionKeyId(dataShare.getEncryptionKeyId())
+                        .setEncryptedPayload(
+                            ByteBuffer.wrap(
+                                dataShare.getEncryptedPayload()))
+                        .setRPit(c.element().getRPit())
+                        .setUuid(c.element().getUuid())
+                        .build()
                 );
             }
             dataShareIncluded.inc();
@@ -118,10 +105,7 @@ public class SerializationFunctions {
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-            if (index < c.element().getValue().size()) {
-                c.output(KV.of(c.element().getKey(), c.element().getValue().get(index)));
-            }
+            c.output(KV.of(c.element().getKey(), c.element().getValue().get(index)));
         }
     }
-
 }

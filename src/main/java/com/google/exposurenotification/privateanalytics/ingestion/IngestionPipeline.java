@@ -15,6 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.ForkByIndexFn;
@@ -63,9 +64,6 @@ import org.slf4j.LoggerFactory;
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
-
-  // TODO: support arbitrary number of servers
-  private static final int NUMBER_OF_SERVERS = 2;
 
   /**
    * A DoFn that filters documents in particular time window
@@ -148,7 +146,7 @@ public class IngestionPipeline {
     // TODO(amanraj): Make separate batch UUID for each batch of data shares.
     PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
       processDataShares(dataShares, options)
-          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn(NUMBER_OF_SERVERS)));
+          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn()));
     writePrioDataSharePackets(options, serializedDataShares);
 
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
