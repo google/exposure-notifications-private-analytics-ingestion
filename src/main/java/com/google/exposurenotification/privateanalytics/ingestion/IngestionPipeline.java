@@ -18,6 +18,8 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.FilterByMetricFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.ForkByIndexFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
@@ -43,6 +45,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import picocli.CommandLine;
 
 /**
  * Pipeline to export Exposure Notification Private Analytics data shares from Firestore and
@@ -102,14 +105,14 @@ public class IngestionPipeline {
   }
 
   static PCollection<DataShare> processDataShares(
-      PCollection<DataShare> inputDataShares, IngestionPipelineOptions options) {
+      PCollection<DataShare> inputDataShares, IngestionPipelineOptions options, String metric) {
     PCollection<DataShare> dataShares = inputDataShares
-        .apply("FilterDates", ParDo.of(new DateFilterFn(options.getStartTime(),
+        .apply("FilterDatesFor" + metric, ParDo.of(new DateFilterFn(options.getStartTime(),
             options.getDuration())))
-        .apply(new DeviceAttestation());
+        .apply("DeviceAttestationFor" + metric, new DeviceAttestation());
 
     ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
-    PAssert.thatSingleton(dataShares.apply("CountParticipants", Count.globally()))
+    PAssert.thatSingleton(dataShares.apply("CountParticipantsFor" + metric, Count.globally()))
         .satisfies(input -> {
           Assert.assertTrue("Number of participating devices is:"
                   + input
@@ -122,7 +125,7 @@ public class IngestionPipeline {
     return dataShares;
   }
 
-  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
+  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options, List<String> metrics) {
     Pipeline pipeline =  Pipeline.create(options);
     // Log pipeline options.
     // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
@@ -140,15 +143,23 @@ public class IngestionPipeline {
                 }));
 
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
-    PCollection<String> headerFilenames = writeIngestionHeader(options, dataShares);
-    headerFilenames.apply("GenerateSignatureFiles", ParDo.of(new SignatureKeyGeneration()));
+    for (String metric: metrics) {
+      PCollection<DataShare> metricDataShares = dataShares
+              .apply("FilterFor" + metric, ParDo.of(new FilterByMetricFn(metric)));
+      PCollection<String> headerFilenames =
+              SerializationFunctions.
+                      writeIngestionHeader(options, metric, metricDataShares);
+      headerFilenames
+              .apply("GenerateSignatureFilesFor" + metric,
+                      ParDo.of(new SignatureKeyGeneration()));
 
-    // TODO(amanraj): Make separate batch UUID for each batch of data shares.
-    PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
-      processDataShares(dataShares, options)
-          .apply("SerializeDataShares", ParDo.of(new SerializeDataShareFn()));
-    writePrioDataSharePackets(options, serializedDataShares);
-
+      // TODO(amanraj): Make separate batch UUID for each batch of data shares.
+      PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
+              processDataShares(metricDataShares, options, metric)
+                      .apply("SerializeDataSharesFor" + metric,
+                              ParDo.of(new SerializeDataShareFn()));
+      SerializationFunctions.writePrioDataSharePackets(options, metric, serializedDataShares);
+    }
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
     dataShares.apply(new FirestoreDeleter());
 
@@ -156,42 +167,17 @@ public class IngestionPipeline {
     return pipeline.run();
   }
 
-  // TODO(justinowusu): move to SerializationFunctions
-  private static void writePrioDataSharePackets(IngestionPipelineOptions options,
-      PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares) {
-      serializedDataShares
-          .apply("ForkDataSharesForPHA", ParDo.of(new ForkByIndexFn(0)))
-          .apply("ExtractPacketPha", Values.create())
-          .apply("WriteToPhaOutput", AvroIO.write(PrioDataSharePacket.class)
-              .to(options.getPHAOutput())
-              .withSuffix(".avro"));
-      serializedDataShares
-        .apply("ForkDataSharesForFacilitator", ParDo.of(new ForkByIndexFn(1)))
-          .apply("ExtractPacketFacilitator", Values.create())
-        .apply("WriteToFacilitatorOutput", AvroIO.write(PrioDataSharePacket.class)
-          .to(options.getFacilitatorOutput())
-          .withSuffix(".avro"));
-  }
-
-  // TODO(amanraj): move to SerializationFunctions
-  private static PCollection<String> writeIngestionHeader(IngestionPipelineOptions options,
-      PCollection<DataShare> dataShares) {
-    return dataShares
-        .apply(Sample.any(1))
-        .apply("SerializeIngestionHeaders",
-            ParDo.of(new SerializeIngestionHeaderFn(options.getStartTime(), options.getDuration())))
-        .apply(AvroIO.write(PrioIngestionHeader.class)
-            .to("ingestionHeader")
-            .withSuffix(".avro").withOutputFilenames()).getPerDestinationOutputFilenames()
-        .apply(Values.create());
-  }
-
   public static void main(String[] args) {
+    IngestionPipelineFlags flags = new IngestionPipelineFlags();
+    new CommandLine(flags).parseArgs(args);
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
     IngestionPipelineOptions options =
-        PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
+        PipelineOptionsFactory
+                .fromArgs(flags.pipelineOptionsParams)
+                .withValidation()
+                .as(IngestionPipelineOptions.class);
     try {
-      PipelineResult result = runIngestionPipeline(options);
+      PipelineResult result = runIngestionPipeline(options, flags.metrics);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
       LOG.info(metrics.allMetrics().toString());

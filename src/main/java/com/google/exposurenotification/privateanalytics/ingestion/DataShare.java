@@ -105,7 +105,7 @@ public abstract class DataShare implements Serializable {
     DataShare.Builder builder = builder();
     try {
       // doc.getName() returns the fully qualified name of the document:
-      // e.g.: projects/{project_id}/databases/{database_id}/documents/uuid/...
+      // e.g.: projects/{project_id}/databases/{database_id}/documents/uuid/.../metricName
       // We need the path relative to the beginning of the root collection, "uuid/"
       builder.setPath(doc.getName().substring(doc.getName().indexOf(ROOT_COLLECTION_NAME)));
     } catch (RuntimeException e) {
@@ -148,6 +148,14 @@ public abstract class DataShare implements Serializable {
       // This will type-check the hamming weight field.
       checkValuePresent(HAMMING_WEIGHT, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
       metadataBuilder.setHammingWeight((int) prioParams.get(HAMMING_WEIGHT).getIntegerValue());
+    }
+    try {
+      String fullPath = doc.getName();
+      // The metricName is the base name of the document path
+      metadataBuilder.setMetricName(fullPath.substring(fullPath.lastIndexOf('/') + 1));
+    } catch (RuntimeException e) {
+      missingRequiredCounter.inc();
+      throw new IllegalArgumentException("Missing required field: Name", e);
     }
 
     builder.setDataShareMetadata(metadataBuilder.build());
@@ -310,6 +318,8 @@ public abstract class DataShare implements Serializable {
 
     public abstract @Nullable Integer getHammingWeight();
 
+    public abstract @Nullable String getMetricName();
+
     static DataShareMetadata.Builder builder() {
       return new AutoValue_DataShare_DataShareMetadata.Builder();
     }
@@ -328,6 +338,8 @@ public abstract class DataShare implements Serializable {
       abstract Builder setNumberOfServers(@Nullable Integer value);
 
       abstract Builder setHammingWeight(@Nullable Integer value);
+
+      abstract Builder setMetricName(@Nullable String value);
     }
   }
 

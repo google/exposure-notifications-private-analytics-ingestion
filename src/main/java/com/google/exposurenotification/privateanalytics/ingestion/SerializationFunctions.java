@@ -28,6 +28,13 @@ import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.Sample;
+import org.apache.beam.sdk.transforms.Values;
+import org.apache.beam.sdk.io.AvroIO;
+import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +113,65 @@ public class SerializationFunctions {
         @ProcessElement
         public void processElement(ProcessContext c) {
             c.output(KV.of(c.element().getKey(), c.element().getValue().get(index)));
+        }
+    }
+
+    public static void writePrioDataSharePackets(
+            IngestionPipelineOptions options,
+            String metric,
+            PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares) {
+        serializedDataShares
+                .apply("ForkDataSharesForPHA_metric=" + metric,
+                        ParDo.of(new ForkByIndexFn(0)))
+                .apply("ExtractPacketPhaFor" + metric,
+                        Values.create())
+                .apply("WriteToPhaOutput_metric=" + metric,
+                        AvroIO.write(PrioDataSharePacket.class)
+                                .to(options.getPHAOutput() + "_metric=" + metric)
+                                .withSuffix(".avro"));
+        serializedDataShares
+                .apply("ForkDataSharesForFacilitator_metric=" + metric,
+                        ParDo.of(new ForkByIndexFn(1)))
+                .apply("ExtractPacketFacilitator_metric=" + metric,
+                        Values.create())
+                .apply("WriteToFacilitatorOutput_metric=" + metric,
+                        AvroIO.write(PrioDataSharePacket.class)
+                                .to(options.getFacilitatorOutput() + "_metric=" + metric)
+                                .withSuffix(".avro"));
+    }
+
+    public static PCollection<String> writeIngestionHeader(
+            IngestionPipelineOptions options,
+            String metric,
+            PCollection<DataShare> dataShares) {
+        return dataShares
+                .apply("SampleFor" + metric,
+                        Sample.any(1))
+                .apply("SerializeIngestionHeadersFor" + metric,
+                        ParDo.of(
+                                new SerializeIngestionHeaderFn(
+                                        options.getStartTime(),
+                                        options.getDuration())))
+                .apply("WriteIngestionHeaderFor" + metric,
+                        AvroIO.write(PrioIngestionHeader.class)
+                                .to("ingestionHeader_metric=" + metric)
+                                .withSuffix(".avro").withOutputFilenames())
+                .getPerDestinationOutputFilenames()
+                .apply("GetOutputFilenamesFor" + metric, Values.create());
+    }
+
+    public static class FilterByMetricFn extends DoFn<DataShare, DataShare> {
+        private final String metric;
+
+        public FilterByMetricFn(String metric) {
+            this.metric = metric;
+        }
+
+        @ProcessElement
+        public void processElement(ProcessContext c) {
+            if (c.element().getDataShareMetadata().getMetricName().equals(metric)) {
+                c.output(c.element());
+            }
         }
     }
 }

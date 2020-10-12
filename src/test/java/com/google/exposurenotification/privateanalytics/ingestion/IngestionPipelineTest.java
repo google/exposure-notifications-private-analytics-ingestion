@@ -89,7 +89,7 @@ public class IngestionPipelineTest {
         Arrays.asList(DataShare.builder().setPath("id2").setCreated(2L).build());
 
     PCollection<DataShare> actualOutput = IngestionPipeline
-            .processDataShares(pipeline.apply(Create.of(inputData)), options);
+            .processDataShares(pipeline.apply(Create.of(inputData)), options, "dummyMetric");
 
     PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
     pipeline.run().waitUntilFinish();
@@ -111,7 +111,7 @@ public class IngestionPipelineTest {
     );
 
     IngestionPipeline
-            .processDataShares(pipeline.apply(Create.of(inputData)), options);
+            .processDataShares(pipeline.apply(Create.of(inputData)), options, "dummyMetric");
     pipeline.run().waitUntilFinish();
   }
 

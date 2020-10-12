@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 public class DataShareTest {
   private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
   public static final String PATH_ID = "uuid/path/id";
+  public static final String METRIC_NAME = "id";
   public static final String UUID = "uniqueuserid";
   public static final long PRIME = 4293918721L;
   public static final String SIGNATURE = "signature";
@@ -106,6 +107,7 @@ public class DataShareTest {
         .isEqualTo("fakePayload2".getBytes());
     assertThat(dataShare.getCertificateChain()).isEqualTo(certs);
     assertThat(dataShare.getSignature()).isEqualTo(SIGNATURE);
+    assertThat(dataShare.getDataShareMetadata().getMetricName()).isEqualTo(METRIC_NAME);
   }
 
   /** Tests with missing fields */

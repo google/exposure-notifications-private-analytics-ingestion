@@ -51,7 +51,7 @@ mvn verify
 We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
 that takes all pipeline options as runtime parameters.
 
-Set the following environment variables are useful for the commands below.
+Setting the following environment variables is useful for the commands below.
 
 ```shell script
 FIREBASE_PROJECT_ID=firebase-project-id
@@ -59,6 +59,7 @@ GCP_PROJECT_ID=some-ingestion-project-id
 PHA_OUTPUT=gs://some/output/folder/pha
 FACILITATOR_OUTPUT=gs://some/output/folder/faciliator
 KEY_RESOURCE_NAME=projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1
+METRICS=metricOfInterest1,metricOfInterest2,metricOfInterestN
 ```
 
 
@@ -71,7 +72,7 @@ mvn -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenoti
 ### Locally
 
 ```shell script
-mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--metrics=$METRICS -- --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 ### On Cloud
@@ -79,7 +80,7 @@ mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.pr
 #### From local build
 
 ```shell script
-mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--metrics=$METRICS -- --project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 #### From previously built template
