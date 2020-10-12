@@ -46,9 +46,11 @@ public class SerializationFunctions {
     public static class SerializeDataShareFn extends DoFn<DataShare,
         KV<DataShareMetadata, List<PrioDataSharePacket>>> {
         private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
-        private final Counter dataShareIncluded = Metrics
-                .counter(SerializeDataShareFn.class, "dataShareIncluded");
+        private final Counter dataShareIncluded;
 
+        public SerializeDataShareFn(String metric) {
+            this.dataShareIncluded = Metrics.counter(SerializeDataShareFn.class, "dataShareIncluded_" + metric);
+        }
         @ProcessElement
         public void processElement(ProcessContext c) {
             List<EncryptedShare> encryptedDataShares = c.element().getEncryptedDataShares();
@@ -121,22 +123,22 @@ public class SerializationFunctions {
             String metric,
             PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares) {
         serializedDataShares
-                .apply("ForkDataSharesForPHA_metric=" + metric,
+                .apply("ForkDataSharesForPHA_" + metric,
                         ParDo.of(new ForkByIndexFn(0)))
-                .apply("ExtractPacketPhaFor" + metric,
+                .apply("ExtractPacketPha_" + metric,
                         Values.create())
-                .apply("WriteToPhaOutput_metric=" + metric,
+                .apply("WriteToPhaOutput_" + metric,
                         AvroIO.write(PrioDataSharePacket.class)
-                                .to(options.getPHAOutput() + "_metric=" + metric)
+                                .to(options.getPHAOutput() + "_" + metric)
                                 .withSuffix(".avro"));
         serializedDataShares
-                .apply("ForkDataSharesForFacilitator_metric=" + metric,
+                .apply("ForkDataSharesForFacilitator_" + metric,
                         ParDo.of(new ForkByIndexFn(1)))
-                .apply("ExtractPacketFacilitator_metric=" + metric,
+                .apply("ExtractPacketFacilitator_" + metric,
                         Values.create())
-                .apply("WriteToFacilitatorOutput_metric=" + metric,
+                .apply("WriteToFacilitatorOutput_" + metric,
                         AvroIO.write(PrioDataSharePacket.class)
-                                .to(options.getFacilitatorOutput() + "_metric=" + metric)
+                                .to(options.getFacilitatorOutput() + "_" + metric)
                                 .withSuffix(".avro"));
     }
 
@@ -145,19 +147,19 @@ public class SerializationFunctions {
             String metric,
             PCollection<DataShare> dataShares) {
         return dataShares
-                .apply("SampleFor" + metric,
+                .apply("Sample_" + metric,
                         Sample.any(1))
-                .apply("SerializeIngestionHeadersFor" + metric,
+                .apply("SerializeIngestionHeaders_" + metric,
                         ParDo.of(
                                 new SerializeIngestionHeaderFn(
                                         options.getStartTime(),
                                         options.getDuration())))
-                .apply("WriteIngestionHeaderFor" + metric,
+                .apply("WriteIngestionHeader_" + metric,
                         AvroIO.write(PrioIngestionHeader.class)
-                                .to("ingestionHeader_metric=" + metric)
+                                .to("ingestionHeader_" + metric)
                                 .withSuffix(".avro").withOutputFilenames())
                 .getPerDestinationOutputFilenames()
-                .apply("GetOutputFilenamesFor" + metric, Values.create());
+                .apply("GetOutputFilenames_" + metric, Values.create());
     }
 
     public static class FilterByMetricFn extends DoFn<DataShare, DataShare> {

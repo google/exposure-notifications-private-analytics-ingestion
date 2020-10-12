@@ -100,7 +100,7 @@ public class SerializationFunctionsTest {
         PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
         PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> output =
             input.apply("SerializeDataShares",
-                ParDo.of(new SerializeDataShareFn()));
+                ParDo.of(new SerializeDataShareFn("dummyMetric")));
 
         PAssert.that(output).containsInAnyOrder(KV.of(metadata, avroDataShares));
         pipeline.run().waitUntilFinish();

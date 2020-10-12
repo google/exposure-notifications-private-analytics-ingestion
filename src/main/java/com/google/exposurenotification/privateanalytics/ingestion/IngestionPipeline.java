@@ -30,6 +30,7 @@ import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.AvroIO;
+import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
@@ -107,12 +108,11 @@ public class IngestionPipeline {
   static PCollection<DataShare> processDataShares(
       PCollection<DataShare> inputDataShares, IngestionPipelineOptions options, String metric) {
     PCollection<DataShare> dataShares = inputDataShares
-        .apply("FilterDatesFor" + metric, ParDo.of(new DateFilterFn(options.getStartTime(),
-            options.getDuration())))
-        .apply("DeviceAttestationFor" + metric, new DeviceAttestation());
-
+        .apply("FilterDates_" + metric, ParDo.of(new DateFilterFn(options.getStartTime(),
+            options.getDuration(), metric)))
+        .apply("DeviceAttestation_" + metric, new DeviceAttestation());
     ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
-    PAssert.thatSingleton(dataShares.apply("CountParticipantsFor" + metric, Count.globally()))
+    PAssert.thatSingleton(dataShares.apply("CountParticipants_" + metric, Count.globally()))
         .satisfies(input -> {
           Assert.assertTrue("Number of participating devices is:"
                   + input
@@ -145,19 +145,19 @@ public class IngestionPipeline {
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
     for (String metric: metrics) {
       PCollection<DataShare> metricDataShares = dataShares
-              .apply("FilterFor" + metric, ParDo.of(new FilterByMetricFn(metric)));
+              .apply("FilterByMetric_" + metric, ParDo.of(new FilterByMetricFn(metric)));
       PCollection<String> headerFilenames =
               SerializationFunctions.
                       writeIngestionHeader(options, metric, metricDataShares);
       headerFilenames
-              .apply("GenerateSignatureFilesFor" + metric,
+              .apply("GenerateSignatureFiles_" + metric,
                       ParDo.of(new SignatureKeyGeneration()));
 
       // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
               processDataShares(metricDataShares, options, metric)
-                      .apply("SerializeDataSharesFor" + metric,
-                              ParDo.of(new SerializeDataShareFn()));
+                      .apply("SerializeDataShares_" + metric,
+                              ParDo.of(new SerializeDataShareFn(metric)));
       SerializationFunctions.writePrioDataSharePackets(options, metric, serializedDataShares);
     }
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
@@ -180,7 +180,11 @@ public class IngestionPipeline {
       PipelineResult result = runIngestionPipeline(options, flags.metrics);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
-      LOG.info(metrics.allMetrics().toString());
+      String metricsInfo = "";
+      for (MetricResult metricResult: metrics.allMetrics().getCounters()) {
+        metricsInfo += metricResult.toString() + "\n";
+      }
+      LOG.info(metricsInfo);
     } catch (UnsupportedOperationException ignore) {
       // Known issue that this can throw when generating a template:
       // https://issues.apache.org/jira/browse/BEAM-9337

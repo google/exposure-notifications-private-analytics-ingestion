@@ -62,7 +62,7 @@ public class IngestionPipelineTest {
 
     PCollection<DataShare> output =
             input.apply(
-                    ParDo.of(new DateFilterFn(StaticValueProvider.of(2L), StaticValueProvider.of(1L))));
+                    ParDo.of(new DateFilterFn(StaticValueProvider.of(2L), StaticValueProvider.of(1L), "dummyMetric")));
 
     PAssert.that(output).containsInAnyOrder(
         Collections.singletonList(

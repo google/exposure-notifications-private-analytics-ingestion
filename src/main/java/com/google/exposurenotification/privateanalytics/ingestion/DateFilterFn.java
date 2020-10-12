@@ -14,16 +14,18 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
 
-  private final Counter dateFilterIncluded = Metrics
-      .counter(DateFilterFn.class, "dateFilterIncluded");
-  private final Counter dateFilterExcluded = Metrics
-      .counter(DateFilterFn.class, "dateFilterExcluded");
+  private final Counter dateFilterIncluded;
+  private final Counter dateFilterExcluded;
   private final ValueProvider<Long> startTime;
   private final ValueProvider<Long> duration;
 
-  public DateFilterFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
+  public DateFilterFn(ValueProvider<Long> startTime, ValueProvider<Long> duration, String metric) {
     this.startTime = startTime;
     this.duration = duration;
+    this.dateFilterIncluded = Metrics
+            .counter(DateFilterFn.class, "dateFilterIncluded_" + metric);
+    this.dateFilterExcluded = Metrics
+            .counter(DateFilterFn.class, "dateFilterExcluded_" + metric);
   }
 
   @ProcessElement
