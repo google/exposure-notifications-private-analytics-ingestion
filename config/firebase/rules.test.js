@@ -25,8 +25,7 @@ beforeAll(async () => {
     rules: fs.readFileSync("firestore.rules", "utf8")
   });
   const doc = adminApp.firestore().collection('uuid').doc('preexisting')
-                .collection('date').doc('2020-09-03-13')
-                .collection('metrics').doc('fakeMetric-v1');
+                .collection('2020-09-03-13').doc('fakeMetric-v1');
   await doc.set({
     'payload': {
       'created': firebase.firestore.FieldValue.serverTimestamp(),
@@ -112,8 +111,7 @@ describe('Tests of document writes and access', () => {
   it('document cannot be written without payload',
       async () => {
         const doc = db.collection('uuid').doc('nopayload')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         contents = correctContents('nopayload');
         delete contents['payload'];
         await firebase.assertFails(doc.set(contents));
@@ -121,8 +119,7 @@ describe('Tests of document writes and access', () => {
   it('document cannot be written without uuid',
       async () => {
         const doc = db.collection('uuid').doc('nouuidfield')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         contents = correctContents();
         delete contents['payload']['uuid'] ;
         await firebase.assertFails(doc.set(contents));
@@ -130,8 +127,7 @@ describe('Tests of document writes and access', () => {
   it('document cannot be written without created field',
       async () => {
         const doc = db.collection('uuid').doc('nocreated')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         contents = correctContents('nocreated');
         delete contents['payload']['created'];
         await firebase.assertFails(doc.set(contents));
@@ -139,8 +135,7 @@ describe('Tests of document writes and access', () => {
   it('document cannot be written with extraneous field',
       async () => {
         const doc = db.collection('uuid').doc('extraneous')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         contents = correctContents('extraneous');
         contents['payload']['prioParams']['banana'] = "extra field";
         await firebase.assertFails(doc.set(contents));
@@ -150,15 +145,13 @@ describe('Tests of document writes and access', () => {
         var oldDate = new Date();
         oldDate.setHours(oldDate.getHours() - 2);
         const doc = db.collection('uuid').doc('old')
-                      .collection('date').doc(getPath(oldDate))
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(getPath(oldDate)).doc('fakeMetric-v1');
         await firebase.assertFails(doc.set(correctContents('old')));
       });
   it('correct documents can be created',
       async () => {
         const doc = db.collection('uuid').doc('correct1')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         await firebase.assertSucceeds(doc.set(correctContents('correct1')));
       });
   it('documents can be created at slightly off path',
@@ -166,35 +159,31 @@ describe('Tests of document writes and access', () => {
         var oldDate = new Date();
         oldDate.setHours(oldDate.getHours() - 1);
         const doc = db.collection('uuid').doc('correct2')
-                      .collection('date').doc(getPath(oldDate))
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(getPath(oldDate)).doc('fakeMetric-v1');
         await firebase.assertSucceeds(doc.set(correctContents('correct2')));
       });
   it('document cannot be deleted',
       async () => {
         const doc = db.collection('uuid').doc('preexisting')
-                      .collection('date').doc('2020-09-03-13')
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection('2020-09-03-13').doc('fakeMetric-v1');
         await firebase.assertFails(doc.delete());
       });
   it('document cannot be updated',
       async () => {
         const doc = db.collection('uuid').doc('preexisting')
-                      .collection('date').doc('2020-09-03-13')
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection('2020-09-03-13').doc('fakeMetric-v1');
         await firebase.assertFails(doc.update(correctContents('preexisting')));
       });
   it('document cannot be read',
       async () => {
         const doc = db.collection('uuid').doc('preexisting')
-                      .collection('date').doc('2020-09-03-13')
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection('2020-09-03-13').doc('fakeMetric-v1');
         await firebase.assertFails(doc.get());
       });
   it('check final state of firestore',
       async () => {
         const querySnapshot = await adminApp.firestore()
-                                .collectionGroup('metrics').get();
+                                .collectionGroup('uuid').get();
         foundUuids = []
         querySnapshot.forEach((doc) => {
           foundUuids.push(doc.data()['payload']['uuid']);
@@ -205,8 +194,7 @@ describe('Tests of document writes and access', () => {
   it('document can contain an exception message',
       async () => {
         const doc = db.collection('uuid').doc('correctAttestationFailed')
-                      .collection('date').doc(datefmt)
-                      .collection('metrics').doc('fakeMetric-v1');
+                      .collection(datefmt).doc('fakeMetric-v1');
         await firebase.assertSucceeds(doc.set(correctContentsAttestationFailed('correctAttestationFailed')));
       });
 });
