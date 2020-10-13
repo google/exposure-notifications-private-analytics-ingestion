@@ -50,7 +50,8 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setFacilitatorOutput(ValueProvider<String> value);
 
   /**
-   * Start time of window to process
+   * Start time of window to process. Used to filter documents that have been read from Firestore on
+   * the "Creation" field.
    */
   @Description(
       "Start time in seconds of documents to process")
@@ -60,7 +61,8 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setStartTime(ValueProvider<Long> value);
 
   /**
-   * Duration of time window to process
+   * Duration of time window to process. Used to filter documents that have been read from Firestore
+   * on the "Creation" field.
    */
   @Description(
       "Duration of window in seconds")
@@ -72,18 +74,20 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 =======
 
   /**
-   * Window of time to read before startTime when querying Firestore.
+   * Window of time to read before startTime when querying Firestore. Used to construct document
+   * path for Firestore reads.
    */
-  @Description("Amount of time to read backwards from startTime")
+  @Description("Amount of time to read backwards from startTime. Used to construct document path for Firestore reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodBackwards();
 
   void setGracePeriodBackwards(ValueProvider<Long> value);
 
   /**
-   * Window of time to read past startTime when querying Firestore.
+   * Window of time to read past startTime when querying Firestore. Used to construct document path
+   * for Firestore reads.
    */
-  @Description("Amount of time to read forward from startTime")
+  @Description("Amount of time to read forward from startTime. Used to construct document path for Firestore reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodForwards();
 
