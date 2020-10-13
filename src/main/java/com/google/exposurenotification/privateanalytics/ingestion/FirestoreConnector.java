@@ -93,6 +93,10 @@ public class FirestoreConnector {
           .apply(ParDo.of(new ReadFn()));
     }
 
+    /**
+     * Generate a query for each hour within the given time window, specified by the Duration
+     * pipeline option.
+     */
     static class GenerateQueriesFn extends DoFn<String, StructuredQuery> {
 
       private static final long SECONDS_IN_HOUR = 3600L;
@@ -103,16 +107,21 @@ public class FirestoreConnector {
         IngestionPipelineOptions options = context.getPipelineOptions()
             .as(IngestionPipelineOptions.class);
         long startTime = options.getStartTime().get();
+        int timeWindowSize = (int) (options.getDuration().get() / SECONDS_IN_HOUR);
 
-        // Output three queries, one for each date-time within 1 hour of the startTime.
-        for (int i = -1; i <= 1; i++) {
+        // Each datashare in Firestore is stored under a Date collection with the format: yyyy-MM-dd-HH.
+        // To query all documents uploaded around startTime within the specified window, construct
+        // a query for each hour within the window: [startTime - duration, startTime + duration].
+        for (int i = (-1 * timeWindowSize); i <= timeWindowSize; i++) {
           long timeToQuery = startTime + i * SECONDS_IN_HOUR;
           LocalDateTime dateTimeToQuery = LocalDateTime
               .ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
+          // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
           DateTimeFormatter formatter =
               DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US)
                   .withZone(ZoneOffset.UTC);
           String formattedDateTime = formatter.format(dateTimeToQuery);
+          // Construct and output query.
           StructuredQuery query = StructuredQuery.newBuilder()
               .addFrom(
                   CollectionSelector.newBuilder()
@@ -214,7 +223,7 @@ public class FirestoreConnector {
       }
 
       @ProcessElement
-      public void processElement(ProcessContext context) throws Exception {
+      public void processElement(ProcessContext context) {
         IngestionPipelineOptions options = context.getPipelineOptions()
             .as(IngestionPipelineOptions.class);
         // TODO: way to short circuit this earlier based on a ValueProvider flag?
@@ -232,7 +241,7 @@ public class FirestoreConnector {
       throws Exception {
     if (FirebaseApp.getApps().isEmpty()) {
       GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
-      FirebaseOptions options = new FirebaseOptions.Builder()
+      FirebaseOptions options = FirebaseOptions.builder()
           .setProjectId(pipelineOptions.getFirebaseProjectId().get())
           .setCredentials(credentials)
           .build();
