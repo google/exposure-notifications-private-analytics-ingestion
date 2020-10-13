@@ -107,12 +107,13 @@ public class FirestoreConnector {
         IngestionPipelineOptions options = context.getPipelineOptions()
             .as(IngestionPipelineOptions.class);
         long startTime = options.getStartTime().get();
-        int timeWindowSize = (int) (options.getDuration().get() / SECONDS_IN_HOUR);
+        int backwardWindow = (int) (options.getGracePeriodBackwards().get() / SECONDS_IN_HOUR);
+        int forwardWindow = (int) (options.getGracePeriodForwards().get() / SECONDS_IN_HOUR);
 
         // Each datashare in Firestore is stored under a Date collection with the format: yyyy-MM-dd-HH.
         // To query all documents uploaded around startTime within the specified window, construct
-        // a query for each hour within the window: [startTime - duration, startTime + duration].
-        for (int i = (-1 * timeWindowSize); i <= timeWindowSize; i++) {
+        // a query for each hour within the window: [startTime - backwardWindow, startTime + forwardWindow].
+        for (int i = (-1 * backwardWindow); i <= forwardWindow; i++) {
           long timeToQuery = startTime + i * SECONDS_IN_HOUR;
           LocalDateTime dateTimeToQuery = LocalDateTime
               .ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
