@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
@@ -46,9 +47,12 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PDone;
-import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.threeten.bp.LocalDateTime;
+import org.threeten.bp.ZoneOffset;
+import org.threeten.bp.format.DateTimeFormatter;
 
 /**
  * Primitive beam connector for Firestore native specific to ENPA.
@@ -67,8 +71,11 @@ public class FirestoreConnector {
   private static final Counter documentsRead = Metrics
       .counter(FirestoreConnector.class, "documentsRead");
 
-  /** Reads documents from Firestore */
+  /**
+   * Reads documents from Firestore
+   */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
+
     private static final Logger LOG = LoggerFactory.getLogger(
         FirestoreReader.class);
     // Order must be name ascending. Right now, this is the only ordering that the
@@ -77,36 +84,58 @@ public class FirestoreConnector {
 
     @Override
     public PCollection<DataShare> expand(PBegin input) {
-      StructuredQuery query = StructuredQuery.newBuilder()
-          .addFrom(
-              CollectionSelector.newBuilder()
-                  .setCollectionId(METRIC_COLLECTION_NAME)
-                  .setAllDescendants(true)
-                  .build())
-          .addOrderBy(
-              Order.newBuilder()
-                  .setField(FieldReference.newBuilder()
-                      .setFieldPath(NAME_FIELD)
-                      .build())
-                  .setDirection(Direction.ASCENDING)
-                  .build())
-          .build();
-
       return input
           // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
           .apply(Create.of(""))
-          .apply(ParDo.of(new PartitionQueryFn(query)))
+          .apply(ParDo.of(new GenerateQueriesFn()))
+          .apply(ParDo.of(new PartitionQueryFn()))
           // TODO(larryjacobs): reshuffle if necessary at scale
-          .apply(ParDo.of(new ReadFn(query)));
+          .apply(ParDo.of(new ReadFn()));
     }
 
-    static class PartitionQueryFn extends DoFn<String, ImmutablePair<Cursor, Cursor>> {
-      private StructuredQuery query;
-      private com.google.cloud.firestore.v1.FirestoreClient client;
+    static class GenerateQueriesFn extends DoFn<String, StructuredQuery> {
 
-      public PartitionQueryFn(StructuredQuery query) {
-        this.query = query;
+      private static final long SECONDS_IN_HOUR = 3600L;
+      private static final String NAME_FIELD = "__name__";
+
+      @ProcessElement
+      public void processElement(ProcessContext context) {
+        IngestionPipelineOptions options = context.getPipelineOptions()
+            .as(IngestionPipelineOptions.class);
+        long startTime = options.getStartTime().get();
+
+        // Output three queries, one for each date-time within 1 hour of the startTime.
+        for (int i = -1; i <= 1; i++) {
+          long timeToQuery = startTime + i * SECONDS_IN_HOUR;
+          LocalDateTime dateTimeToQuery = LocalDateTime
+              .ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
+          DateTimeFormatter formatter =
+              DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US)
+                  .withZone(ZoneOffset.UTC);
+          String formattedDateTime = formatter.format(dateTimeToQuery);
+          StructuredQuery query = StructuredQuery.newBuilder()
+              .addFrom(
+                  CollectionSelector.newBuilder()
+                      .setCollectionId(formattedDateTime)
+                      .setAllDescendants(true)
+                      .build())
+              .addOrderBy(
+                  Order.newBuilder()
+                      .setField(FieldReference.newBuilder()
+                          .setFieldPath(NAME_FIELD)
+                          .build())
+                      .setDirection(Direction.ASCENDING)
+                      .build())
+              .build();
+          context.output(query);
+        }
       }
+    }
+
+    static class PartitionQueryFn extends
+        DoFn<StructuredQuery, ImmutableTriple<Cursor, Cursor, StructuredQuery>> {
+
+      private com.google.cloud.firestore.v1.FirestoreClient client;
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
@@ -115,13 +144,14 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options = context.getPipelineOptions()
+            .as(IngestionPipelineOptions.class);
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount().get())
                 .setParent(
                     getParentPath(options))
-                .setStructuredQuery(query)
+                .setStructuredQuery(context.element())
                 .build();
         PartitionQueryPagedResponse response =
             client.partitionQuery(request);
@@ -132,21 +162,16 @@ public class FirestoreConnector {
         Cursor end;
         while (iterator.hasNext()) {
           end = iterator.next();
-          context.output(ImmutablePair.of(start, end));
+          context.output(ImmutableTriple.of(start, end, context.element()));
           start = end;
         }
-        context.output(ImmutablePair.of(start, null));
+        context.output(ImmutableTriple.of(start, null, context.element()));
       }
     }
 
-    static class ReadFn extends DoFn<ImmutablePair<Cursor, Cursor>, DataShare> {
+    static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, DataShare> {
 
       private com.google.cloud.firestore.v1.FirestoreClient client;
-      private StructuredQuery query;
-
-      public ReadFn(StructuredQuery query) {
-        this.query = query;
-      }
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
@@ -156,7 +181,7 @@ public class FirestoreConnector {
       @ProcessElement
       public void processElement(ProcessContext context) {
         for (DataShare ds : readDocumentsFromFirestore(client,
-            context.getPipelineOptions().as(IngestionPipelineOptions.class), query,
+            context.getPipelineOptions().as(IngestionPipelineOptions.class),
             context.element())) {
           context.output(ds);
         }
@@ -164,7 +189,9 @@ public class FirestoreConnector {
     }
   }
 
-  /** Deletes documents from Firestore */
+  /**
+   * Deletes documents from Firestore
+   */
   public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
 
     @Override
@@ -188,7 +215,8 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) throws Exception {
-        IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options = context.getPipelineOptions()
+            .as(IngestionPipelineOptions.class);
         // TODO: way to short circuit this earlier based on a ValueProvider flag?
         if (options.getDelete().get() && context.element() != null
             && context.element().getPath() != null) {
@@ -228,14 +256,15 @@ public class FirestoreConnector {
 
   // Returns a list of DataShares for documents captured within the given query Cursor pair.
   private static List<DataShare> readDocumentsFromFirestore(
-      com.google.cloud.firestore.v1.FirestoreClient firestoreClient, IngestionPipelineOptions options, StructuredQuery query,
-      ImmutablePair<Cursor, Cursor> cursors) {
-    StructuredQuery.Builder queryBuilder = query.toBuilder();
-    if (cursors.getLeft() != null)  {
+      com.google.cloud.firestore.v1.FirestoreClient firestoreClient,
+      IngestionPipelineOptions options,
+      ImmutableTriple<Cursor, Cursor, StructuredQuery> cursors) {
+    StructuredQuery.Builder queryBuilder = cursors.getRight().toBuilder();
+    if (cursors.getLeft() != null) {
       queryBuilder.setStartAt(cursors.getLeft());
     }
-    if (cursors.getRight() != null) {
-      queryBuilder.setEndAt(cursors.getRight());
+    if (cursors.getMiddle() != null) {
+      queryBuilder.setEndAt(cursors.getMiddle());
     }
     ServerStream<RunQueryResponse> responseIterator =
         firestoreClient.runQueryCallable()
