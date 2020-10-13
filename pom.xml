@@ -104,7 +104,7 @@
             </goals>
             <configuration>
               <sourceDirectory>${project.basedir}/src/avro/</sourceDirectory>
-              <outputDirectory>${project.build.directory}/generated-sources/java/com/google/exposurenotification/privateanalytics</outputDirectory>
+              <outputDirectory>${project.build.directory}/generated-sources/</outputDirectory>
             </configuration>
           </execution>
         </executions>
