@@ -72,6 +72,24 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 =======
 
   /**
+   * Window of time to read before startTime when querying Firestore.
+   */
+  @Description("Amount of time to read backwards from startTime")
+  @Default.Long(3600)
+  ValueProvider<Long> getGracePeriodBackwards();
+
+  void setGracePeriodBackwards(ValueProvider<Long> value);
+
+  /**
+   * Window of time to read past startTime when querying Firestore.
+   */
+  @Description("Amount of time to read forward from startTime")
+  @Default.Long(3600)
+  ValueProvider<Long> getGracePeriodForwards();
+
+  void setGracePeriodForwards(ValueProvider<Long> value);
+
+  /**
    * Minimum count of participants to preserve privacy(e.g., not allow batch of 1).
    */
   @Description(
