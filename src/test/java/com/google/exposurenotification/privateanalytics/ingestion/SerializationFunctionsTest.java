@@ -18,16 +18,11 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioIngestionHeader;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
@@ -103,64 +98,6 @@ public class SerializationFunctionsTest {
                 ParDo.of(new SerializeDataShareFn("dummyMetric")));
 
         PAssert.that(output).containsInAnyOrder(KV.of(metadata, avroDataShares));
-        pipeline.run().waitUntilFinish();
-    }
-
-    @Test
-    @Category(ValidatesRunner.class)
-    public void testSerializeHeaderFn() {
-        IngestionPipelineOptions options = TestPipeline
-                .testingPipelineOptions().as(IngestionPipelineOptions.class);
-        options.setStartTime(StaticValueProvider.of(1L));
-        options.setDuration(StaticValueProvider.of(2L));
-
-        List<EncryptedShare> sampleEncryptedDataShares = new ArrayList<>();
-        sampleEncryptedDataShares.add(EncryptedShare.builder()
-            .setEncryptionKeyId("fakeEncryptionKeyId1")
-            .setEncryptedPayload("fakePayload1".getBytes())
-            .build());
-        sampleEncryptedDataShares.add(EncryptedShare.builder()
-            .setEncryptionKeyId("fakeEncryptionKeyId2")
-            .setEncryptedPayload("fakePayload2".getBytes())
-            .build());
-        List<DataShare> dataShares = Arrays.asList(
-            DataShare.builder()
-                .setPath("id1")
-                .setCreated(1L)
-                .setRPit(12345L)
-                .setUuid("SuperUniqueId")
-                .setDataShareMetadata(DataShareMetadata.builder()
-                    .setEpsilon(3.14D)
-                    .setPrime(600613L)
-                    .setBins(10)
-                    .setNumberOfServers(2)
-                    .setHammingWeight(15)
-                    .build())
-                .setEncryptedDataShares(sampleEncryptedDataShares)
-                .build()
-        );
-
-        PrioIngestionHeader expectedHeader =
-                PrioIngestionHeader.newBuilder()
-                        .setBatchUuid("placeholderUuid")
-                        .setName("BatchUuid=placeholderUuid")
-                        .setBatchStartTime(1L)
-                        .setBatchEndTime(3L)
-                        .setNumberOfServers(2)
-                        .setBins(10)
-                        .setHammingWeight(15)
-                        .setPrime(600613L)
-                        .setEpsilon(3.14D)
-                        .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
-                        .build();
-        PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
-        PCollection<PrioIngestionHeader> output =
-                input.apply("SerializeIngestionHeaders", ParDo.of(
-                        new SerializeIngestionHeaderFn(
-                                options.getStartTime(),
-                                options.getDuration())
-                ));
-        PAssert.that(output).containsInAnyOrder(expectedHeader);
         pipeline.run().waitUntilFinish();
     }
 }

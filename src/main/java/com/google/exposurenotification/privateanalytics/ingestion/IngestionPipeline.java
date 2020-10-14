@@ -18,18 +18,14 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.FilterByMetricFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.ForkByIndexFn;
 import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeDataShareFn;
-import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializeIngestionHeaderFn;
+import com.google.exposurenotification.privateanalytics.ingestion.SerializationFunctions.SerializePacketHeaderSignature;
+import java.util.ArrayList;
 import java.util.List;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
-import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -38,9 +34,11 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.Filter;
+import org.apache.beam.sdk.transforms.GroupIntoBatches;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.Sample;
-import org.apache.beam.sdk.transforms.Values;
+import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
@@ -145,20 +143,28 @@ public class IngestionPipeline {
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
     for (String metric: metrics) {
       PCollection<DataShare> metricDataShares = dataShares
-              .apply("FilterByMetric_" + metric, ParDo.of(new FilterByMetricFn(metric)));
-      PCollection<String> headerFilenames =
-              SerializationFunctions.
-                      writeIngestionHeader(options, metric, metricDataShares);
-      headerFilenames
-              .apply("GenerateSignatureFiles_" + metric,
-                      ParDo.of(new SignatureKeyGeneration()));
+          .apply("FilterDataSharesByMetric=" + metric, Filter.by(inputDataShare ->
+              inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
 
       // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares =
               processDataShares(metricDataShares, options, metric)
-                      .apply("SerializeDataShares_" + metric,
+                      .apply("SerializeDataSharesFor" + metric,
                               ParDo.of(new SerializeDataShareFn(metric)));
-      SerializationFunctions.writePrioDataSharePackets(options, metric, serializedDataShares);
+      //TODO try to move this to a flag/options. Right now adding this to IngestionPipelineOption
+      //not working as GroupIntoBatches.ofSize needs a long and we are unable to access option
+      // values here.
+      long batchSize = 1000L;
+      //TODO set up a proper coder to have a cleaner GroupBy
+      PCollection<KV<DataShareMetadata, List<List<PrioDataSharePacket>>>>
+          datashareGroupedByMetadata = groupIntoBatches(metric, serializedDataShares, batchSize);
+
+      datashareGroupedByMetadata.apply("SerializePacketHeaderSigFor_metric=" + metric,
+          ParDo.of(new SerializePacketHeaderSignature(
+                  options.getPHAOutput(),
+                  options.getFacilitatorOutput(),
+                  options.getStartTime(),
+                  options.getDuration())));
     }
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
     dataShares.apply(new FirestoreDeleter());
@@ -191,5 +197,37 @@ public class IngestionPipeline {
     } catch (Exception e) {
       LOG.error("Exception thrown during pipeline run.", e);
     }
+  }
+
+  private static PCollection<KV<DataShareMetadata, List<List<PrioDataSharePacket>>>> groupIntoBatches(
+      String metric,
+      PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares,
+      long batchSize) {
+    return serializedDataShares
+        .apply("AddMetadataStringAsKeys_metric=" + metric, MapElements.via(
+            new SimpleFunction<KV<DataShareMetadata, List<PrioDataSharePacket>>,
+                KV<String, KV<DataShareMetadata, List<PrioDataSharePacket>>>>() {
+              @Override
+              public KV<String, KV<DataShareMetadata, List<PrioDataSharePacket>>> apply(
+                  KV<DataShareMetadata, List<PrioDataSharePacket>> input) {
+                return KV.of(input.getKey().toString(), input);
+              }
+            }))
+        .apply("GroupIntoBatches_metric=" + metric, GroupIntoBatches.ofSize(batchSize))
+        .apply("RemoveStringFromKey_metric=" + metric, MapElements.via(
+            new SimpleFunction<KV<String, Iterable<KV<DataShareMetadata, List<PrioDataSharePacket>>>>,
+                KV<DataShareMetadata, List<List<PrioDataSharePacket>>>>() {
+              @Override
+              public KV<DataShareMetadata, List<List<PrioDataSharePacket>>> apply(
+                  KV<String, Iterable<KV<DataShareMetadata, List<PrioDataSharePacket>>>> input) {
+                List<List<PrioDataSharePacket>> packets = new ArrayList<>();
+                DataShareMetadata metadata = DataShareMetadata.builder().build();
+                for(KV<DataShareMetadata, List<PrioDataSharePacket>> entry : input.getValue()) {
+                  metadata = entry.getKey();
+                  packets.add(entry.getValue());
+                }
+                return KV.of(metadata, packets);
+              }
+            }));
   }
 }

@@ -15,26 +15,30 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.cloud.kms.v1.AsymmetricSignResponse;
+import com.google.cloud.kms.v1.CryptoKeyVersionName;
+import com.google.cloud.kms.v1.Digest;
+import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.protobuf.ByteString;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.ValueProvider;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.Sample;
-import org.apache.beam.sdk.transforms.Values;
-import org.apache.beam.sdk.io.AvroIO;
-import org.apache.beam.sdk.values.KV;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +46,7 @@ import org.slf4j.LoggerFactory;
  * Holder of various DoFn's for aspects of serialization
  */
 public class SerializationFunctions {
+    private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
     public static class SerializeDataShareFn extends DoFn<DataShare,
         KV<DataShareMetadata, List<PrioDataSharePacket>>> {
@@ -72,108 +77,121 @@ public class SerializationFunctions {
         }
     }
 
-    public static class SerializeIngestionHeaderFn extends DoFn<DataShare, PrioIngestionHeader> {
+    public static class SerializePacketHeaderSignature extends
+        DoFn<KV<DataShareMetadata, List<List<PrioDataSharePacket>>>, Boolean> {
+        private static int phaForkIndex = 0;
+        private static int facilitatorForkIndex = 1;
+
+        private final ValueProvider<String> phaFilePrefix;
+        private final ValueProvider<String> facilitatorFilePrefix;
         private final ValueProvider<Long> startTime;
         private final ValueProvider<Long> duration;
-        private final ValueProvider<String> batchUuid;
+        private KeyManagementServiceClient client;
+        private CryptoKeyVersionName keyVersionName;
 
-        public SerializeIngestionHeaderFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
+        @StartBundle
+        public void startBundle(StartBundleContext context) throws IOException {
+            client = KeyManagementServiceClient.create();
+            IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+            keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName().get());
+        }
+
+        protected SerializePacketHeaderSignature(
+            ValueProvider<String> phaFilenamePrefix,
+            ValueProvider<String> facilitatorFilenamePrefix,
+            ValueProvider<Long> startTime,
+            ValueProvider<Long> duration) {
+            this.phaFilePrefix = phaFilenamePrefix;
+            this.facilitatorFilePrefix = facilitatorFilenamePrefix;
             this.startTime = startTime;
             this.duration = duration;
-            // TODO: generate batch uuid
-            this.batchUuid = StaticValueProvider.of("placeholderUuid");
         }
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-            DataShareMetadata metadata = c.element().getDataShareMetadata();
-            c.output(
-                PrioIngestionHeader.newBuilder()
-                    .setBatchUuid(batchUuid.get())
-                    .setName("BatchUuid=" + batchUuid.get())
-                    .setBatchStartTime(startTime.get())
-                    .setBatchEndTime(startTime.get() + duration.get())
-                    .setNumberOfServers(metadata.getNumberOfServers())
-                    .setBins(metadata.getBins())
-                    .setHammingWeight(metadata.getHammingWeight())
-                    .setPrime(metadata.getPrime())
-                    .setEpsilon(metadata.getEpsilon())
-                    // TODO: implement packet digest
-                    .setPacketFileDigest(ByteBuffer.wrap("placeholder".getBytes()))
-                    .build()
-            );
-        }
-    }
+            KV<DataShareMetadata, List<List<PrioDataSharePacket>>> input = c.element();
+            //TODO Look at the size and reject for min participant count.
+            UUID batchId = UUID.randomUUID();
 
-    public static class ForkByIndexFn extends DoFn<KV<DataShareMetadata, List<PrioDataSharePacket>>,
-        KV<DataShareMetadata, PrioDataSharePacket>> {
-        private final int index;
-        public ForkByIndexFn(int index) {
-            this.index = index;
+            List<PrioDataSharePacket> phaPackets = input.getValue().stream()
+                .map(listPacket -> listPacket.get(phaForkIndex))
+                .collect(Collectors.toList());
+            List<PrioDataSharePacket> facilitatorPackets = input.getValue().stream()
+                .map(listPacket -> listPacket.get(facilitatorForkIndex))
+                .collect(Collectors.toList());
+
+            String phaFilePath =
+                phaFilePrefix.get()
+                    + batchId.toString() + "_metric=" + input.getKey().getMetricName();
+            //TODO pass the UUID for the full batch and not this file
+            serializePacketHeaderAndSig(input.getKey(), batchId, phaFilePath, phaPackets);
+
+            String facilitatorFilePath =
+                facilitatorFilePrefix.get()
+                    + batchId.toString() + "_metric=" + input.getKey().getMetricName();
+            //TODO pass the UUID for the full batch and not this file
+            serializePacketHeaderAndSig(input.getKey(), batchId, facilitatorFilePath, facilitatorPackets);
         }
 
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            c.output(KV.of(c.element().getKey(), c.element().getValue().get(index)));
-        }
-    }
+        //TODO work on serialization to cloud storage.
+        private void serializePacketHeaderAndSig(
+            DataShareMetadata metadata,
+            UUID uuid,
+            String filename,
+            List<PrioDataSharePacket> packets) {
+            try {
+                //write PrioDataSharePackets in this batch to file
+                String packetsFilename = filename + ".avro";
+                PrioSerializer.serializeDataSharePackets(packets, packetsFilename);
 
-    public static void writePrioDataSharePackets(
-            IngestionPipelineOptions options,
-            String metric,
-            PCollection<KV<DataShareMetadata, List<PrioDataSharePacket>>> serializedDataShares) {
-        serializedDataShares
-                .apply("ForkDataSharesForPHA_" + metric,
-                        ParDo.of(new ForkByIndexFn(0)))
-                .apply("ExtractPacketPha_" + metric,
-                        Values.create())
-                .apply("WriteToPhaOutput_" + metric,
-                        AvroIO.write(PrioDataSharePacket.class)
-                                .to(options.getPHAOutput() + "_" + metric)
-                                .withSuffix(".avro"));
-        serializedDataShares
-                .apply("ForkDataSharesForFacilitator_" + metric,
-                        ParDo.of(new ForkByIndexFn(1)))
-                .apply("ExtractPacketFacilitator_" + metric,
-                        Values.create())
-                .apply("WriteToFacilitatorOutput_" + metric,
-                        AvroIO.write(PrioDataSharePacket.class)
-                                .to(options.getFacilitatorOutput() + "_" + metric)
-                                .withSuffix(".avro"));
-    }
+                //read back PrioDataSharePacket batch file and generate digest
+                String packetsFileContent = FileUtils.readFileToString(new File(packetsFilename));
+                MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+                byte[] packetFileContentHash = sha256.digest(packetsFileContent.getBytes());
+                Digest digest = Digest.newBuilder().setSha256(
+                    ByteString.copyFrom(packetFileContentHash)).build();
 
-    public static PCollection<String> writeIngestionHeader(
-            IngestionPipelineOptions options,
-            String metric,
-            PCollection<DataShare> dataShares) {
-        return dataShares
-                .apply("Sample_" + metric,
-                        Sample.any(1))
-                .apply("SerializeIngestionHeaders_" + metric,
-                        ParDo.of(
-                                new SerializeIngestionHeaderFn(
-                                        options.getStartTime(),
-                                        options.getDuration())))
-                .apply("WriteIngestionHeader_" + metric,
-                        AvroIO.write(PrioIngestionHeader.class)
-                                .to("ingestionHeader_" + metric)
-                                .withSuffix(".avro").withOutputFilenames())
-                .getPerDestinationOutputFilenames()
-                .apply("GetOutputFilenames_" + metric, Values.create());
-    }
+                //create Header and write to file
+                PrioIngestionHeader header =
+                    createHeader(metadata, digest, uuid, startTime.get(), duration.get());
+                FileUtils.writeByteArrayToFile(new File(filename), header.toByteBuffer().array());
 
-    public static class FilterByMetricFn extends DoFn<DataShare, DataShare> {
-        private final String metric;
+                //Read back header file content and generate .sig file
+                String headerFileContent = FileUtils.readFileToString(new File(filename));
+                String signatureFileName = filename + ".sig";
+                byte[] hashHeaderFileContent = sha256.digest(headerFileContent.getBytes());
+                Digest digestHeader = Digest.newBuilder()
+                    .setSha256(ByteString.copyFrom(hashHeaderFileContent)).build();
 
-        public FilterByMetricFn(String metric) {
-            this.metric = metric;
-        }
-
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            if (c.element().getDataShareMetadata().getMetricName().equals(metric)) {
-                c.output(c.element());
+                //TODO(amanraj): What happens if we fail an individual signing, should we fail that batch or the
+                // full pipeline?
+                //perform signature
+                AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
+                FileUtils.writeByteArrayToFile(
+                    new File(signatureFileName), result.getSignature().toByteArray());
             }
+            catch (IOException e) {
+                LOG.warn("Unable to serialize or read back Packet/Header/Sig file", e);
+            }
+            catch (NoSuchAlgorithmException e) {
+                LOG.warn("Message Digest with SHA256 does not exist.", e);
+            }
+        }
+
+        private static PrioIngestionHeader createHeader(
+            DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
+            return PrioIngestionHeader.newBuilder()
+                .setBatchUuid(uuid.toString())
+                .setName("BatchUuid=" + uuid.toString())
+                .setBatchStartTime(startTime)
+                .setBatchEndTime(startTime + duration)
+                .setNumberOfServers(metadata.getNumberOfServers())
+                .setBins(metadata.getBins())
+                .setHammingWeight(metadata.getHammingWeight())
+                .setPrime(metadata.getPrime())
+                .setEpsilon(metadata.getEpsilon())
+                .setPacketFileDigest(ByteBuffer.wrap(digest.toByteArray()))
+                .build();
         }
     }
 }
