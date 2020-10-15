@@ -37,22 +37,13 @@ service cloud.firestore {
           || datePath == buildDatePath(t - duration.value(1, 'h'));
     }
 
-    // Check that either the payload contains an attestation or an exception message
-    function checkAttestation(d) {
-      return (d.certificateChain != null
-           && d.certificateChain.size() > 0
-           && d.signature != null)
-           || d.exception != null;
-    }
-
     // Check schema of uploaded document
     function checkFields(d) {
       return
           // Check top level required fields
           d.payload != null
-          && checkAttestation(d)
           // nothing extraneous at top level
-          && d.keys().toSet().hasOnly(['certificateChain', 'signature', 'payload', 'exception'])
+          && d.keys().toSet().hasOnly(['certificateChain', 'signature', 'payload'])
           // Check payload required fields
           // uuid, created already enforced elsewhere
           && d.payload.schemaVersion != null

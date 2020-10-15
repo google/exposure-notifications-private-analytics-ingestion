@@ -19,16 +19,12 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.when;
 
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.Value;
 import com.google.firestore.v1.Value.ValueTypeCase;
-import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateFactory;

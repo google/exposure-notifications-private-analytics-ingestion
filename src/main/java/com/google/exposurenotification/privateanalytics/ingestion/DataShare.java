@@ -26,7 +26,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -64,8 +63,6 @@ public abstract class DataShare implements Serializable {
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
   public static final String PRIO_PARAMS = "prioParams";
-  // TODO: delete this field prior to launch/open source - this is just a convenient way to analyze exceptions from different test devices
-  public static final String EXCEPTION = "exception";
 
   // Signature and certificates fields
   public abstract @Nullable String getSignature();
@@ -116,7 +113,7 @@ public abstract class DataShare implements Serializable {
       throw new IllegalArgumentException("Missing required field: Path", e);
     }
 
-    // Step 1: Process the payload.
+    // Process the payload.
     if (doc.getFieldsMap().get(PAYLOAD) == null) {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + PAYLOAD);
@@ -197,24 +194,10 @@ public abstract class DataShare implements Serializable {
     }
     builder.setEncryptedDataShares(shares);
 
-    // Step 2: Get the exception message (if it's present)
+    // Get the signature and cert chain
     Map<String, Value> fields = doc.getFieldsMap();
-    if (fields.containsKey(EXCEPTION) && fields.get(EXCEPTION) != null) {
-      if (!fields.get(EXCEPTION).getValueTypeCase().equals(ValueTypeCase.STRING_VALUE)) {
-        castExceptionCounter.inc();
-        throw new IllegalArgumentException(
-            "Error casting 'exception' from 'payload' to string");
-      }
-      builder.setException(fields.get(EXCEPTION).getStringValue());
-      // If the exception is present, no need to check for signature or certificates
-      return builder.build();
-    }
-
-    // Step 3: Get the signature.
     checkValuePresent(SIGNATURE, fields, DOCUMENT_FIELDS, ValueTypeCase.STRING_VALUE);
     builder.setSignature(fields.get(SIGNATURE).getStringValue());
-
-    // Step 4: Get the chain of X509 certificates.
     if (fields.get(CERT_CHAIN) == null) {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
@@ -227,7 +210,7 @@ public abstract class DataShare implements Serializable {
       for (Value certString : certChainString) {
         byte[] cert = Base64.getDecoder().decode(certString.getStringValue());
         // Parse as X509 certificate.
-        // TODO figure out why this throws 'CertificateException: Could not parse certificate:
+        // TODO(tancrede) figure out why this throws 'CertificateException: Could not parse certificate:
         //  java.io.IOException: Empty input' for all documents
         X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(cert));
         certChainX509.add(certX509);
