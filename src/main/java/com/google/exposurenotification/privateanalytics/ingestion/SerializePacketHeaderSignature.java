@@ -33,8 +33,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
-import org.apache.beam.sdk.metrics.Counter;
-import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.values.KV;
@@ -45,45 +43,14 @@ import org.slf4j.LoggerFactory;
 /**
  * Holder of various DoFn's for aspects of serialization
  */
-public class SerializationFunctions {
+public class SerializePacketHeaderSignature extends
+    DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
     private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+        private static int phaIndex = 0;
+        private static int facilitatorIndex = 1;
 
-    public static class SerializeDataShareFn extends DoFn<DataShare,
-        KV<DataShareMetadata, List<PrioDataSharePacket>>> {
-        private static final Logger LOG = LoggerFactory.getLogger(SerializeDataShareFn.class);
-        private final Counter dataShareIncluded;
-
-        public SerializeDataShareFn(String metric) {
-            this.dataShareIncluded = Metrics.counter(SerializeDataShareFn.class, "dataShareIncluded_" + metric);
-        }
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            List<EncryptedShare> encryptedDataShares = c.element().getEncryptedDataShares();
-            List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
-            for (EncryptedShare dataShare : encryptedDataShares) {
-                splitDataShares.add(
-                    PrioDataSharePacket.newBuilder()
-                        .setEncryptionKeyId(dataShare.getEncryptionKeyId())
-                        .setEncryptedPayload(
-                            ByteBuffer.wrap(
-                                dataShare.getEncryptedPayload()))
-                        .setRPit(c.element().getRPit())
-                        .setUuid(c.element().getUuid())
-                        .build()
-                );
-            }
-            dataShareIncluded.inc();
-            c.output(KV.of(c.element().getDataShareMetadata(), splitDataShares));
-        }
-    }
-
-    public static class SerializePacketHeaderSignature extends
-        DoFn<KV<DataShareMetadata, List<List<PrioDataSharePacket>>>, Boolean> {
-        private static int phaForkIndex = 0;
-        private static int facilitatorForkIndex = 1;
-
-        private final ValueProvider<String> phaFilePrefix;
-        private final ValueProvider<String> facilitatorFilePrefix;
+        private final ValueProvider<String> phaPrefix;
+        private final ValueProvider<String> facilitatorPrefix;
         private final ValueProvider<Long> startTime;
         private final ValueProvider<Long> duration;
         private KeyManagementServiceClient client;
@@ -92,7 +59,8 @@ public class SerializationFunctions {
         @StartBundle
         public void startBundle(StartBundleContext context) throws IOException {
             client = KeyManagementServiceClient.create();
-            IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+            IngestionPipelineOptions options = context.getPipelineOptions()
+                .as(IngestionPipelineOptions.class);
             keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName().get());
         }
 
@@ -101,36 +69,38 @@ public class SerializationFunctions {
             ValueProvider<String> facilitatorFilenamePrefix,
             ValueProvider<Long> startTime,
             ValueProvider<Long> duration) {
-            this.phaFilePrefix = phaFilenamePrefix;
-            this.facilitatorFilePrefix = facilitatorFilenamePrefix;
+            this.phaPrefix = phaFilenamePrefix;
+            this.facilitatorPrefix = facilitatorFilenamePrefix;
             this.startTime = startTime;
             this.duration = duration;
         }
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-            KV<DataShareMetadata, List<List<PrioDataSharePacket>>> input = c.element();
+            KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
+            DataShareMetadata metadata = input.getKey();
             //TODO Look at the size and reject for min participant count.
+
+            List<List<PrioDataSharePacket>> serializedDatashare = new ArrayList<>();
+            for(DataShare dataShare : input.getValue()){
+                serializedDatashare.add(getPrioDataSharePackets(dataShare));
+            };
+
+            List<PrioDataSharePacket> phaPackets = serializedDatashare.stream()
+                .map(listPacket -> listPacket.get(phaIndex)).collect(Collectors.toList());
+            List<PrioDataSharePacket> facilitatorPackets = serializedDatashare.stream()
+                .map(listPacket -> listPacket.get(facilitatorIndex)).collect(Collectors.toList());
+
             UUID batchId = UUID.randomUUID();
-
-            List<PrioDataSharePacket> phaPackets = input.getValue().stream()
-                .map(listPacket -> listPacket.get(phaForkIndex))
-                .collect(Collectors.toList());
-            List<PrioDataSharePacket> facilitatorPackets = input.getValue().stream()
-                .map(listPacket -> listPacket.get(facilitatorForkIndex))
-                .collect(Collectors.toList());
-
             String phaFilePath =
-                phaFilePrefix.get()
-                    + batchId.toString() + "_metric=" + input.getKey().getMetricName();
+                phaPrefix.get() + batchId.toString() + "_metric=" + metadata.getMetricName();
             //TODO pass the UUID for the full batch and not this file
-            serializePacketHeaderAndSig(input.getKey(), batchId, phaFilePath, phaPackets);
+            serializePacketHeaderAndSig(metadata, batchId, phaFilePath, phaPackets);
 
-            String facilitatorFilePath =
-                facilitatorFilePrefix.get()
-                    + batchId.toString() + "_metric=" + input.getKey().getMetricName();
+            String facilitatorPath =
+                facilitatorPrefix.get() + batchId.toString() + "_metric=" + metadata.getMetricName();
             //TODO pass the UUID for the full batch and not this file
-            serializePacketHeaderAndSig(input.getKey(), batchId, facilitatorFilePath, facilitatorPackets);
+            serializePacketHeaderAndSig(metadata, batchId, facilitatorPath, facilitatorPackets);
         }
 
         //TODO work on serialization to cloud storage.
@@ -193,5 +163,22 @@ public class SerializationFunctions {
                 .setPacketFileDigest(ByteBuffer.wrap(digest.toByteArray()))
                 .build();
         }
-    }
+
+        private static List<PrioDataSharePacket> getPrioDataSharePackets(DataShare dataShare) {
+            List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
+            List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
+            for (EncryptedShare encryptedShare : encryptedDataShares) {
+                splitDataShares.add(
+                    PrioDataSharePacket.newBuilder()
+                        .setEncryptionKeyId(encryptedShare.getEncryptionKeyId())
+                        .setEncryptedPayload(
+                            ByteBuffer.wrap(
+                                encryptedShare.getEncryptedPayload()))
+                        .setRPit(dataShare.getRPit())
+                        .setUuid(dataShare.getUuid())
+                        .build()
+                );
+            }
+            return splitDataShares;
+        }
 }
