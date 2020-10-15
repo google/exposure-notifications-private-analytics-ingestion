@@ -56,6 +56,7 @@ import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,6 +64,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import picocli.CommandLine;
 
 /**
  * Integration tests for {@link IngestionPipeline}.
@@ -79,10 +81,11 @@ public class IngestionPipelineIT {
   static final String KEY_RESOURCE_NAME = "projects/appa-ingestion/locations/global/keyRings/appa-signature-key-ring/cryptoKeys/appa-signature-key/cryptoKeyVersions/1";
 
   static Firestore db;
-  static List<String> testMetricsFlag;
 
   @Rule
   public TemporaryFolder tmpFolder = new TemporaryFolder();
+
+  private IngestionPipelineFlags flags;
 
   @BeforeClass
   public static void setUp() {
@@ -92,7 +95,12 @@ public class IngestionPipelineIT {
         .build();
     FirebaseApp.initializeApp(options);
     db = FirestoreClient.getFirestore();
-    testMetricsFlag = new ArrayList<>();
+  }
+
+  @Before
+  public void before() {
+    flags = new IngestionPipelineFlags();
+    flags.metrics = Arrays.asList("id1", "id2");
   }
 
   @Test
@@ -115,7 +123,7 @@ public class IngestionPipelineIT {
     options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
     Map<String, PrioDataSharePacket> inputDataSharePackets = seedDatabaseAndReturnEntryVal(db, options);
 
-    IngestionPipeline.runIngestionPipeline(options, testMetricsFlag);
+    IngestionPipeline.runIngestionPipeline(options, flags);
 
     Map<String, PrioDataSharePacket> actualDataSharepackets = readOutput();
     for(Map.Entry<String, PrioDataSharePacket> entry : actualDataSharepackets.entrySet()) {
@@ -168,7 +176,6 @@ public class IngestionPipelineIT {
     List<DocumentReference> listDocReference = new ArrayList<>();
     for(int i = 1; i <= 2; i++) {
       docData.put("id", "id" + i);
-      testMetricsFlag.add("id" + i);
       docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
       docData.put(DataShare.SIGNATURE, "signature");
       AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains =
