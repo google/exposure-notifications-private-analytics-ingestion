@@ -26,24 +26,30 @@ the channel over which the packets travel need not be trusted.
 To run unit tests:
 
 ```shell script
-mvn test
+./mvnw test
 ```
 
 ### Integration Tests
 
-Install the [Firebase CLI](https://firebase.google.com/docs/cli), login and
-setup the emulator as follows:
+Install the [Firebase CLI](https://firebase.google.com/docs/cli), 
+
+```shell script
+npm install -g firebase-tools
+```
+
+login and setup the emulator as follows:
 
 ```shell script
 firebase login
 firebase setup:emulators:firestore
 ```
+
 Copy the Google credentials json file and store it in "credentials/google-application.json"
 
 To run integration tests (includes standing up a Firestore emulator):
 
 ```shell script
-mvn verify
+./mvnw verify
 ```
 
 ## Deploying / Building DataFlow template
@@ -64,7 +70,7 @@ METRICS=metricOfInterest1,metricOfInterest2,metricOfInterestN
 
 
 ```shell script
-mvn -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--project=$GCP_PROJECT_ID --runner=DataflowRunner --region=us-central1 --stagingLocation=$STAGING --templateLocation=gs://$TEMPLATE_BUCKET/templates/local-build-"`date +'%Y-%m-%d-%H-%M'`
+./mvnw -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--project=$GCP_PROJECT_ID --runner=DataflowRunner --region=us-central1 --stagingLocation=$STAGING --templateLocation=gs://$TEMPLATE_BUCKET/templates/local-build-"`date +'%Y-%m-%d-%H-%M'`
 ```
 
 ## Running the pipeline
@@ -72,7 +78,7 @@ mvn -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenoti
 ### Locally
 
 ```shell script
-mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--metrics=$METRICS -- --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+./mvnw -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--metrics=$METRICS -- --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 ### On Cloud
@@ -80,7 +86,7 @@ mvn -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.pr
 #### From local build
 
 ```shell script
-mvn -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--metrics=$METRICS -- --project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+./mvnw -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--metrics=$METRICS -- --project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
 ```
 
 #### From previously built template
