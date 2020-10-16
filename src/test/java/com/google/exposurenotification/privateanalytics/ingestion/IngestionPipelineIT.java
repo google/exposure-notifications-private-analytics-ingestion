@@ -15,6 +15,8 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import static com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.formatDateTime;
+
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -43,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -61,35 +64,41 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Integration tests for {@link IngestionPipeline}. */
 @RunWith(JUnit4.class)
 public class IngestionPipelineIT {
 
+  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
   static final long CREATION_TIME = 12345L;
   static final long DURATION = 10000L;
-  static final String FIREBASE_PROJECT_ID = "emulator-test-project";
+  static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
   static final long MINIMUM_PARTICIPANT_COUNT = 1L;
-  static final String TEST_COLLECTION_NAME = "test-uuid";
+  // Randomize test collection name to avoid collisions between simultaneously running tests.
+  static final String TEST_COLLECTION_NAME =
+      "uuid" + UUID.randomUUID().toString().replace("-", "_");
   // TODO(amanraj): figure out way to not check this in
   static final String KEY_RESOURCE_NAME =
       "projects/appa-ingestion/locations/global/keyRings/appa-signature-key-ring/cryptoKeys/appa-signature-key/cryptoKeyVersions/1";
 
   static Firestore db;
+  static List<DocumentReference> listDocReference;
 
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
   private IngestionPipelineFlags flags;
 
   @BeforeClass
-  public static void setUp() {
-    FirebaseOptions options =
-        FirebaseOptions.builder()
-            .setProjectId(FIREBASE_PROJECT_ID)
-            .setCredentials(GoogleCredentials.newBuilder().build())
-            .build();
+  public static void setUp() throws IOException {
+    FirebaseOptions options = FirebaseOptions.builder()
+        .setProjectId(FIREBASE_PROJECT_ID)
+        .setCredentials(GoogleCredentials.getApplicationDefault())
+        .build();
     FirebaseApp.initializeApp(options);
     db = FirestoreClient.getFirestore();
+    listDocReference = new ArrayList<>();
   }
 
   @Before
@@ -100,7 +109,7 @@ public class IngestionPipelineIT {
 
   @Test
   @Category(NeedsRunner.class)
-  public void testIngestionPipeline() throws IOException, ExecutionException, InterruptedException {
+  public void testIngestionPipeline() throws Exception {
     File phaFile = tmpFolder.newFile();
     File facilitatorFile = tmpFolder.newFile();
     IngestionPipelineOptions options =
@@ -116,9 +125,15 @@ public class IngestionPipelineIT {
     options.setDuration(StaticValueProvider.of(DURATION));
     options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
     Map<String, PrioDataSharePacket> inputDataSharePackets =
-        seedDatabaseAndReturnEntryVal(db, options);
+        seedDatabaseAndReturnEntryVal(db);
 
-    IngestionPipeline.runIngestionPipeline(options, flags);
+    try {
+      IngestionPipeline.runIngestionPipeline(options, flags);
+    } finally {
+      cleanUpDb();
+      // Allow time for delete to execute.
+      TimeUnit.SECONDS.sleep(15);
+    }
 
     Map<String, PrioDataSharePacket> actualDataSharepackets = readOutput();
     for (Map.Entry<String, PrioDataSharePacket> entry : actualDataSharepackets.entrySet()) {
@@ -130,13 +145,15 @@ public class IngestionPipelineIT {
     }
   }
 
+  private static void cleanUpDb() {
+    listDocReference.forEach(DocumentReference::delete);
+  }
+
   private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
       throws IOException {
     FirestoreSettings settings =
-        FirestoreSettings.newBuilder()
-            .setCredentialsProvider(
-                FixedCredentialsProvider.create(GoogleCredentials.newBuilder().build()))
-            .build();
+        FirestoreSettings.newBuilder().setCredentialsProvider(FixedCredentialsProvider.create(
+            GoogleCredentials.getApplicationDefault())).build();
     return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
   }
 
@@ -169,7 +186,7 @@ public class IngestionPipelineIT {
    * form of {@link Map<String, PrioDataSharePacket>}.
    */
   private static Map<String, PrioDataSharePacket> seedDatabaseAndReturnEntryVal(
-      Firestore db, IngestionPipelineOptions options)
+      Firestore db)
       throws ExecutionException, InterruptedException, IOException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
@@ -178,13 +195,15 @@ public class IngestionPipelineIT {
     WriteBatch batch = db.batch();
 
     Map<String, Object> docData = new HashMap<>();
-    List<DocumentReference> listDocReference = new ArrayList<>();
     for (int i = 1; i <= 2; i++) {
       docData.put("id", "id" + i);
       docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
       docData.put(DataShare.SIGNATURE, "signature");
       docData.put(DataShare.CERT_CHAIN, Arrays.asList("cert1", "cert2"));
-      DocumentReference reference = db.collection(TEST_COLLECTION_NAME).document("doc" + i);
+      DocumentReference reference = db.collection(TEST_COLLECTION_NAME)
+          .document("random-assortment-" + i)
+          .collection(formatDateTime(CREATION_TIME))
+          .document("doc" + i);
       batch.set(reference, docData);
       listDocReference.add(reference);
     }
@@ -197,8 +216,6 @@ public class IngestionPipelineIT {
 
     Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
     for (DocumentReference reference : listDocReference) {
-      // TODO(larryjacobs): this doesn't work. Figure out how to read data as Document from
-      // emulator.
       Document doc =
           client.getDocument(
               GetDocumentRequest.newBuilder()

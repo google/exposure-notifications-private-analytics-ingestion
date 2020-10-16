@@ -135,9 +135,7 @@ public class FirestoreConnector {
           LocalDateTime dateTimeToQuery =
               LocalDateTime.ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
           // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
-          DateTimeFormatter formatter =
-              DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US).withZone(ZoneOffset.UTC);
-          String formattedDateTime = formatter.format(dateTimeToQuery);
+          String formattedDateTime = formatDateTime(timeToQuery);
           // Construct and output query.
           StructuredQuery query =
               StructuredQuery.newBuilder()
@@ -274,6 +272,7 @@ public class FirestoreConnector {
     return FirestoreClient.getFirestore();
   }
 
+  // Returns a v1.Firestore instance to be used to partition read queries.
   private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
       throws IOException {
     FirestoreSettings settings =
@@ -286,6 +285,17 @@ public class FirestoreConnector {
 
   private static String getParentPath(String projectId) {
     return "projects/" + projectId + "/databases/(default)/documents";
+  }
+
+  // Formats a time given in epoch seconds in the format: yyyy-MM-dd-HH
+  public static String formatDateTime(Long time) {
+    LocalDateTime dateTimeToQuery = LocalDateTime
+        .ofEpochSecond(time, 0, ZoneOffset.UTC);
+    // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
+    DateTimeFormatter formatter =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US)
+            .withZone(ZoneOffset.UTC);
+    return formatter.format(dateTimeToQuery);
   }
 
   // Returns a list of DataShares for documents captured within the given query Cursor pair.

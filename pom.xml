@@ -122,46 +122,9 @@
             </goals>
             <configuration>
               <environmentVariables>
-                <FIRESTORE_EMULATOR_HOST>127.0.0.1:8080</FIRESTORE_EMULATOR_HOST>
+                <FIREBASE_PROJECT_ID>enpa-integration-testing</FIREBASE_PROJECT_ID>
                 <GOOGLE_APPLICATION_CREDENTIALS>${project.basedir}/credentials/google-application.json</GOOGLE_APPLICATION_CREDENTIALS>
               </environmentVariables>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>1.6.0</version>
-        <executions>
-          <execution>
-            <id>start-emulator</id>
-            <phase>pre-integration-test</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>firebase</executable>
-              <commandlineArgs>emulators:start --only firestore --project=emulator-test-project --config=config/firebase/firebase.json</commandlineArgs>
-              <async>true</async>
-              <asyncDestroyOnShutdown>true</asyncDestroyOnShutdown>
-            </configuration>
-          </execution>
-          <execution>
-            <id>stop-emulator</id>
-            <!-- It seems even with asyncDestroyOnShutdown, firebase CLI spawns
-              some child processes that aren't killed after failing tests, so we
-              kill them manually.
-              https://github.com/firebase/firebase-tools/issues/1367
-            -->
-            <phase>post-integration-test</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pkill</executable>
-              <commandlineArgs>-f firebase</commandlineArgs>
             </configuration>
           </execution>
         </executions>
