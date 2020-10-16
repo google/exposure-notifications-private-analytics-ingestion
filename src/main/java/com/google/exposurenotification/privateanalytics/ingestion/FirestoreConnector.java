@@ -175,7 +175,7 @@ public class FirestoreConnector {
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount().get())
-                .setParent(getParentPath(options))
+                .setParent(getParentPath(options.getFirebaseProjectId().get()))
                 .setStructuredQuery(context.element())
                 .build();
         PartitionQueryPagedResponse response = client.partitionQuery(request);
@@ -206,10 +206,12 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
+        IngestionPipelineOptions options = context.getPipelineOptions()
+            .as(IngestionPipelineOptions.class);
         for (DataShare ds :
             readDocumentsFromFirestore(
                 client,
-                context.getPipelineOptions().as(IngestionPipelineOptions.class),
+                options.getFirebaseProjectId().get(),
                 context.element())) {
           context.output(ds);
           dataShares.inc();
@@ -282,14 +284,14 @@ public class FirestoreConnector {
     return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
   }
 
-  private static String getParentPath(IngestionPipelineOptions options) {
-    return "projects/" + options.getFirebaseProjectId() + "/databases/(default)/documents";
+  private static String getParentPath(String projectId) {
+    return "projects/" + projectId + "/databases/(default)/documents";
   }
 
   // Returns a list of DataShares for documents captured within the given query Cursor pair.
   private static List<DataShare> readDocumentsFromFirestore(
       com.google.cloud.firestore.v1.FirestoreClient firestoreClient,
-      IngestionPipelineOptions options,
+      String projectId,
       ImmutableTriple<Cursor, Cursor, StructuredQuery> cursors) {
     StructuredQuery.Builder queryBuilder = cursors.getRight().toBuilder();
     if (cursors.getLeft() != null) {
@@ -306,7 +308,7 @@ public class FirestoreConnector {
               .call(
                   RunQueryRequest.newBuilder()
                       .setStructuredQuery(queryBuilder.build())
-                      .setParent(getParentPath(options))
+                      .setParent(getParentPath(projectId))
                       .build());
       responseIterator.forEach(
           res -> {

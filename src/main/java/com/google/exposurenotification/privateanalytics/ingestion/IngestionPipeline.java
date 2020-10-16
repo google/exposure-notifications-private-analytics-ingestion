@@ -18,15 +18,12 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
@@ -118,23 +115,6 @@ public class IngestionPipeline {
   static PipelineResult runIngestionPipeline(
       IngestionPipelineOptions options, IngestionPipelineFlags flags) {
     Pipeline pipeline = Pipeline.create(options);
-    // Log pipeline options.
-    // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
-    // the ValueProviders as part of job execution and not during setup.
-    pipeline
-        .apply("Begin", Create.of(1))
-        .apply(
-            "LogOptions",
-            ParDo.of(
-                new DoFn<Integer, Integer>() {
-                  @ProcessElement
-                  public void process(ProcessContext c) {
-                    IngestionPipelineOptions options =
-                        c.getPipelineOptions().as(IngestionPipelineOptions.class);
-                    LOG.info(IngestionPipelineOptions.displayString(options));
-                  }
-                }));
-
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
 
     for (String metric : flags.metrics) {
@@ -169,11 +149,8 @@ public class IngestionPipeline {
           ParDo.of(new SerializePacketHeaderSignature()));
     }
 
-    // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline
-    // successfully writes batch files
+    // TODO: delete if certain age, or if in set of DataShare's emitted by successful serialization
     dataShares.apply("DeleteDataShares", new FirestoreDeleter());
-
-    LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
     return pipeline.run();
   }
 
