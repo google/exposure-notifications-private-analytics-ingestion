@@ -63,7 +63,14 @@ public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
-  private static final String METRIC_COLLECTION_NAME = "metrics";
+  private static final Counter queriesGenerated = Metrics
+      .counter(FirestoreConnector.class, "queriesGenerated");
+
+  private static final Counter partitionCursors = Metrics
+      .counter(FirestoreConnector.class, "partitionCursors");
+
+  private static final Counter dataShares = Metrics
+      .counter(FirestoreConnector.class, "dataShares");
 
   private static final Counter invalidDocumentCounter = Metrics
       .counter(FirestoreConnector.class, "invalidDocuments");
@@ -138,6 +145,7 @@ public class FirestoreConnector {
                       .build())
               .build();
           context.output(query);
+          queriesGenerated.inc();
         }
       }
     }
@@ -173,9 +181,11 @@ public class FirestoreConnector {
         while (iterator.hasNext()) {
           end = iterator.next();
           context.output(ImmutableTriple.of(start, end, context.element()));
+          partitionCursors.inc();
           start = end;
         }
         context.output(ImmutableTriple.of(start, null, context.element()));
+        partitionCursors.inc();
       }
     }
 
@@ -194,6 +204,7 @@ public class FirestoreConnector {
             context.getPipelineOptions().as(IngestionPipelineOptions.class),
             context.element())) {
           context.output(ds);
+          dataShares.inc();
         }
       }
     }
