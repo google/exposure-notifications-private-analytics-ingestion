@@ -19,11 +19,8 @@ import com.google.auto.value.AutoValue;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.Value;
 import com.google.firestore.v1.Value.ValueTypeCase;
-import java.io.ByteArrayInputStream;
 import java.io.Serializable;
 import java.security.SecureRandom;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -43,7 +40,6 @@ public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
   private static final int NUMBER_OF_SERVERS = 2;
-  private static final String ROOT_COLLECTION_NAME = "uuid";
   private static final Counter missingRequiredCounter = Metrics
       .counter(DataShare.class, "datashare-missingRequired");
   private static final Counter castExceptionCounter = Metrics
@@ -66,8 +62,7 @@ public abstract class DataShare implements Serializable {
 
   // Signature and certificates fields
   public abstract @Nullable String getSignature();
-
-  public abstract @Nullable List<X509Certificate> getCertificateChain();
+  public abstract @Nullable List<String> getCertificateChain();
 
   // Prio Parameters field names
   public static final String PRIME = "prime";
@@ -103,15 +98,12 @@ public abstract class DataShare implements Serializable {
    */
   public static DataShare from(Document doc) {
     DataShare.Builder builder = builder();
-    try {
-      // doc.getName() returns the fully qualified name of the document:
-      // e.g.: projects/{project_id}/databases/{database_id}/documents/uuid/.../metricName
-      // We need the path relative to the beginning of the root collection, "uuid/"
-      builder.setPath(doc.getName().substring(doc.getName().indexOf(ROOT_COLLECTION_NAME)));
-    } catch (RuntimeException e) {
-      missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: Path", e);
-    }
+    String fullyQualifiedPath = doc.getName();
+    // doc.getName() returns the fully qualified name of the document:
+    // e.g.: "projects/{project_id}/databases/{database_id}/documents/collection/..."
+    // We need the path relative to the beginning of the root collection, "collection/..."
+    String relativePath = fullyQualifiedPath.replaceFirst("^projects.*documents/", "");
+    builder.setPath(relativePath);
 
     // Process the payload.
     if (doc.getFieldsMap().get(PAYLOAD) == null) {
@@ -202,26 +194,16 @@ public abstract class DataShare implements Serializable {
       missingRequiredCounter.inc();
       throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
     }
-    List<Value> certChainString = fields.get(CERT_CHAIN).getArrayValue().getValuesList();
-
-    List<X509Certificate> certChainX509 = new ArrayList<>();
-    try {
-      CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-      for (Value certString : certChainString) {
-        byte[] cert = Base64.getDecoder().decode(certString.getStringValue());
-        // Parse as X509 certificate.
-        // TODO(tancrede) figure out why this throws 'CertificateException: Could not parse certificate:
-        //  java.io.IOException: Empty input' for all documents
-        X509Certificate certX509 = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(cert));
-        certChainX509.add(certX509);
-       }
-    } catch (Exception e) {
-      illegalArgCounter.inc();
-      throw new IllegalArgumentException("Could not parse the chain of certificates: " + CERT_CHAIN,
-          e);
+    List<Value> certChainValue = fields.get(CERT_CHAIN).getArrayValue().getValuesList();
+    List<String> certChainString = new ArrayList<>();
+    for (Value cert : certChainValue) {
+      if (cert.getStringValue() == null) {
+        illegalArgCounter.inc();
+        throw new IllegalArgumentException("invalid or empty certificate");
+      }
+      certChainString.add(cert.getStringValue());
     }
-
-    builder.setCertificateChain(certChainX509);
+    builder.setCertificateChain(certChainString);
 
     return builder.build();
   }
@@ -252,7 +234,7 @@ public abstract class DataShare implements Serializable {
 
     abstract Builder setSignature(@Nullable String value);
 
-    abstract Builder setCertificateChain(@Nullable List<X509Certificate> certChain);
+    abstract Builder setCertificateChain(@Nullable List<String> certChain);
   }
 
   // Checks for the presence of the given field in the sourceMap and provides detailed exceptions

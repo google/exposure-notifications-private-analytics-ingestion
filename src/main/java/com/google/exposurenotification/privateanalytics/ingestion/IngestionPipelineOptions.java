@@ -74,20 +74,20 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 =======
 
   /**
-   * Window of time to read before startTime when querying Firestore. Used to construct document
+   * Seconds to look before startTime when querying Firestore collection. Used to construct document
    * path for Firestore reads.
    */
-  @Description("Amount of time to read backwards from startTime. Used to construct document path for Firestore reads.")
+  @Description("Seconds to read backwards from startTime. Used to construct document path for Firestore reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodBackwards();
 
   void setGracePeriodBackwards(ValueProvider<Long> value);
 
   /**
-   * Window of time to read past startTime when querying Firestore. Used to construct document path
+   * Seconds to look before startTime when querying Firestore. Used to construct document path
    * for Firestore reads.
    */
-  @Description("Amount of time to read forward from startTime. Used to construct document path for Firestore reads.")
+  @Description("Seconds to read forward from startTime. Used to construct document path for Firestore reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodForwards();
 

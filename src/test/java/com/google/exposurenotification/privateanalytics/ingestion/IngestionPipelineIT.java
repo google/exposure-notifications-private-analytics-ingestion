@@ -178,12 +178,7 @@ public class IngestionPipelineIT {
       docData.put("id", "id" + i);
       docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
       docData.put(DataShare.SIGNATURE, "signature");
-      AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains =
-          DataShareTest.createCertificateChain();
-      List<String> certsSerialized = certChains.getValue().stream()
-          .map(elem -> elem.getStringValue())
-          .collect(Collectors.toList());
-      docData.put(DataShare.CERT_CHAIN, certsSerialized);
+      docData.put(DataShare.CERT_CHAIN, Arrays.asList("cert1", "cert2"));
       DocumentReference reference = db.collection(TEST_COLLECTION_NAME).document("doc" + i);
       batch.set(reference, docData);
       listDocReference.add(reference);

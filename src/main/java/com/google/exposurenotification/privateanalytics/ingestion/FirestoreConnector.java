@@ -93,11 +93,11 @@ public class FirestoreConnector {
     public PCollection<DataShare> expand(PBegin input) {
       return input
           // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
-          .apply(Create.of(""))
-          .apply(ParDo.of(new GenerateQueriesFn()))
-          .apply(ParDo.of(new PartitionQueryFn()))
+          .apply("Begin", Create.of(""))
+          .apply("GenerateQueries", ParDo.of(new GenerateQueriesFn()))
+          .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           // TODO(larryjacobs): reshuffle if necessary at scale
-          .apply(ParDo.of(new ReadFn()));
+          .apply("Read", ParDo.of(new ReadFn()));
     }
 
     /**
@@ -218,7 +218,7 @@ public class FirestoreConnector {
     @Override
     public PDone expand(PCollection<DataShare> input) {
       // TODO: would it be useful to sort on document paths to get more efficient deletes?
-      input.apply(ParDo.of(new DeleteFn()));
+      input.apply("Delete", ParDo.of(new DeleteFn()));
       return PDone.in(input.getPipeline());
     }
 
@@ -248,6 +248,8 @@ public class FirestoreConnector {
   }
 
 
+  // TODO(larryjacobs): consolidate to v1 FirestoreClient. No need having both api's/clients and
+  // two types of initialization (for read and for delete)
   // Initializes and returns a Firestore instance.
   private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions)
       throws Exception {
@@ -294,7 +296,6 @@ public class FirestoreConnector {
                 .setParent(getParentPath(options))
                 .build());
     List<DataShare> docs = new ArrayList<>();
-    // TODO(larryjacobs): rather than retrieve all documents (and filter for time later) retrieve only the date subcollection corresponding to the window of interest +/- an hour
     responseIterator.forEach(res -> {
       LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
       documentsRead.inc();

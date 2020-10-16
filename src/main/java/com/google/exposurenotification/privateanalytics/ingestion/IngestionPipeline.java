@@ -125,8 +125,8 @@ public class IngestionPipeline {
     // Log pipeline options.
     // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
     // the ValueProviders as part of job execution and not during setup.
-    pipeline.apply(Create.of(1))
-        .apply(
+    pipeline.apply("Begin", Create.of(1))
+        .apply("LogOptions",
             ParDo.of(
                 new DoFn<Integer, Integer>() {
                   @ProcessElement
@@ -147,7 +147,7 @@ public class IngestionPipeline {
       // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
               processDataShares(metricDataShares, options, metric)
-          .apply(MapElements.via(new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
+          .apply("MapMetadata", MapElements.via(new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
             @Override
             public KV<DataShareMetadata, DataShare> apply(DataShare input) {
               return KV.of(input.getDataShareMetadata(), input);
@@ -169,7 +169,7 @@ public class IngestionPipeline {
     }
 
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
-    dataShares.apply(new FirestoreDeleter());
+    dataShares.apply("DeleteDataShares", new FirestoreDeleter());
 
     LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
     return pipeline.run();
@@ -187,11 +187,7 @@ public class IngestionPipeline {
       PipelineResult result = runIngestionPipeline(options, flags);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
-      String metricsInfo = "";
-      for (MetricResult metricResult: metrics.allMetrics().getCounters()) {
-        metricsInfo += metricResult.toString() + "\n";
-      }
-      LOG.info(metricsInfo);
+      LOG.info("Metrics:\n\n" + metrics.toString());
     } catch (UnsupportedOperationException ignore) {
       // Known issue that this can throw when generating a template:
       // https://issues.apache.org/jira/browse/BEAM-9337

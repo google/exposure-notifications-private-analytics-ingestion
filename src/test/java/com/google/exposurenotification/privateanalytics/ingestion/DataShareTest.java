@@ -26,10 +26,6 @@ import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.Value;
 import com.google.firestore.v1.Value.ValueTypeCase;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import java.io.ByteArrayInputStream;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -41,15 +37,12 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Unit tests for {@link DataShare}.
  */
 @RunWith(JUnit4.class)
 public class DataShareTest {
-  private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
   public static final String PATH_ID = "uuid/path/id";
   public static final String METRIC_NAME = "id";
   public static final String UUID = "uniqueuserid";
@@ -72,10 +65,10 @@ public class DataShareTest {
     List<Value> encryptedDataShares = createEncryptedDataShares();
     Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<X509Certificate> certs = certChains.getKey();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
     fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
     docBuilder.setName(PATH_ID);
@@ -101,7 +94,6 @@ public class DataShareTest {
         .isEqualTo("fakePayload1".getBytes());
     assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptedPayload())
         .isEqualTo("fakePayload2".getBytes());
-    assertThat(dataShare.getCertificateChain()).isEqualTo(certs);
     assertThat(dataShare.getSignature()).isEqualTo(SIGNATURE);
     assertThat(dataShare.getDataShareMetadata().getMetricName()).isEqualTo(METRIC_NAME);
   }
@@ -117,9 +109,10 @@ public class DataShareTest {
     Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
     // Remove the Prio params
     samplePayload.remove(DataShare.PRIO_PARAMS);Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
     fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
     docBuilder.setName(PATH_ID);
@@ -136,9 +129,10 @@ public class DataShareTest {
   public void testMissingPayload() {
     Document.Builder docBuilder = Document.newBuilder();
     Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
     docBuilder.setName(PATH_ID);
     docBuilder.putAllFields(fields);
@@ -157,9 +151,10 @@ public class DataShareTest {
     List<Value> encryptedDataShares = createEncryptedDataShares();
     Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
     docBuilder.setName(PATH_ID);
     docBuilder.putAllFields(fields);
@@ -199,9 +194,10 @@ public class DataShareTest {
     List<Value> encryptedDataShares = createEncryptedDataShares();
     Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
     fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
     docBuilder.setName(PATH_ID);
@@ -226,9 +222,10 @@ public class DataShareTest {
     // Set a payload field, CREATED, to invalid type
     samplePayload.replace(DataShare.CREATED, Value.newBuilder().setStringValue("false").build());
     Map<String, Value> fields = new HashMap<>();
-    AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> certChains = createCertificateChain();
-    List<Value> certsSerialized = certChains.getValue();
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
+    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder()
+        .addValues(Value.newBuilder().setStringValue("cert1").build())
+        .addValues(Value.newBuilder().setStringValue("cert2").build())
+        .build()).build());
     fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
     fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
     docBuilder.setName(PATH_ID);
@@ -240,28 +237,6 @@ public class DataShareTest {
     assertEquals(
         "Error casting '" + DataShare.CREATED + "' from '" + DataShare.PAYLOAD + "' to " + ValueTypeCase.TIMESTAMP_VALUE.name(),
         e.getMessage());
-  }
-
-  @Test
-  public void testIncorrectCertificates() {
-    Document.Builder docBuilder = Document.newBuilder();
-    // Construct payload
-    Map<String, Value> prioParams = createPrioParams();
-    List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
-    Map<String, Value> fields = new HashMap<>();
-    List<Value> certsSerialized = new ArrayList<>();
-    certsSerialized.add(Value.newBuilder().setStringValue("Incorrect serialization").build());
-    fields.put(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(certsSerialized).build()).build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
-    fields.put(DataShare.PAYLOAD, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build()).build());
-    docBuilder.setName(PATH_ID);
-    docBuilder.putAllFields(fields);
-    document = docBuilder.build();
-
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
-
-    assertThat(e).hasMessageThat().contains("Could not parse the chain of certificates: " + DataShare.CERT_CHAIN);
   }
 
   /** Static functions to create the objects used in the tests above. */
@@ -298,29 +273,5 @@ public class DataShareTest {
     samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, Value.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(encryptedDataShares)).build());
     samplePayload.put(DataShare.PRIO_PARAMS, Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(prioParams).build()).build());
     return samplePayload;
-  }
-
-  public static AbstractMap.SimpleEntry<List<X509Certificate>, List<Value>> createCertificateChain() {
-    List<X509Certificate> certificates = new ArrayList<>();
-    List<Value> certsSerialized = new ArrayList<>();
-    try {
-      String certBase64 = getTestCertificate();
-      byte[] certBytes = Base64.getDecoder().decode(certBase64);
-      CertificateFactory cf = CertificateFactory.getInstance("X.509");
-      X509Certificate cert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
-      LOG.info("parsed: " + cert.toString());
-      certificates.add(cert);
-      certificates.add(cert); // twice
-      certsSerialized.add(Value.newBuilder().setStringValue(certBase64).build());
-      certsSerialized.add(Value.newBuilder().setStringValue(certBase64).build());
-    } catch (Exception e) {
-      // pass: it's a CertificateException in case we mistyped "X.509".
-    }
-    return new AbstractMap.SimpleEntry<>(certificates, certsSerialized);
-  }
-
-  public static String getTestCertificate() {
-    // Valid certificate as exported by our client code.
-    return "MIICyDCCAm2gAwIBAgIBATAMBggqhkjOPQQDAgUAMC8xGTAXBgNVBAUTEDkwZThkYTNjYWRmYzc4MjAxEjAQBgNVBAwMCVN0cm9uZ0JveDAeFw0xMzA3MjUxMjU2NTRaFw0xNjAzMzAxNjU2NDJaMB8xHTAbBgNVBAMMFEFuZHJvaWQgS2V5c3RvcmUgS2V5MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES3oA8SxQRQfTnBDdMFTERIC38T1y5DQdtVqosqjB3V/o05aczU20EDulfobidcr1N4UspphJhEF9QKIbb18YtKOCAYYwggGCMA4GA1UdDwEB/wQEAwIHgDCCAW4GCisGAQQB1nkCAREEggFeMIIBWgIBBAoBAgIBKQoBAgQg6hlB6Biw0IWHMrxnsmalvx6wFd5e6N7hGlrjhsq1KJ0EADCBhb+DEQgCBgF02q9YSr+DEggCBgF02q9YSr+FPQgCBgF01aRzlr+FRV0EWzBZMTMwMQQsY29tLmdvb2dsZS5hbmRyb2lkLmFwcHMuZXhwb3N1cmVub3RpZmljYXRpb24CAQExIgQgN3X23FDoH2zp6mldxSrVqY4oBntFBDYM4HdzkJUFZH8wgZ+hCDEGAgECAgEDogMCAQOjBAICAQClBTEDAgEEv4N3AgUAv4U+AwIBAL+FQEwwSgQgrmMWtHU8YfWFW5W5uYSEr3hPLoNkjQ/MgQf8p1LK6jQBAf8KAQAEIFvj6AqMmElSJ8eBKUhqgsb8USJq/9FGNDsO7PW0mIw5v4VBBQIDAa2wv4VCBQIDAxUav4VOBgIEATQ+Lb+FTwYCBAE0Pi0wDAYIKoZIzj0EAwIFAANHADBEAiAjXwY3sMOoce6mWycLSssC0kjrMXSURzwTIl6gSQmK5AIgYUFCdKpJDfoZEkLwcT+k3lXDXbLGXwjywsAxYOZhgX4=";
   }
 }
