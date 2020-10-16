@@ -23,12 +23,8 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.ValueProvider;
-import org.apache.beam.sdk.testing.PAssert;
-import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Filter;
@@ -38,7 +34,6 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -62,7 +57,7 @@ import picocli.CommandLine;
  */
 public class IngestionPipeline {
 
-  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+    private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
   /**
    * A DoFn that filters documents in particular time window
@@ -117,8 +112,8 @@ public class IngestionPipeline {
           return null;
         });
 
-    return dataShares;
-  }
+        return dataShares;
+    }
 
   static PipelineResult runIngestionPipeline(IngestionPipelineOptions options, IngestionPipelineFlags flags) {
     Pipeline pipeline =  Pipeline.create(options);
@@ -137,16 +132,17 @@ public class IngestionPipeline {
                   }
                 }));
 
-    PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+        PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
 
-    for (String metric: flags.metrics) {
-      PCollection<DataShare> metricDataShares = dataShares
-          .apply("FilterDataSharesByMetric=" + metric, Filter.by(inputDataShare ->
-              inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
+        for (String metric : flags.metrics) {
+            PCollection<DataShare> metricDataShares = dataShares
+                    .apply("FilterDataSharesByMetric=" + metric, Filter.by(inputDataShare ->
+                            inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
+
 
       // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
-              processDataShares(metricDataShares, options, metric)
+              processDataShares(metricDataShares, metric)
           .apply("MapMetadata", MapElements.via(new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
             @Override
             public KV<DataShareMetadata, DataShare> apply(DataShare input) {
@@ -154,19 +150,15 @@ public class IngestionPipeline {
             }
           }));
 
-      PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-          processedDataSharesByMetadata
-              .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class), AvroCoder.of(DataShare.class)))
-              .apply("GroupIntoBatchesFor_metric=" + metric,
-                  GroupIntoBatches.ofSize(flags.batchSize));
+            PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
+                    processedDataSharesByMetadata
+                            .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class), AvroCoder.of(DataShare.class)))
+                            .apply("GroupIntoBatchesFor_metric=" + metric,
+                                    GroupIntoBatches.ofSize(flags.batchSize));
 
-      datashareGroupedByMetadata.apply("SerializePacketHeaderSigFor_metric=" + metric,
-          ParDo.of(new SerializePacketHeaderSignature(
-                  options.getPHAOutput(),
-                  options.getFacilitatorOutput(),
-                  options.getStartTime(),
-                  options.getDuration())));
-    }
+            datashareGroupedByMetadata.apply("SerializePacketHeaderSigFor_metric=" + metric,
+                    ParDo.of(new SerializePacketHeaderSignature()));
+        }
 
     // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
     dataShares.apply("DeleteDataShares", new FirestoreDeleter());
@@ -174,25 +166,26 @@ public class IngestionPipeline {
     LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
     return pipeline.run();
   }
+
   public static void main(String[] args) {
-    IngestionPipelineFlags flags = new IngestionPipelineFlags();
-    new CommandLine(flags).parseArgs(args);
-    PipelineOptionsFactory.register(IngestionPipelineOptions.class);
-    IngestionPipelineOptions options =
-        PipelineOptionsFactory
-                .fromArgs(flags.pipelineOptionsParams)
-                .withValidation()
-                .as(IngestionPipelineOptions.class);
-    try {
-      PipelineResult result = runIngestionPipeline(options, flags);
-      result.waitUntilFinish();
-      MetricResults metrics = result.metrics();
-      LOG.info("Metrics:\n\n" + metrics.toString());
-    } catch (UnsupportedOperationException ignore) {
-      // Known issue that this can throw when generating a template:
-      // https://issues.apache.org/jira/browse/BEAM-9337
-    } catch (Exception e) {
-      LOG.error("Exception thrown during pipeline run.", e);
-    }
+      IngestionPipelineFlags flags = new IngestionPipelineFlags();
+      new CommandLine(flags).parseArgs(args);
+      PipelineOptionsFactory.register(IngestionPipelineOptions.class);
+      IngestionPipelineOptions options =
+              PipelineOptionsFactory
+                      .fromArgs(flags.pipelineOptionsParams)
+                      .withValidation()
+                      .as(IngestionPipelineOptions.class);
+      try {
+          PipelineResult result = runIngestionPipeline(options, flags);
+          result.waitUntilFinish();
+          MetricResults metrics = result.metrics();
+          LOG.info("Metrics:\n\n" + metrics.toString());
+      } catch (UnsupportedOperationException ignore) {
+          // Known issue that this can throw when generating a template:
+          // https://issues.apache.org/jira/browse/BEAM-9337
+      } catch (Exception e) {
+          LOG.error("Exception thrown during pipeline run.", e);
+      }
   }
 }

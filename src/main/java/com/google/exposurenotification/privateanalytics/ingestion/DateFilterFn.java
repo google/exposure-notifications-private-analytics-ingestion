@@ -16,12 +16,8 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
   private final Counter dateFilterIncluded;
   private final Counter dateFilterExcluded;
-  private final ValueProvider<Long> startTime;
-  private final ValueProvider<Long> duration;
 
-  public DateFilterFn(ValueProvider<Long> startTime, ValueProvider<Long> duration, String metric) {
-    this.startTime = startTime;
-    this.duration = duration;
+  public DateFilterFn(String metric) {
     this.dateFilterIncluded = Metrics
             .counter(DateFilterFn.class, "dateFilterIncluded_" + metric);
     this.dateFilterExcluded = Metrics
@@ -33,8 +29,14 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
     if (c.element().getCreated() == null || c.element().getCreated() == 0) {
       return;
     }
-    if (c.element().getCreated() >= startTime.get() &&
-        c.element().getCreated() < startTime.get() + duration.get()) {
+    IngestionPipelineOptions options = c.getPipelineOptions()
+            .as(IngestionPipelineOptions.class);
+
+    long startTime = options.getStartTime().get();
+    long duration = options.getDuration().get();
+
+    if (c.element().getCreated() >= startTime &&
+        c.element().getCreated() < startTime + duration) {
       LOG.debug("Included: " + c.element());
       dateFilterIncluded.inc();
       c.output(c.element());
