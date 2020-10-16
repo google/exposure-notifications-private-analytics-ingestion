@@ -21,6 +21,7 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
@@ -33,6 +34,7 @@ import com.google.firestore.v1.StructuredQuery.CollectionSelector;
 import com.google.firestore.v1.StructuredQuery.Direction;
 import com.google.firestore.v1.StructuredQuery.FieldReference;
 import com.google.firestore.v1.StructuredQuery.Order;
+import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -75,8 +77,17 @@ public class FirestoreConnector {
   private static final Counter invalidDocumentCounter = Metrics
       .counter(FirestoreConnector.class, "invalidDocuments");
 
+  private static final Counter grpcException = Metrics
+      .counter(FirestoreConnector.class, "grpcException");
+
   private static final Counter documentsRead = Metrics
       .counter(FirestoreConnector.class, "documentsRead");
+
+  private static final Counter skippedResults = Metrics
+      .counter(FirestoreConnector.class, "skippedResults");
+
+  private static final Counter partialProgress = Metrics
+      .counter(FirestoreConnector.class, "partialProgress");
 
   /**
    * Reads documents from Firestore
@@ -289,23 +300,34 @@ public class FirestoreConnector {
     if (cursors.getMiddle() != null) {
       queryBuilder.setEndAt(cursors.getMiddle());
     }
-    ServerStream<RunQueryResponse> responseIterator =
-        firestoreClient.runQueryCallable()
-            .call(RunQueryRequest.newBuilder()
-                .setStructuredQuery(queryBuilder.build())
-                .setParent(getParentPath(options))
-                .build());
     List<DataShare> docs = new ArrayList<>();
-    responseIterator.forEach(res -> {
-      LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
-      documentsRead.inc();
-      try {
-        docs.add(DataShare.from(res.getDocument()));
-      } catch (RuntimeException e) {
-        LOG.warn("Unable to read document " + res.getDocument().getName(), e);
-        invalidDocumentCounter.inc();
-      }
-    });
+    try {
+      ServerStream<RunQueryResponse> responseIterator =
+          firestoreClient.runQueryCallable()
+              .call(RunQueryRequest.newBuilder()
+                  .setStructuredQuery(queryBuilder.build())
+                  .setParent(getParentPath(options))
+                  .build());
+      responseIterator.forEach(res -> {
+        skippedResults.inc(res.getSkippedResults());
+        // Streaming grpc may return partial results
+        if (res.hasDocument()) {
+          LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
+          documentsRead.inc();
+          try {
+            docs.add(DataShare.from(res.getDocument()));
+          } catch (InvalidDataShareException e) {
+            LOG.warn("Invalid data share", e);
+            invalidDocumentCounter.inc();
+          }
+        } else {
+          partialProgress.inc();
+        }
+      });
+    } catch (StatusRuntimeException e) {
+      LOG.warn("grpc status exception", e);
+      grpcException.inc();
+    }
     return docs;
   }
 }

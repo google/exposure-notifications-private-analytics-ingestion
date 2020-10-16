@@ -108,7 +108,7 @@ public abstract class DataShare implements Serializable {
     // Process the payload.
     if (doc.getFieldsMap().get(PAYLOAD) == null) {
       missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: " + PAYLOAD);
+      throw new InvalidDataShareException("Missing required field: " + PAYLOAD);
     }
     Map<String, Value> payload = doc.getFieldsMap().get(PAYLOAD).getMapValue().getFieldsMap();
 
@@ -133,7 +133,7 @@ public abstract class DataShare implements Serializable {
     int numberOfServers = (int) prioParams.get(NUMBER_OF_SERVERS_FIELD).getIntegerValue();
     if (numberOfServers != NUMBER_OF_SERVERS) {
       illegalArgCounter.inc();
-      throw new UnsupportedOperationException("Unsupported number of servers: " + numberOfServers);
+      throw new InvalidDataShareException("Invalid number of servers: " + numberOfServers);
     }
     metadataBuilder.setNumberOfServers(numberOfServers);
     if (prioParams.get(HAMMING_WEIGHT) != null) {
@@ -147,7 +147,7 @@ public abstract class DataShare implements Serializable {
       metadataBuilder.setMetricName(fullPath.substring(fullPath.lastIndexOf('/') + 1));
     } catch (RuntimeException e) {
       missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: Name", e);
+      throw new InvalidDataShareException("Missing required field: Name", e);
     }
 
     builder.setDataShareMetadata(metadataBuilder.build());
@@ -161,7 +161,7 @@ public abstract class DataShare implements Serializable {
     List<Value> encryptedDataShares = payload.get(ENCRYPTED_DATA_SHARES).getArrayValue().getValuesList();
     if (encryptedDataShares.size() != numberOfServers) {
       illegalArgCounter.inc();
-      throw new IllegalArgumentException("Mismatch between number of servers (" + numberOfServers
+      throw new InvalidDataShareException("Mismatch between number of servers (" + numberOfServers
           + ") and number of data shares (" + encryptedDataShares.size() + ")");
     }
     List<EncryptedShare> shares = new ArrayList<>(NUMBER_OF_SERVERS);
@@ -177,7 +177,7 @@ public abstract class DataShare implements Serializable {
         decodedPayload = Base64.getDecoder().decode(base64payload);
       } catch (IllegalArgumentException e) {
         illegalArgCounter.inc();
-        throw new IllegalArgumentException("Unable to base64 decode payload", e);
+        throw new InvalidDataShareException("Unable to base64 decode payload", e);
       }
       shares.add(EncryptedShare.builder()
           .setEncryptionKeyId(keyId)
@@ -192,14 +192,14 @@ public abstract class DataShare implements Serializable {
     builder.setSignature(fields.get(SIGNATURE).getStringValue());
     if (fields.get(CERT_CHAIN) == null) {
       missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: " + CERT_CHAIN);
+      throw new InvalidDataShareException("Missing required field: " + CERT_CHAIN);
     }
     List<Value> certChainValue = fields.get(CERT_CHAIN).getArrayValue().getValuesList();
     List<String> certChainString = new ArrayList<>();
     for (Value cert : certChainValue) {
       if (cert.getStringValue() == null) {
         illegalArgCounter.inc();
-        throw new IllegalArgumentException("invalid or empty certificate");
+        throw new InvalidDataShareException("invalid or empty certificate");
       }
       certChainString.add(cert.getStringValue());
     }
@@ -210,6 +210,17 @@ public abstract class DataShare implements Serializable {
 
   static Builder builder() {
     return new AutoValue_DataShare.Builder();
+  }
+
+  public static class InvalidDataShareException extends IllegalArgumentException {
+
+    public InvalidDataShareException(String s) {
+      super(s);
+    }
+
+    public InvalidDataShareException(String message, Throwable cause) {
+      super(message, cause);
+    }
   }
 
   @AutoValue.Builder
@@ -242,12 +253,12 @@ public abstract class DataShare implements Serializable {
   private static void checkValuePresent(String field,  Map<String, Value> sourceMap, String sourceName, ValueTypeCase type) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       missingRequiredCounter.inc();
-      throw new IllegalArgumentException("Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new InvalidDataShareException("Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
     if (!sourceMap.get(field).getValueTypeCase().equals(type)) {
       castExceptionCounter.inc();
-      throw new IllegalArgumentException(
+      throw new InvalidDataShareException(
           "Error casting '" + field + "' from '" + sourceName + "' to " + type.name());
     }
   }
@@ -255,7 +266,7 @@ public abstract class DataShare implements Serializable {
   // Generate a random element in [0, p-1] using SecureRandom.
   private static Long generateRandom(Long p) throws IllegalArgumentException {
     if (p <= 0) {
-      throw new IllegalArgumentException("The upper bound should be > 0.");
+      throw new InvalidDataShareException("The upper bound should be > 0.");
     }
     // Use rejection sampling to generate a random v in [0, p-1].
     // We generate a v with the same number of bits as p, and restart until v is

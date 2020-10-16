@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.MapValue;
@@ -119,7 +120,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertThat(e).hasMessageThat()
         .contains("Missing required field: '" + DataShare.PRIO_PARAMS + "' from '" + DataShare.PAYLOAD + "'");
@@ -138,7 +139,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.PAYLOAD);
   }
@@ -160,7 +161,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertThat(e).hasMessageThat().contains("Missing required field: '" + DataShare.SIGNATURE);
   }
@@ -179,7 +180,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.CERT_CHAIN);
   }
@@ -204,7 +205,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertThat(e).hasMessageThat()
         .contains("Missing required field: '" + DataShare.PRIME + "' from '" + DataShare.PRIO_PARAMS + "'");
@@ -232,7 +233,7 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DataShare.from(document));
+    InvalidDataShareException e = assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
 
     assertEquals(
         "Error casting '" + DataShare.CREATED + "' from '" + DataShare.PAYLOAD + "' to " + ValueTypeCase.TIMESTAMP_VALUE.name(),
