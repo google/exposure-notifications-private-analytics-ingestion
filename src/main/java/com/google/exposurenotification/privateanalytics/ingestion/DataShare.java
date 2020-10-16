@@ -25,14 +25,11 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import org.apache.beam.sdk.coders.AvroCoder;
-import org.apache.beam.sdk.coders.DefaultCoder;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
-@DefaultCoder(AvroCoder.class)
 @AutoValue
 public abstract class DataShare implements Serializable {
 
@@ -234,7 +231,6 @@ public abstract class DataShare implements Serializable {
   }
 
   @AutoValue.Builder
-  @DefaultCoder(AvroCoder.class)
   abstract static class Builder {
 
     abstract DataShare build();
@@ -294,7 +290,6 @@ public abstract class DataShare implements Serializable {
 
   /** Represents the grouping key by which data shares should be aggregated together. */
   @AutoValue
-  @DefaultCoder(AvroCoder.class)
   public abstract static class DataShareMetadata implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -316,7 +311,6 @@ public abstract class DataShare implements Serializable {
     }
 
     @AutoValue.Builder
-    @DefaultCoder(AvroCoder.class)
     public abstract static class Builder {
 
       abstract DataShareMetadata build();

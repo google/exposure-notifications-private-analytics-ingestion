@@ -160,10 +160,9 @@ public class IngestionPipeline {
 
       PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
           processedDataSharesByMetadata
-              .setCoder(
-                  KvCoder.of(AvroCoder.of(DataShareMetadata.class), AvroCoder.of(DataShare.class)))
-              .apply(
-                  "GroupIntoBatchesFor_metric=" + metric, GroupIntoBatches.ofSize(flags.batchSize));
+              .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class),
+                  AvroCoder.of(DataShare.class)))
+              .apply(GroupIntoBatches.ofSize(flags.batchSize));
 
       datashareGroupedByMetadata.apply(
           "SerializePacketHeaderSigFor_metric=" + metric,
