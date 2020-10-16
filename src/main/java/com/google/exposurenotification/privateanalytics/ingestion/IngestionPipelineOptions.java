@@ -21,40 +21,34 @@ import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 
-/**
- * Specific options for the pipeline.
- */
+/** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends PipelineOptions {
-  /**
-   * Firebase project to read from.
-   */
+  /** Firebase project to read from. */
   @Description("Firebase Project Id to read from")
   @Required
   ValueProvider<String> getFirebaseProjectId();
+
   void setFirebaseProjectId(ValueProvider<String> value);
 
-  /**
-   * File prefix for output files for PHA
-   */
+  /** File prefix for output files for PHA */
   @Description("File prefix for output files for PHA.")
   @Required
   ValueProvider<String> getPHAOutput();
+
   void setPHAOutput(ValueProvider<String> value);
 
-  /**
-   * File prefix for output files for Facilitator
-   */
+  /** File prefix for output files for Facilitator */
   @Description("File prefix for output files for Facilitator.")
   @Required
   ValueProvider<String> getFacilitatorOutput();
+
   void setFacilitatorOutput(ValueProvider<String> value);
 
   /**
    * Start time of window to process. Used to filter documents that have been read from Firestore on
    * the "Creation" field.
    */
-  @Description(
-      "Start time in seconds of documents to process")
+  @Description("Start time in seconds of documents to process")
   @Default.Long(0)
   ValueProvider<Long> getStartTime();
 
@@ -64,8 +58,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * Duration of time window to process. Used to filter documents that have been read from Firestore
    * on the "Creation" field.
    */
-  @Description(
-      "Duration of window in seconds")
+  @Description("Duration of window in seconds")
   @Default.Long(1728000000)
   ValueProvider<Long> getDuration();
 
@@ -77,67 +70,58 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * Seconds to look before startTime when querying Firestore collection. Used to construct document
    * path for Firestore reads.
    */
-  @Description("Seconds to read backwards from startTime. Used to construct document path for Firestore reads.")
+  @Description(
+      "Seconds to read backwards from startTime. Used to construct document path for Firestore"
+          + " reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodBackwards();
 
   void setGracePeriodBackwards(ValueProvider<Long> value);
 
   /**
-   * Seconds to look before startTime when querying Firestore. Used to construct document path
-   * for Firestore reads.
+   * Seconds to look before startTime when querying Firestore. Used to construct document path for
+   * Firestore reads.
    */
-  @Description("Seconds to read forward from startTime. Used to construct document path for Firestore reads.")
+  @Description(
+      "Seconds to read forward from startTime. Used to construct document path for Firestore"
+          + " reads.")
   @Default.Long(3600)
   ValueProvider<Long> getGracePeriodForwards();
 
   void setGracePeriodForwards(ValueProvider<Long> value);
 
-  /**
-   * Minimum count of participants to preserve privacy(e.g., not allow batch of 1).
-   */
-  @Description(
-      "Minimum count of participants to preserve privacy.")
+  /** Minimum count of participants to preserve privacy(e.g., not allow batch of 1). */
+  @Description("Minimum count of participants to preserve privacy.")
   @Default.Long(0)
   ValueProvider<Long> getMinimumParticipantCount();
 
-  @Description(
-          "Minimum count of participants to preserve privacy.")
-
+  @Description("Minimum count of participants to preserve privacy.")
   void setMinimumParticipantCount(ValueProvider<Long> value);
 
-  /**
-   * Whether to delete documents once they've been processed
-   */
-  @Description(
-      "Delete documents at end of pipeline")
+  /** Whether to delete documents once they've been processed */
+  @Description("Delete documents at end of pipeline")
   @Default.Boolean(false)
   ValueProvider<Boolean> getDelete();
 
   void setDelete(ValueProvider<Boolean> value);
 
-  /**
-   * Maximum number of query partitions to create for running Firestore read.
-   */
+  /** Maximum number of query partitions to create for running Firestore read. */
   @Description("Maximum number of partitions to create for Firestore query.")
   @Default.Long(10000)
   ValueProvider<Long> getPartitionCount();
 
   void setPartitionCount(ValueProvider<Long> value);
 
-  /**
-   * Whether to check device hardware attestations
-   */
-  @Description(
-      "Verify device attestations")
+  /** Whether to check device hardware attestations */
+  @Description("Verify device attestations")
   @Default.Boolean(true)
   ValueProvider<Boolean> getDeviceAttestation();
 
   void setDeviceAttestation(ValueProvider<Boolean> value);
 
   /**
-   * Signing key resource name. See https://cloud.google.com/kms/docs/resource-hierarchy
-   * E.g., projects/$PROJECT_NAME/locations/global/keyRings/$RING/cryptoKeys/$KEY/cryptoKeyVersions/$VERSION
+   * Signing key resource name. See https://cloud.google.com/kms/docs/resource-hierarchy E.g.,
+   * projects/$PROJECT_NAME/locations/global/keyRings/$RING/cryptoKeys/$KEY/cryptoKeyVersions/$VERSION
    */
   @Description("KMS resource name for signature generation")
   @Default.String("")
@@ -145,16 +129,24 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setKeyResourceName(ValueProvider<String> value);
 
-  static String displayString(IngestionPipelineOptions options){
+  static String displayString(IngestionPipelineOptions options) {
     return "IngestionPipelineOptions:"
-        + "\nfirebaseProjectId=" + options.getFirebaseProjectId()
-        + "\nstart=" + options.getStartTime()
-        + "\nduration=" + options.getDuration()
-        + "\nminParticipant=" + options.getMinimumParticipantCount()
-        + "\ndelete=" + options.getDelete()
-        + "\nkeyResourceName=" + options.getKeyResourceName()
-        + "\nphaOutput=" + options.getPHAOutput()
-        + "\nfacilitatorOutput=" + options.getFacilitatorOutput();
+        + "\nfirebaseProjectId="
+        + options.getFirebaseProjectId()
+        + "\nstart="
+        + options.getStartTime()
+        + "\nduration="
+        + options.getDuration()
+        + "\nminParticipant="
+        + options.getMinimumParticipantCount()
+        + "\ndelete="
+        + options.getDelete()
+        + "\nkeyResourceName="
+        + options.getKeyResourceName()
+        + "\nphaOutput="
+        + options.getPHAOutput()
+        + "\nfacilitatorOutput="
+        + options.getFacilitatorOutput();
   }
 >>>>>>> f447de7 (log options during execution, graph during init)
 }

@@ -27,18 +27,20 @@ import picocli.CommandLine.Parameters;
  */
 public class IngestionPipelineFlags {
 
-  @Option(names = {"--metrics", "metrics"},
+  @Option(
+      names = {"--metrics", "metrics"},
       split = ",",
-      defaultValue = "fakeMetric-v1,histogramMetric-v1,PeriodicExposureNotificationInteraction-v1,PeriodicExposureNotification-v1",
+      defaultValue =
+          "fakeMetric-v1,histogramMetric-v1,PeriodicExposureNotificationInteraction-v1,PeriodicExposureNotification-v1",
       description = "comma-separated list of metrics to process in pipeline")
   public List<String> metrics;
 
-  @Option(names = {"--batchSize", "batchSize"},
+  @Option(
+      names = {"--batchSize", "batchSize"},
       defaultValue = "1000",
       description = "Batch size of individual files.")
   public Long batchSize;
 
   // Command options to be to be parsed for IngestionPipelineOptions
-  @Parameters
-  String[] pipelineOptionsParams;
+  @Parameters String[] pipelineOptionsParams;
 }

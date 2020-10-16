@@ -31,21 +31,19 @@ import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-/**
- * Pipeline view of Firestore documents corresponding to Prio data share pairs.
- */
+/** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
 @DefaultCoder(AvroCoder.class)
 @AutoValue
 public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
   private static final int NUMBER_OF_SERVERS = 2;
-  private static final Counter missingRequiredCounter = Metrics
-      .counter(DataShare.class, "datashare-missingRequired");
-  private static final Counter castExceptionCounter = Metrics
-      .counter(DataShare.class, "datashare-castException");
-  private static final Counter illegalArgCounter = Metrics
-      .counter(DataShare.class, "datashare-illegalArg");
+  private static final Counter missingRequiredCounter =
+      Metrics.counter(DataShare.class, "datashare-missingRequired");
+  private static final Counter castExceptionCounter =
+      Metrics.counter(DataShare.class, "datashare-castException");
+  private static final Counter illegalArgCounter =
+      Metrics.counter(DataShare.class, "datashare-illegalArg");
 
   // Firestore document field names. See
   // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
@@ -62,6 +60,7 @@ public abstract class DataShare implements Serializable {
 
   // Signature and certificates fields
   public abstract @Nullable String getSignature();
+
   public abstract @Nullable List<String> getCertificateChain();
 
   // Prio Parameters field names
@@ -75,9 +74,7 @@ public abstract class DataShare implements Serializable {
   public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
   public static final String DATA_SHARE_PAYLOAD = "payload";
 
-  /**
-   * Firestore document path
-   */
+  /** Firestore document path */
   public abstract @Nullable String getPath();
 
   public abstract @Nullable Long getCreated();
@@ -92,10 +89,7 @@ public abstract class DataShare implements Serializable {
 
   public abstract @Nullable DataShareMetadata getDataShareMetadata();
 
-
-  /**
-   * @return Pipeline projection of Firestore document
-   */
+  /** @return Pipeline projection of Firestore document */
   public static DataShare from(Document doc) {
     DataShare.Builder builder = builder();
     String fullyQualifiedPath = doc.getName();
@@ -129,7 +123,8 @@ public abstract class DataShare implements Serializable {
     metadataBuilder.setEpsilon(prioParams.get(EPSILON).getDoubleValue());
     checkValuePresent(BINS, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
     metadataBuilder.setBins((int) prioParams.get(BINS).getIntegerValue());
-    checkValuePresent(NUMBER_OF_SERVERS_FIELD, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+    checkValuePresent(
+        NUMBER_OF_SERVERS_FIELD, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
     int numberOfServers = (int) prioParams.get(NUMBER_OF_SERVERS_FIELD).getIntegerValue();
     if (numberOfServers != NUMBER_OF_SERVERS) {
       illegalArgCounter.inc();
@@ -158,18 +153,32 @@ public abstract class DataShare implements Serializable {
 
     // Get the encrypted shares.
     checkValuePresent(ENCRYPTED_DATA_SHARES, payload, PAYLOAD, ValueTypeCase.ARRAY_VALUE);
-    List<Value> encryptedDataShares = payload.get(ENCRYPTED_DATA_SHARES).getArrayValue().getValuesList();
+    List<Value> encryptedDataShares =
+        payload.get(ENCRYPTED_DATA_SHARES).getArrayValue().getValuesList();
     if (encryptedDataShares.size() != numberOfServers) {
       illegalArgCounter.inc();
-      throw new InvalidDataShareException("Mismatch between number of servers (" + numberOfServers
-          + ") and number of data shares (" + encryptedDataShares.size() + ")");
+      throw new InvalidDataShareException(
+          "Mismatch between number of servers ("
+              + numberOfServers
+              + ") and number of data shares ("
+              + encryptedDataShares.size()
+              + ")");
     }
     List<EncryptedShare> shares = new ArrayList<>(NUMBER_OF_SERVERS);
     // Ensure data shares are of correct type and convert to DataShare-compatible type.
     for (int i = 0; i < encryptedDataShares.size(); i++) {
-      Map<String, Value> encryptedDataShare = encryptedDataShares.get(i).getMapValue().getFieldsMap();
-      checkValuePresent(ENCRYPTION_KEY_ID, encryptedDataShare, ENCRYPTED_DATA_SHARES + "[" + i + "]", ValueTypeCase.STRING_VALUE);
-      checkValuePresent(DATA_SHARE_PAYLOAD, encryptedDataShare, ENCRYPTED_DATA_SHARES + "[" + i + "]", ValueTypeCase.STRING_VALUE);
+      Map<String, Value> encryptedDataShare =
+          encryptedDataShares.get(i).getMapValue().getFieldsMap();
+      checkValuePresent(
+          ENCRYPTION_KEY_ID,
+          encryptedDataShare,
+          ENCRYPTED_DATA_SHARES + "[" + i + "]",
+          ValueTypeCase.STRING_VALUE);
+      checkValuePresent(
+          DATA_SHARE_PAYLOAD,
+          encryptedDataShare,
+          ENCRYPTED_DATA_SHARES + "[" + i + "]",
+          ValueTypeCase.STRING_VALUE);
       String keyId = encryptedDataShare.get(ENCRYPTION_KEY_ID).getStringValue();
       String base64payload = encryptedDataShare.get(DATA_SHARE_PAYLOAD).getStringValue();
       byte[] decodedPayload;
@@ -179,10 +188,11 @@ public abstract class DataShare implements Serializable {
         illegalArgCounter.inc();
         throw new InvalidDataShareException("Unable to base64 decode payload", e);
       }
-      shares.add(EncryptedShare.builder()
-          .setEncryptionKeyId(keyId)
-          .setEncryptedPayload(decodedPayload)
-          .build());
+      shares.add(
+          EncryptedShare.builder()
+              .setEncryptionKeyId(keyId)
+              .setEncryptedPayload(decodedPayload)
+              .build());
     }
     builder.setEncryptedDataShares(shares);
 
@@ -250,10 +260,12 @@ public abstract class DataShare implements Serializable {
 
   // Checks for the presence of the given field in the sourceMap and provides detailed exceptions
   // if the field is absent or of the wrong type.
-  private static void checkValuePresent(String field,  Map<String, Value> sourceMap, String sourceName, ValueTypeCase type) {
+  private static void checkValuePresent(
+      String field, Map<String, Value> sourceMap, String sourceName, ValueTypeCase type) {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       missingRequiredCounter.inc();
-      throw new InvalidDataShareException("Missing required field: '" + field + "' from '" + sourceName + "'");
+      throw new InvalidDataShareException(
+          "Missing required field: '" + field + "' from '" + sourceName + "'");
     }
 
     if (!sourceMap.get(field).getValueTypeCase().equals(type)) {
@@ -280,12 +292,10 @@ public abstract class DataShare implements Serializable {
     return v;
   }
 
-  /**
-   * Represents the grouping key by which data shares should be aggregated together.
-   */
+  /** Represents the grouping key by which data shares should be aggregated together. */
   @AutoValue
   @DefaultCoder(AvroCoder.class)
-  public static abstract class DataShareMetadata implements Serializable {
+  public abstract static class DataShareMetadata implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -307,7 +317,7 @@ public abstract class DataShare implements Serializable {
 
     @AutoValue.Builder
     @DefaultCoder(AvroCoder.class)
-    public static abstract class Builder {
+    public abstract static class Builder {
 
       abstract DataShareMetadata build();
 
@@ -325,11 +335,9 @@ public abstract class DataShare implements Serializable {
     }
   }
 
-  /**
-   * Represents the core encrypted Prio data payload
-   */
+  /** Represents the core encrypted Prio data payload */
   @AutoValue
-  public static abstract class EncryptedShare implements Serializable {
+  public abstract static class EncryptedShare implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -342,7 +350,7 @@ public abstract class DataShare implements Serializable {
     }
 
     @AutoValue.Builder
-    public static abstract class Builder {
+    public abstract static class Builder {
 
       abstract EncryptedShare build();
 

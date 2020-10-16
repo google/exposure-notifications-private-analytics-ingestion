@@ -59,43 +59,39 @@ import org.threeten.bp.format.DateTimeFormatter;
 /**
  * Primitive beam connector for Firestore native specific to ENPA.
  *
- * For a general purpose connector see https://issues.apache.org/jira/browse/BEAM-8376
+ * <p>For a general purpose connector see https://issues.apache.org/jira/browse/BEAM-8376
  */
 public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
-  private static final Counter queriesGenerated = Metrics
-      .counter(FirestoreConnector.class, "queriesGenerated");
+  private static final Counter queriesGenerated =
+      Metrics.counter(FirestoreConnector.class, "queriesGenerated");
 
-  private static final Counter partitionCursors = Metrics
-      .counter(FirestoreConnector.class, "partitionCursors");
+  private static final Counter partitionCursors =
+      Metrics.counter(FirestoreConnector.class, "partitionCursors");
 
-  private static final Counter dataShares = Metrics
-      .counter(FirestoreConnector.class, "dataShares");
+  private static final Counter dataShares = Metrics.counter(FirestoreConnector.class, "dataShares");
 
-  private static final Counter invalidDocumentCounter = Metrics
-      .counter(FirestoreConnector.class, "invalidDocuments");
+  private static final Counter invalidDocumentCounter =
+      Metrics.counter(FirestoreConnector.class, "invalidDocuments");
 
-  private static final Counter grpcException = Metrics
-      .counter(FirestoreConnector.class, "grpcException");
+  private static final Counter grpcException =
+      Metrics.counter(FirestoreConnector.class, "grpcException");
 
-  private static final Counter documentsRead = Metrics
-      .counter(FirestoreConnector.class, "documentsRead");
+  private static final Counter documentsRead =
+      Metrics.counter(FirestoreConnector.class, "documentsRead");
 
-  private static final Counter skippedResults = Metrics
-      .counter(FirestoreConnector.class, "skippedResults");
+  private static final Counter skippedResults =
+      Metrics.counter(FirestoreConnector.class, "skippedResults");
 
-  private static final Counter partialProgress = Metrics
-      .counter(FirestoreConnector.class, "partialProgress");
+  private static final Counter partialProgress =
+      Metrics.counter(FirestoreConnector.class, "partialProgress");
 
-  /**
-   * Reads documents from Firestore
-   */
+  /** Reads documents from Firestore */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(
-        FirestoreReader.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FirestoreReader.class);
     // Order must be name ascending. Right now, this is the only ordering that the
     // Firestore SDK supports.
     private final String NAME_FIELD = "__name__";
@@ -103,7 +99,8 @@ public class FirestoreConnector {
     @Override
     public PCollection<DataShare> expand(PBegin input) {
       return input
-          // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin was giving errors)
+          // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin
+          // was giving errors)
           .apply("Begin", Create.of(""))
           .apply("GenerateQueries", ParDo.of(new GenerateQueriesFn()))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
@@ -122,46 +119,47 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options = context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options =
+            context.getPipelineOptions().as(IngestionPipelineOptions.class);
         long startTime = options.getStartTime().get();
         long backwardWindow = options.getGracePeriodBackwards().get() / SECONDS_IN_HOUR;
         long forwardWindow = options.getGracePeriodForwards().get() / SECONDS_IN_HOUR;
 
-        // Each datashare in Firestore is stored under a Date collection with the format: yyyy-MM-dd-HH.
+        // Each datashare in Firestore is stored under a Date collection with the format:
+        // yyyy-MM-dd-HH.
         // To query all documents uploaded around startTime within the specified window, construct
-        // a query for each hour within the window: [startTime - backwardWindow, startTime + forwardWindow].
+        // a query for each hour within the window: [startTime - backwardWindow, startTime +
+        // forwardWindow].
         for (long i = (-1 * backwardWindow); i <= forwardWindow; i++) {
           long timeToQuery = startTime + i * SECONDS_IN_HOUR;
-          LocalDateTime dateTimeToQuery = LocalDateTime
-              .ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
+          LocalDateTime dateTimeToQuery =
+              LocalDateTime.ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
           // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
           DateTimeFormatter formatter =
-              DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US)
-                  .withZone(ZoneOffset.UTC);
+              DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US).withZone(ZoneOffset.UTC);
           String formattedDateTime = formatter.format(dateTimeToQuery);
           // Construct and output query.
-          StructuredQuery query = StructuredQuery.newBuilder()
-              .addFrom(
-                  CollectionSelector.newBuilder()
-                      .setCollectionId(formattedDateTime)
-                      .setAllDescendants(true)
-                      .build())
-              .addOrderBy(
-                  Order.newBuilder()
-                      .setField(FieldReference.newBuilder()
-                          .setFieldPath(NAME_FIELD)
+          StructuredQuery query =
+              StructuredQuery.newBuilder()
+                  .addFrom(
+                      CollectionSelector.newBuilder()
+                          .setCollectionId(formattedDateTime)
+                          .setAllDescendants(true)
                           .build())
-                      .setDirection(Direction.ASCENDING)
-                      .build())
-              .build();
+                  .addOrderBy(
+                      Order.newBuilder()
+                          .setField(FieldReference.newBuilder().setFieldPath(NAME_FIELD).build())
+                          .setDirection(Direction.ASCENDING)
+                          .build())
+                  .build();
           context.output(query);
           queriesGenerated.inc();
         }
       }
     }
 
-    static class PartitionQueryFn extends
-        DoFn<StructuredQuery, ImmutableTriple<Cursor, Cursor, StructuredQuery>> {
+    static class PartitionQueryFn
+        extends DoFn<StructuredQuery, ImmutableTriple<Cursor, Cursor, StructuredQuery>> {
 
       private com.google.cloud.firestore.v1.FirestoreClient client;
 
@@ -172,17 +170,15 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options = context.getPipelineOptions()
-            .as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options =
+            context.getPipelineOptions().as(IngestionPipelineOptions.class);
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount().get())
-                .setParent(
-                    getParentPath(options))
+                .setParent(getParentPath(options))
                 .setStructuredQuery(context.element())
                 .build();
-        PartitionQueryPagedResponse response =
-            client.partitionQuery(request);
+        PartitionQueryPagedResponse response = client.partitionQuery(request);
         Iterator<Cursor> iterator = response.iterateAll().iterator();
 
         // Return a Cursor pair to represent the start and end points within which to run the query.
@@ -210,9 +206,11 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        for (DataShare ds : readDocumentsFromFirestore(client,
-            context.getPipelineOptions().as(IngestionPipelineOptions.class),
-            context.element())) {
+        for (DataShare ds :
+            readDocumentsFromFirestore(
+                client,
+                context.getPipelineOptions().as(IngestionPipelineOptions.class),
+                context.element())) {
           context.output(ds);
           dataShares.inc();
         }
@@ -220,9 +218,7 @@ public class FirestoreConnector {
     }
   }
 
-  /**
-   * Deletes documents from Firestore
-   */
+  /** Deletes documents from Firestore */
   public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
 
     @Override
@@ -246,17 +242,17 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options = context.getPipelineOptions()
-            .as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options =
+            context.getPipelineOptions().as(IngestionPipelineOptions.class);
         // TODO: way to short circuit this earlier based on a ValueProvider flag?
-        if (options.getDelete().get() && context.element() != null
+        if (options.getDelete().get()
+            && context.element() != null
             && context.element().getPath() != null) {
           db.document(context.element().getPath()).delete();
         }
       }
     }
   }
-
 
   // TODO(larryjacobs): consolidate to v1 FirestoreClient. No need having both api's/clients and
   // two types of initialization (for read and for delete)
@@ -265,10 +261,11 @@ public class FirestoreConnector {
       throws Exception {
     if (FirebaseApp.getApps().isEmpty()) {
       GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
-      FirebaseOptions options = FirebaseOptions.builder()
-          .setProjectId(pipelineOptions.getFirebaseProjectId().get())
-          .setCredentials(credentials)
-          .build();
+      FirebaseOptions options =
+          FirebaseOptions.builder()
+              .setProjectId(pipelineOptions.getFirebaseProjectId().get())
+              .setCredentials(credentials)
+              .build();
       FirebaseApp.initializeApp(options);
     }
 
@@ -278,8 +275,10 @@ public class FirestoreConnector {
   private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
       throws IOException {
     FirestoreSettings settings =
-        FirestoreSettings.newBuilder().setCredentialsProvider(
-            FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault())).build();
+        FirestoreSettings.newBuilder()
+            .setCredentialsProvider(
+                FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()))
+            .build();
     return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
   }
 
@@ -302,27 +301,30 @@ public class FirestoreConnector {
     List<DataShare> docs = new ArrayList<>();
     try {
       ServerStream<RunQueryResponse> responseIterator =
-          firestoreClient.runQueryCallable()
-              .call(RunQueryRequest.newBuilder()
-                  .setStructuredQuery(queryBuilder.build())
-                  .setParent(getParentPath(options))
-                  .build());
-      responseIterator.forEach(res -> {
-        skippedResults.inc(res.getSkippedResults());
-        // Streaming grpc may return partial results
-        if (res.hasDocument()) {
-          LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
-          documentsRead.inc();
-          try {
-            docs.add(DataShare.from(res.getDocument()));
-          } catch (InvalidDataShareException e) {
-            LOG.warn("Invalid data share", e);
-            invalidDocumentCounter.inc();
-          }
-        } else {
-          partialProgress.inc();
-        }
-      });
+          firestoreClient
+              .runQueryCallable()
+              .call(
+                  RunQueryRequest.newBuilder()
+                      .setStructuredQuery(queryBuilder.build())
+                      .setParent(getParentPath(options))
+                      .build());
+      responseIterator.forEach(
+          res -> {
+            skippedResults.inc(res.getSkippedResults());
+            // Streaming grpc may return partial results
+            if (res.hasDocument()) {
+              LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
+              documentsRead.inc();
+              try {
+                docs.add(DataShare.from(res.getDocument()));
+              } catch (InvalidDataShareException e) {
+                LOG.warn("Invalid data share", e);
+                invalidDocumentCounter.inc();
+              }
+            } else {
+              partialProgress.inc();
+            }
+          });
     } catch (StatusRuntimeException e) {
       LOG.warn("grpc status exception", e);
       grpcException.inc();

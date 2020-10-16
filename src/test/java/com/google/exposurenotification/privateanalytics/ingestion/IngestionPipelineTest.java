@@ -18,8 +18,6 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -33,42 +31,35 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/**
- * Unit tests for {@link IngestionPipeline}.
- */
+/** Unit tests for {@link IngestionPipeline}. */
 @RunWith(JUnit4.class)
 public class IngestionPipelineTest {
 
-  public transient IngestionPipelineOptions options = TestPipeline
-          .testingPipelineOptions().as(IngestionPipelineOptions.class);
+  public transient IngestionPipelineOptions options =
+      TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
 
-  @Rule
-  public final transient TestPipeline pipeline = TestPipeline.fromOptions(options);
+  @Rule public final transient TestPipeline pipeline = TestPipeline.fromOptions(options);
 
   @Test
   @Category(ValidatesRunner.class)
   public void testDateFilter() {
-    List<DataShare> dataShares = Arrays.asList(
-        DataShare.builder().setPath("id1").setCreated(1L).build(),
-        DataShare.builder().setPath("id2").setCreated(2L).build(),
-        DataShare.builder().setPath("id3").setCreated(3L).build(),
-        DataShare.builder().setPath("missing").build()
-    );
-
+    List<DataShare> dataShares =
+        Arrays.asList(
+            DataShare.builder().setPath("id1").setCreated(1L).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).build(),
+            DataShare.builder().setPath("id3").setCreated(3L).build(),
+            DataShare.builder().setPath("missing").build());
 
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
 
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
-    PCollection<DataShare> output =
-            input.apply(
-                    ParDo.of(new DateFilterFn( "dummyMetric")));
+    PCollection<DataShare> output = input.apply(ParDo.of(new DateFilterFn("dummyMetric")));
 
-    PAssert.that(output).containsInAnyOrder(
-        Collections.singletonList(
-            DataShare.builder().setPath("id2").setCreated(2L)
-                .build()));
+    PAssert.that(output)
+        .containsInAnyOrder(
+            Collections.singletonList(DataShare.builder().setPath("id2").setCreated(2L).build()));
     pipeline.run().waitUntilFinish();
   }
 
@@ -80,38 +71,37 @@ public class IngestionPipelineTest {
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(1L));
 
-    List<DataShare> inputData = Arrays.asList(
-        DataShare.builder().setPath("id1").setCreated(1L).build(),
-        DataShare.builder().setPath("id2").setCreated(2L).build(),
-        DataShare.builder().setPath("id3").setCreated(4L).build(),
-        DataShare.builder().setPath("missing").build()
-    );
+    List<DataShare> inputData =
+        Arrays.asList(
+            DataShare.builder().setPath("id1").setCreated(1L).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).build(),
+            DataShare.builder().setPath("id3").setCreated(4L).build(),
+            DataShare.builder().setPath("missing").build());
     List<DataShare> expectedOutput =
         Arrays.asList(DataShare.builder().setPath("id2").setCreated(2L).build());
 
-    PCollection<DataShare> actualOutput = IngestionPipeline
-            .processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
+    PCollection<DataShare> actualOutput =
+        IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
 
     PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
     pipeline.run().waitUntilFinish();
   }
 
-//TODO needs fixing once check is implemented correctly
-//  @Test(expected = AssertionError.class)
+  // TODO needs fixing once check is implemented correctly
+  //  @Test(expected = AssertionError.class)
   @Category(ValidatesRunner.class)
   public void processDataShares_participantCountlessThanMinCount() {
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(2L));
-    List<DataShare> inputData = Arrays.asList(
-        DataShare.builder().setPath("id1").setCreated(1L).build(),
-        DataShare.builder().setPath("id2").setCreated(2L).build(),
-        DataShare.builder().setPath("id3").setCreated(4L).build(),
-        DataShare.builder().setPath("missing").build()
-    );
+    List<DataShare> inputData =
+        Arrays.asList(
+            DataShare.builder().setPath("id1").setCreated(1L).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).build(),
+            DataShare.builder().setPath("id3").setCreated(4L).build(),
+            DataShare.builder().setPath("missing").build());
 
-    IngestionPipeline
-            .processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
+    IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
     pipeline.run().waitUntilFinish();
   }
 }

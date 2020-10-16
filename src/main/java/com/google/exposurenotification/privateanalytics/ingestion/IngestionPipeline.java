@@ -57,7 +57,7 @@ import picocli.CommandLine;
  */
 public class IngestionPipeline {
 
-    private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
   /**
    * A DoFn that filters documents in particular time window
@@ -112,55 +112,66 @@ public class IngestionPipeline {
           return null;
         });
 
-        return dataShares;
-    }
+    return dataShares;
+  }
 
-  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options, IngestionPipelineFlags flags) {
-    Pipeline pipeline =  Pipeline.create(options);
+  static PipelineResult runIngestionPipeline(
+      IngestionPipelineOptions options, IngestionPipelineFlags flags) {
+    Pipeline pipeline = Pipeline.create(options);
     // Log pipeline options.
     // On Cloud Dataflow options will be specified on templated job, so we need to retrieve from
     // the ValueProviders as part of job execution and not during setup.
-    pipeline.apply("Begin", Create.of(1))
-        .apply("LogOptions",
+    pipeline
+        .apply("Begin", Create.of(1))
+        .apply(
+            "LogOptions",
             ParDo.of(
                 new DoFn<Integer, Integer>() {
                   @ProcessElement
                   public void process(ProcessContext c) {
-                    IngestionPipelineOptions options = c.getPipelineOptions()
-                        .as(IngestionPipelineOptions.class);
+                    IngestionPipelineOptions options =
+                        c.getPipelineOptions().as(IngestionPipelineOptions.class);
                     LOG.info(IngestionPipelineOptions.displayString(options));
                   }
                 }));
 
-        PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
 
-        for (String metric : flags.metrics) {
-            PCollection<DataShare> metricDataShares = dataShares
-                    .apply("FilterDataSharesByMetric=" + metric, Filter.by(inputDataShare ->
-                            inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
-
+    for (String metric : flags.metrics) {
+      PCollection<DataShare> metricDataShares =
+          dataShares.apply(
+              "FilterDataSharesByMetric=" + metric,
+              Filter.by(
+                  inputDataShare ->
+                      inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
 
       // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
-              processDataShares(metricDataShares, metric)
-          .apply("MapMetadata", MapElements.via(new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
-            @Override
-            public KV<DataShareMetadata, DataShare> apply(DataShare input) {
-              return KV.of(input.getDataShareMetadata(), input);
-            }
-          }));
+          processDataShares(metricDataShares, metric)
+              .apply(
+                  "MapMetadata",
+                  MapElements.via(
+                      new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
+                        @Override
+                        public KV<DataShareMetadata, DataShare> apply(DataShare input) {
+                          return KV.of(input.getDataShareMetadata(), input);
+                        }
+                      }));
 
-            PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-                    processedDataSharesByMetadata
-                            .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class), AvroCoder.of(DataShare.class)))
-                            .apply("GroupIntoBatchesFor_metric=" + metric,
-                                    GroupIntoBatches.ofSize(flags.batchSize));
+      PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
+          processedDataSharesByMetadata
+              .setCoder(
+                  KvCoder.of(AvroCoder.of(DataShareMetadata.class), AvroCoder.of(DataShare.class)))
+              .apply(
+                  "GroupIntoBatchesFor_metric=" + metric, GroupIntoBatches.ofSize(flags.batchSize));
 
-            datashareGroupedByMetadata.apply("SerializePacketHeaderSigFor_metric=" + metric,
-                    ParDo.of(new SerializePacketHeaderSignature()));
-        }
+      datashareGroupedByMetadata.apply(
+          "SerializePacketHeaderSigFor_metric=" + metric,
+          ParDo.of(new SerializePacketHeaderSignature()));
+    }
 
-    // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline successfully writes batch files
+    // TODO(larryjacobs): use org.apache.beam.sdk.transforms.Wait to only delete when pipeline
+    // successfully writes batch files
     dataShares.apply("DeleteDataShares", new FirestoreDeleter());
 
     LOG.info("DOT graph representation:\n" + PipelineDotRenderer.toDotString(pipeline));
@@ -168,24 +179,23 @@ public class IngestionPipeline {
   }
 
   public static void main(String[] args) {
-      IngestionPipelineFlags flags = new IngestionPipelineFlags();
-      new CommandLine(flags).parseArgs(args);
-      PipelineOptionsFactory.register(IngestionPipelineOptions.class);
-      IngestionPipelineOptions options =
-              PipelineOptionsFactory
-                      .fromArgs(flags.pipelineOptionsParams)
-                      .withValidation()
-                      .as(IngestionPipelineOptions.class);
-      try {
-          PipelineResult result = runIngestionPipeline(options, flags);
-          result.waitUntilFinish();
-          MetricResults metrics = result.metrics();
-          LOG.info("Metrics:\n\n" + metrics.toString());
-      } catch (UnsupportedOperationException ignore) {
-          // Known issue that this can throw when generating a template:
-          // https://issues.apache.org/jira/browse/BEAM-9337
-      } catch (Exception e) {
-          LOG.error("Exception thrown during pipeline run.", e);
-      }
+    IngestionPipelineFlags flags = new IngestionPipelineFlags();
+    new CommandLine(flags).parseArgs(args);
+    PipelineOptionsFactory.register(IngestionPipelineOptions.class);
+    IngestionPipelineOptions options =
+        PipelineOptionsFactory.fromArgs(flags.pipelineOptionsParams)
+            .withValidation()
+            .as(IngestionPipelineOptions.class);
+    try {
+      PipelineResult result = runIngestionPipeline(options, flags);
+      result.waitUntilFinish();
+      MetricResults metrics = result.metrics();
+      LOG.info("Metrics:\n\n" + metrics.toString());
+    } catch (UnsupportedOperationException ignore) {
+      // Known issue that this can throw when generating a template:
+      // https://issues.apache.org/jira/browse/BEAM-9337
+    } catch (Exception e) {
+      LOG.error("Exception thrown during pipeline run.", e);
+    }
   }
 }
