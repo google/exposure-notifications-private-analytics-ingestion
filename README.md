@@ -1,3 +1,5 @@
+![Integration Test on Push](https://github.com/google/exposure-notifications-private-analytics-ingestion/workflows/Integration%20Test%20on%20Push/badge.svg?branch=main)
+
 # Exposure Notification Private Analytics Ingestion
 
 This repository contains batch processing jobs that can be used to ingest
