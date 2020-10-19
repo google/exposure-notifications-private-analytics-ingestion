@@ -120,12 +120,6 @@
               <goal>integration-test</goal>
               <goal>verify</goal>
             </goals>
-            <configuration>
-              <environmentVariables>
-                <FIREBASE_PROJECT_ID>enpa-integration-testing</FIREBASE_PROJECT_ID>
-                <GOOGLE_APPLICATION_CREDENTIALS>${project.basedir}/credentials/google-application.json</GOOGLE_APPLICATION_CREDENTIALS>
-              </environmentVariables>
-            </configuration>
           </execution>
         </executions>
       </plugin>

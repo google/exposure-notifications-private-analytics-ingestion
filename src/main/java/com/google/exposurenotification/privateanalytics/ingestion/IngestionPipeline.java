@@ -116,6 +116,7 @@ public class IngestionPipeline {
       IngestionPipelineOptions options, IngestionPipelineFlags flags) {
     Pipeline pipeline = Pipeline.create(options);
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    LOG.info("runIngestionPipeline Batch size: {}", flags.batchSize);
 
     for (String metric : flags.metrics) {
       PCollection<DataShare> metricDataShares =
@@ -129,7 +130,7 @@ public class IngestionPipeline {
       PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
           processDataShares(metricDataShares, metric)
               .apply(
-                  "MapMetadata",
+                  "MapMetadata-"+metric,
                   MapElements.via(
                       new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
                         @Override
@@ -142,7 +143,7 @@ public class IngestionPipeline {
           processedDataSharesByMetadata
               .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class),
                   AvroCoder.of(DataShare.class)))
-              .apply(GroupIntoBatches.ofSize(flags.batchSize));
+              .apply("GroupIntoBatches-"+metric,GroupIntoBatches.ofSize(flags.batchSize));
 
       datashareGroupedByMetadata.apply(
           "SerializePacketHeaderSigFor_metric=" + metric,

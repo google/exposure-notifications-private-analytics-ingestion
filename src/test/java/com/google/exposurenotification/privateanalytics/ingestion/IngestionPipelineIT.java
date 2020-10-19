@@ -21,17 +21,10 @@ import com.google.api.core.ApiFuture;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.WriteBatch;
-import com.google.cloud.firestore.WriteResult;
+import com.google.cloud.firestore.*;
+import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-import com.google.firebase.cloud.FirestoreClient;
-import com.google.firestore.v1.Document;
-import com.google.firestore.v1.GetDocumentRequest;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -51,12 +44,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.firestore.v1.Document;
+import com.google.firestore.v1.GetDocumentRequest;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -66,6 +61,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import picocli.CommandLine;
 
 /** Integration tests for {@link IngestionPipeline}. */
 @RunWith(JUnit4.class)
@@ -88,23 +84,18 @@ public class IngestionPipelineIT {
 
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
-  private IngestionPipelineFlags flags;
+  private static IngestionPipelineFlags flags = new IngestionPipelineFlags();
 
   @BeforeClass
   public static void setUp() throws IOException {
-    FirebaseOptions options = FirebaseOptions.builder()
-        .setProjectId(FIREBASE_PROJECT_ID)
-        .setCredentials(GoogleCredentials.getApplicationDefault())
-        .build();
-    FirebaseApp.initializeApp(options);
-    db = FirestoreClient.getFirestore();
+    FirestoreOptions firestoreOptions =
+            FirestoreOptions.getDefaultInstance().toBuilder()
+                    .setProjectId(FIREBASE_PROJECT_ID)
+                    .setCredentials(GoogleCredentials.getApplicationDefault())
+                    .build();
+    db = firestoreOptions.getService();
     listDocReference = new ArrayList<>();
-  }
-
-  @Before
-  public void before() {
-    flags = new IngestionPipelineFlags();
-    flags.metrics = Arrays.asList("id1", "id2");
+    new CommandLine(flags).parseArgs(new String[]{"metrics=id1,id2"});
   }
 
   @Test
@@ -146,15 +137,16 @@ public class IngestionPipelineIT {
   }
 
   private static void cleanUpDb() {
+
     listDocReference.forEach(DocumentReference::delete);
   }
 
-  private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
+  private static FirestoreClient getFirestoreClient()
       throws IOException {
     FirestoreSettings settings =
         FirestoreSettings.newBuilder().setCredentialsProvider(FixedCredentialsProvider.create(
             GoogleCredentials.getApplicationDefault())).build();
-    return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
+    return FirestoreClient.create(settings);
   }
 
   private Map<String, PrioDataSharePacket> readOutput() throws IOException {
@@ -212,7 +204,7 @@ public class IngestionPipelineIT {
     // future.get() blocks on batch commit operation
     future.get();
 
-    com.google.cloud.firestore.v1.FirestoreClient client = getFirestoreClient();
+    FirestoreClient client = getFirestoreClient();
 
     Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
     for (DocumentReference reference : listDocReference) {
@@ -240,6 +232,13 @@ public class IngestionPipelineIT {
 
       dataShareByUuid.put(dataShare.getUuid(), splitDataShares.get(0));
     }
+
+    client.shutdown();
+    int maxWait = 3;
+    int wait = 1;
+    while (client.awaitTermination(1000,TimeUnit.MILLISECONDS) == false) {
+      if (wait++ == maxWait) break;
+    };
 
     return dataShareByUuid;
   }
