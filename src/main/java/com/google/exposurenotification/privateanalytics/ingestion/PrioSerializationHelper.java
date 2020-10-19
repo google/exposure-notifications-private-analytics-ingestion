@@ -15,10 +15,15 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.cloud.kms.v1.Digest;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.avro.file.DataFileReader;
@@ -29,10 +34,10 @@ import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 
 /**
- * Tool for serializing and deserializing Prio data shares into (or from) the Apache Avro file
+ * Helpers for serializing and deserializing Prio data shares into (or from) the Apache Avro file
  * format.
  */
-public class PrioSerializer {
+public class PrioSerializationHelper {
   public static void serializeIngestionHeaders(
       List<PrioIngestionHeader> ingestionHeaders, String pathname) throws IOException {
     DatumWriter<PrioIngestionHeader> ingestionHeaderDatumWriter =
@@ -88,5 +93,36 @@ public class PrioSerializer {
       prioDataSharePackets.add(prioDataSharePacket);
     }
     return prioDataSharePackets;
+  }
+
+  public static PrioIngestionHeader createHeader(
+      DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
+    return PrioIngestionHeader.newBuilder()
+        .setBatchUuid(uuid.toString())
+        .setName("BatchUuid=" + uuid.toString())
+        .setBatchStartTime(startTime)
+        .setBatchEndTime(startTime + duration)
+        .setNumberOfServers(metadata.getNumberOfServers())
+        .setBins(metadata.getBins())
+        .setHammingWeight(metadata.getHammingWeight())
+        .setPrime(metadata.getPrime())
+        .setEpsilon(metadata.getEpsilon())
+        .setPacketFileDigest(ByteBuffer.wrap(digest.toByteArray()))
+        .build();
+  }
+
+  public static List<PrioDataSharePacket> splitPackets(DataShare dataShare) {
+    List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
+    List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
+    for (EncryptedShare encryptedShare : encryptedDataShares) {
+      splitDataShares.add(
+          PrioDataSharePacket.newBuilder()
+              .setEncryptionKeyId(encryptedShare.getEncryptionKeyId())
+              .setEncryptedPayload(ByteBuffer.wrap(encryptedShare.getEncryptedPayload()))
+              .setRPit(dataShare.getRPit())
+              .setUuid(dataShare.getUuid())
+              .build());
+    }
+    return splitDataShares;
   }
 }

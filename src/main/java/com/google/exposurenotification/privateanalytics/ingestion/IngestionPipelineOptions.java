@@ -92,11 +92,11 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   /** Minimum count of participants to preserve privacy(e.g., not allow batch of 1). */
   @Description("Minimum count of participants to preserve privacy.")
-  @Default.Long(0)
-  ValueProvider<Long> getMinimumParticipantCount();
+  @Default.Integer(0)
+  ValueProvider<Integer> getMinimumParticipantCount();
 
   @Description("Minimum count of participants to preserve privacy.")
-  void setMinimumParticipantCount(ValueProvider<Long> value);
+  void setMinimumParticipantCount(ValueProvider<Integer> value);
 
   /** Whether to delete documents once they've been processed */
   @Description("Delete documents at end of pipeline")

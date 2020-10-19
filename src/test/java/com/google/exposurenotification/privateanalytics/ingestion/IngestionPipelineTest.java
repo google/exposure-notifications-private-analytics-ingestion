@@ -69,7 +69,7 @@ public class IngestionPipelineTest {
 
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
-    options.setMinimumParticipantCount(StaticValueProvider.of(1L));
+    options.setMinimumParticipantCount(StaticValueProvider.of(1));
 
     List<DataShare> inputData =
         Arrays.asList(
@@ -93,7 +93,7 @@ public class IngestionPipelineTest {
   public void processDataShares_participantCountlessThanMinCount() {
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
-    options.setMinimumParticipantCount(StaticValueProvider.of(2L));
+    options.setMinimumParticipantCount(StaticValueProvider.of(2));
     List<DataShare> inputData =
         Arrays.asList(
             DataShare.builder().setPath("id1").setCreated(1L).build(),

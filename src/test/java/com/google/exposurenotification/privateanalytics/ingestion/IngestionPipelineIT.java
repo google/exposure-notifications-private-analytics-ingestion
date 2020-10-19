@@ -71,7 +71,7 @@ public class IngestionPipelineIT {
   static final long CREATION_TIME = 12345L;
   static final long DURATION = 10000L;
   static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
-  static final long MINIMUM_PARTICIPANT_COUNT = 1L;
+  static final int MINIMUM_PARTICIPANT_COUNT = 1;
   // Randomize test collection name to avoid collisions between simultaneously running tests.
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
@@ -156,7 +156,7 @@ public class IngestionPipelineIT {
     for (Path path : pathList) {
       if (path.toString().endsWith(".avro")) {
         List<PrioDataSharePacket> packets =
-            PrioSerializer.deserializeDataSharePackets(path.toString());
+            PrioSerializationHelper.deserializeDataSharePackets(path.toString());
         result.putAll(
             packets.stream()
                 .collect(
@@ -292,7 +292,7 @@ public class IngestionPipelineIT {
     for (Path path : pathList) {
       for (String forkedSharesPrefix : forkedSharesPrefixes) {
         if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(".avro")) {
-          forkedDataShares.add(PrioSerializer.deserializeDataSharePackets(path.toString()));
+          forkedDataShares.add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
         }
       }
     }

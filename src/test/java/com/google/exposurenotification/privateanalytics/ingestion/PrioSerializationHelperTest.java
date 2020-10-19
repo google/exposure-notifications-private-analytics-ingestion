@@ -30,9 +30,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/** Tests for {@link PrioSerializer}. */
+/** Tests for {@link PrioSerializationHelper}. */
 @RunWith(JUnit4.class)
-public class PrioSerializerTest {
+public class PrioSerializationHelperTest {
 
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
@@ -68,9 +68,9 @@ public class PrioSerializerTest {
     ingestionHeaders.add(header1);
     ingestionHeaders.add(header2);
     File serializedHeaders = tmpFolder.newFile();
-    PrioSerializer.serializeIngestionHeaders(ingestionHeaders, serializedHeaders.getAbsolutePath());
+    PrioSerializationHelper.serializeIngestionHeaders(ingestionHeaders, serializedHeaders.getAbsolutePath());
     List<PrioIngestionHeader> deserializedHeaders =
-        PrioSerializer.deserializeIngestionHeaders(serializedHeaders.getAbsolutePath());
+        PrioSerializationHelper.deserializeIngestionHeaders(serializedHeaders.getAbsolutePath());
     assertEquals(ingestionHeaders, deserializedHeaders);
   }
 
@@ -100,10 +100,10 @@ public class PrioSerializerTest {
     dataSharePackets.add(dataSharePacket2);
 
     File serializedDataShares = tmpFolder.newFile();
-    PrioSerializer.serializeDataSharePackets(
+    PrioSerializationHelper.serializeDataSharePackets(
         dataSharePackets, serializedDataShares.getAbsolutePath());
     List<PrioDataSharePacket> deserializedHeaders =
-        PrioSerializer.deserializeDataSharePackets(serializedDataShares.getAbsolutePath());
+        PrioSerializationHelper.deserializeDataSharePackets(serializedDataShares.getAbsolutePath());
     assertEquals(dataSharePackets, deserializedHeaders);
   }
 }

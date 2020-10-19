@@ -126,7 +126,6 @@ public class IngestionPipeline {
                   inputDataShare ->
                       inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
 
-      // TODO(amanraj): Make separate batch UUID for each batch of data shares.
       PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
           processDataShares(metricDataShares, metric)
               .apply(
@@ -147,7 +146,7 @@ public class IngestionPipeline {
 
       datashareGroupedByMetadata.apply(
           "SerializePacketHeaderSigFor_metric=" + metric,
-          ParDo.of(new SerializePacketHeaderSignature()));
+          ParDo.of(new BatchWriterFn()));
     }
 
     // TODO: delete if certain age, or if in set of DataShare's emitted by successful serialization

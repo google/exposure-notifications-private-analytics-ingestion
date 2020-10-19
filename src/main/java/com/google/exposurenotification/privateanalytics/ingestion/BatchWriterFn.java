@@ -20,11 +20,9 @@ import com.google.cloud.kms.v1.CryptoKeyVersionName;
 import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.protobuf.ByteString;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -33,18 +31,25 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.values.KV;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Holder of various DoFn's for aspects of serialization */
-public class SerializePacketHeaderSignature
+/** Function to write files (header, data records, signature) for a batch of {@link DataShare} */
+public class BatchWriterFn
     extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
-  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
-  private static int phaIndex = 0;
-  private static int facilitatorIndex = 1;
+
+  private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
+  private static final int phaIndex = 0;
+  private static final int facilitatorIndex = 1;
+
+  private static final Counter batchesFailingMinParticipant =
+      Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
+
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
 
@@ -67,13 +72,16 @@ public class SerializePacketHeaderSignature
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
-    // TODO Look at the size and reject for min participant count.
-
+    // batch size explicitly chosen so that this list fits in memory on a single worker
     List<List<PrioDataSharePacket>> serializedDatashare = new ArrayList<>();
     for (DataShare dataShare : input.getValue()) {
-      serializedDatashare.add(getPrioDataSharePackets(dataShare));
+      serializedDatashare.add(PrioSerializationHelper.splitPackets(dataShare));
     }
-    ;
+    if (serializedDatashare.size() < options.getMinimumParticipantCount().get()) {
+      LOG.warn("skipping batch of datashares for min participation");
+      batchesFailingMinParticipant.inc();
+      return;
+    }
 
     List<PrioDataSharePacket> phaPackets =
         serializedDatashare.stream()
@@ -86,18 +94,16 @@ public class SerializePacketHeaderSignature
 
     UUID batchId = UUID.randomUUID();
     String phaFilePath = phaPrefix + batchId.toString() + "_metric=" + metadata.getMetricName();
-    // TODO pass the UUID for the full batch and not this file
-    serializePacketHeaderAndSig(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
+    writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
 
     String facilitatorPath =
         facilitatorPrefix + batchId.toString() + "_metric=" + metadata.getMetricName();
-    // TODO pass the UUID for the full batch and not this file
-    serializePacketHeaderAndSig(
+    writeBatch(
         startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
+    c.output(true);
   }
 
-  // TODO work on serialization to cloud storage.
-  private void serializePacketHeaderAndSig(
+  private void writeBatch(
       long startTime,
       long duration,
       DataShareMetadata metadata,
@@ -107,7 +113,7 @@ public class SerializePacketHeaderSignature
     try {
       // write PrioDataSharePackets in this batch to file
       String packetsFilename = filename + ".avro";
-      PrioSerializer.serializeDataSharePackets(packets, packetsFilename);
+      PrioSerializationHelper.serializeDataSharePackets(packets, packetsFilename);
 
       // read back PrioDataSharePacket batch file and generate digest
       String packetsFileContent = FileUtils.readFileToString(new File(packetsFilename));
@@ -117,7 +123,8 @@ public class SerializePacketHeaderSignature
           Digest.newBuilder().setSha256(ByteString.copyFrom(packetFileContentHash)).build();
 
       // create Header and write to file
-      PrioIngestionHeader header = createHeader(metadata, digest, uuid, startTime, duration);
+      PrioIngestionHeader header = PrioSerializationHelper
+          .createHeader(metadata, digest, uuid, startTime, duration);
       FileUtils.writeByteArrayToFile(new File(filename), header.toByteBuffer().array());
 
       // Read back header file content and generate .sig file
@@ -139,36 +146,5 @@ public class SerializePacketHeaderSignature
     } catch (NoSuchAlgorithmException e) {
       LOG.warn("Message Digest with SHA256 does not exist.", e);
     }
-  }
-
-  private static PrioIngestionHeader createHeader(
-      DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
-    return PrioIngestionHeader.newBuilder()
-        .setBatchUuid(uuid.toString())
-        .setName("BatchUuid=" + uuid.toString())
-        .setBatchStartTime(startTime)
-        .setBatchEndTime(startTime + duration)
-        .setNumberOfServers(metadata.getNumberOfServers())
-        .setBins(metadata.getBins())
-        .setHammingWeight(metadata.getHammingWeight())
-        .setPrime(metadata.getPrime())
-        .setEpsilon(metadata.getEpsilon())
-        .setPacketFileDigest(ByteBuffer.wrap(digest.toByteArray()))
-        .build();
-  }
-
-  private static List<PrioDataSharePacket> getPrioDataSharePackets(DataShare dataShare) {
-    List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
-    List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
-    for (EncryptedShare encryptedShare : encryptedDataShares) {
-      splitDataShares.add(
-          PrioDataSharePacket.newBuilder()
-              .setEncryptionKeyId(encryptedShare.getEncryptionKeyId())
-              .setEncryptedPayload(ByteBuffer.wrap(encryptedShare.getEncryptedPayload()))
-              .setRPit(dataShare.getRPit())
-              .setUuid(dataShare.getUuid())
-              .build());
-    }
-    return splitDataShares;
   }
 }
