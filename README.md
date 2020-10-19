@@ -21,6 +21,18 @@ Alternative implementations might operate a custom backend endpoint to accumulat
 the packets, or use a pubsub mechanism. Since the packets are encrypted on device,
 the channel over which the packets travel need not be trusted.
 
+## Before you begin
+
+Follow the
+[Getting started with Google Cloud Dataflow](https://github.com/GoogleCloudPlatform/java-docs-samples/blob/master/dataflow/README.md)
+page, and make sure you have a Google Cloud project with billing enabled
+and a *service account JSON key* set up in your `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
+Additionally, you also need the following:
+
+1. [Create an asymmetric key ring](https://cloud.google.com/kms/docs/creating-asymmetric-keys)
+
+<!-- TODO: set the roles needed for the service account -->
+
 ## Testing
 
 ### Unit Tests
@@ -33,7 +45,7 @@ To run unit tests:
 
 ### Integration Tests
 
-Install the [Firebase CLI](https://firebase.google.com/docs/cli), 
+Install the [Firebase CLI](https://firebase.google.com/docs/cli),
 
 ```shell script
 npm install -g firebase-tools
@@ -41,7 +53,7 @@ npm install -g firebase-tools
 
 login and setup the emulator as follows:
 
-```shell script
+```sh
 firebase login
 firebase setup:emulators:firestore
 ```
@@ -61,38 +73,90 @@ that takes all pipeline options as runtime parameters.
 
 Setting the following environment variables is useful for the commands below.
 
-```shell script
-FIREBASE_PROJECT_ID=firebase-project-id
-GCP_PROJECT_ID=some-ingestion-project-id
-PHA_OUTPUT=gs://some/output/folder/pha
-FACILITATOR_OUTPUT=gs://some/output/folder/faciliator
-KEY_RESOURCE_NAME=projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1
-METRICS=metricOfInterest1,metricOfInterest2,metricOfInterestN
+```sh
+FIREBASE_PROJECT_ID="my-firebase-project-id"
+GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
+PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
+FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
+KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
+METRICS="metricOfInterest1,metricOfInterest2,metricOfInterestN"
 ```
 
+```sh
+TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-%m-%d-%H-%M'`"
+STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
 
-```shell script
-./mvnw -Pdataflow-runner compile exec:java -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--project=$GCP_PROJECT_ID --runner=DataflowRunner --region=us-central1 --stagingLocation=$STAGING --templateLocation=gs://$TEMPLATE_BUCKET/templates/local-build-"`date +'%Y-%m-%d-%H-%M'`
+BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
+    "--runner=DataflowRunner"
+    "--project=$GCP_PROJECT_ID"
+    "--stagingLocation=$STAGING_LOCATION"
+    "--region=us-central1"
+    "--templateLocation=$TEMPLATE_LOCATION"
+)
+./mvnw -Pdataflow-runner compile exec:java \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
 ```
 
 ## Running the pipeline
 
 ### Locally
 
-```shell script
-./mvnw -Pdirect-runner compile exec:java -Djava.util.logging.config.file=logging.properties -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline -Dexec.args="--metrics=$METRICS -- --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+```sh
+BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
+    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
+    "--keyResourceName=$KEY_RESOURCE_NAME"
+    "--PHAOutput=$PHA_OUTPUT"
+    "--facilitatorOutput=$FACILITATOR_OUTPUT"
+)
+./mvnw -Pdirect-runner compile exec:java \
+    -Djava.util.logging.config.file=logging.properties \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
 ```
 
 ### On Cloud
 
 #### From local build
 
-```shell script
-./mvnw -Pdataflow-runner compile exec:java  -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline  -Dexec.args="--metrics=$METRICS -- --project=$GCP_PROJECT_ID --stagingLocation=$STAGING_LOCATION --runner=DataflowRunner --region=us-central1 --PHAOutput=$PHA_OUTPUT --facilitatorOutput=$FACILITATOR_OUTPUT --firebaseProjectId=$FIREBASE_PROJECT_ID --keyResourceName=$KEY_RESOURCE_NAME"
+```sh
+SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
+
+BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
+    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
+    "--keyResourceName=$KEY_RESOURCE_NAME"
+    "--PHAOutput=$PHA_OUTPUT"
+    "--facilitatorOutput=$FACILITATOR_OUTPUT"
+    "--runner=DataflowRunner"
+    "--project=$GCP_PROJECT_ID"
+    "--tempLocation=$TEMP_LOCATION"
+    "--region=us-central1"
+    "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
+)
+./mvnw -Pdataflow-runner compile exec:java \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
 ```
 
 #### From previously built template
 
-```shell script
-gcloud dataflow jobs run "ingestion-manual-run-${USER}-"`date +'%Y-%m-%d-%H-%M'` --gcs-location=$TEMPLATE_LOCATION --region=us-central1 --parameters="PHAOutput=$PHA_OUTPUT,facilitatorOutput=$FACILITATOR_OUTPUT,firebaseProjectId=$FIREBASE_PROJECT_ID,deviceAttestation=false,keyResourceName=$KEY_RESOURCE_NAME" 
+```sh
+BEAM_ARGS=(
+    "firebaseProjectId=$FIREBASE_PROJECT_ID"
+    "keyResourceName=$KEY_RESOURCE_NAME"
+    "PHAOutput=$PHA_OUTPUT"
+    "facilitatorOutput=$FACILITATOR_OUTPUT"
+    "deviceAttestation=false"
+    "serviceAccount=$SERVICE_ACCOUNT_EMAIL"
+)
+gcloud dataflow jobs run "ingestion-manual-run-$USER-`date +'%Y-%m-%d-%H-%M'`" \
+    --gcs-location="$TEMPLATE_LOCATION" \
+    --region="us-central1" \
+    --parameters="$(IFS=, eval 'echo "${BEAM_ARGS[*]}"')"
 ```
