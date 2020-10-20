@@ -25,6 +25,8 @@ import java.io.File;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -44,8 +46,11 @@ public class BatchWriterFn
     extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
 
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
-  private static final int phaIndex = 0;
-  private static final int facilitatorIndex = 1;
+  private static final int PHA_INDEX = 0;
+  private static final int FACILITATOR_INDEX = 1;
+  private static final String INGESTION_HEADER_SUFFIX = ".batch";
+  private static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
+  private static final String HEADER_SIGNATURE_SUFFIX = ".batch.avro";
 
   private static final Counter batchesFailingMinParticipant =
       Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
@@ -85,19 +90,43 @@ public class BatchWriterFn
 
     List<PrioDataSharePacket> phaPackets =
         serializedDatashare.stream()
-            .map(listPacket -> listPacket.get(phaIndex))
+            .map(listPacket -> listPacket.get(PHA_INDEX))
             .collect(Collectors.toList());
     List<PrioDataSharePacket> facilitatorPackets =
         serializedDatashare.stream()
-            .map(listPacket -> listPacket.get(facilitatorIndex))
+            .map(listPacket -> listPacket.get(FACILITATOR_INDEX))
             .collect(Collectors.toList());
 
+    LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
+    String aggregateId =
+            metadata.getMetricName()
+                    + "/"
+                    + currentTime.getYear()
+                    + "/"
+                    + currentTime.getMonthValue()
+                    + "/"
+                    + currentTime.getDayOfMonth()
+                    + "/"
+                    + currentTime.getHour()
+                    + "/"
+                    + currentTime.getMinute()
+                    + "/";
+
     UUID batchId = UUID.randomUUID();
-    String phaFilePath = phaPrefix + batchId.toString() + "_metric=" + metadata.getMetricName();
+    String phaFilePath =
+              phaPrefix
+            + "/"
+            + aggregateId
+            + "/"
+            + batchId.toString();
     writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
 
     String facilitatorPath =
-        facilitatorPrefix + batchId.toString() + "_metric=" + metadata.getMetricName();
+        facilitatorPrefix
+      + "/"
+      + aggregateId
+      + "/"
+      + batchId.toString();
     writeBatch(
         startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
     c.output(true);
@@ -108,11 +137,11 @@ public class BatchWriterFn
       long duration,
       DataShareMetadata metadata,
       UUID uuid,
-      String filename,
+      String filenamePrefix,
       List<PrioDataSharePacket> packets) {
     try {
       // write PrioDataSharePackets in this batch to file
-      String packetsFilename = filename + ".avro";
+      String packetsFilename = filenamePrefix + DATASHARE_PACKET_SUFFIX;
       PrioSerializationHelper.serializeDataSharePackets(packets, packetsFilename);
 
       // read back PrioDataSharePacket batch file and generate digest
@@ -123,13 +152,14 @@ public class BatchWriterFn
           Digest.newBuilder().setSha256(ByteString.copyFrom(packetFileContentHash)).build();
 
       // create Header and write to file
+      String headerFilename = filenamePrefix + INGESTION_HEADER_SUFFIX;
       PrioIngestionHeader header = PrioSerializationHelper
           .createHeader(metadata, digest, uuid, startTime, duration);
-      FileUtils.writeByteArrayToFile(new File(filename), header.toByteBuffer().array());
+      FileUtils.writeByteArrayToFile(new File(headerFilename), header.toByteBuffer().array());
 
       // Read back header file content and generate .sig file
-      String headerFileContent = FileUtils.readFileToString(new File(filename));
-      String signatureFileName = filename + ".sig";
+      String headerFileContent = FileUtils.readFileToString(new File(headerFilename));
+      String signatureFileName = filenamePrefix + HEADER_SIGNATURE_SUFFIX;
       byte[] hashHeaderFileContent = sha256.digest(headerFileContent.getBytes());
       Digest digestHeader =
           Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeaderFileContent)).build();
