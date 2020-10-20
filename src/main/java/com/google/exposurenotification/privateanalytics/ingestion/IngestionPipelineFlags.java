@@ -16,7 +16,6 @@
 
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import java.util.List;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
@@ -26,15 +25,6 @@ import picocli.CommandLine.Parameters;
  * pipeline.run()) while options provided to IngestionPipelineOptions cannot.
  */
 public class IngestionPipelineFlags {
-
-  @Option(
-      names = {"--metrics", "metrics"},
-      split = ",",
-      defaultValue =
-          "fakeMetric-v1,histogramMetric-v1,PeriodicExposureNotificationInteraction-v1,PeriodicExposureNotification-v1",
-      description = "comma-separated list of metrics to process in pipeline")
-  public List<String> metrics;
-
   @Option(
       names = {"--batchSize", "batchSize"},
       defaultValue = "1000",

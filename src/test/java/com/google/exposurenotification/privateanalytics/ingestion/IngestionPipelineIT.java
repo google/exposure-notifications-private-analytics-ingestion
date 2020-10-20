@@ -21,10 +21,16 @@ import com.google.api.core.ApiFuture;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.*;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.FirestoreOptions;
+import com.google.cloud.firestore.WriteBatch;
+import com.google.cloud.firestore.WriteResult;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.firestore.v1.Document;
+import com.google.firestore.v1.GetDocumentRequest;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,12 +47,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.google.firestore.v1.Document;
-import com.google.firestore.v1.GetDocumentRequest;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
@@ -82,27 +84,28 @@ public class IngestionPipelineIT {
   static Firestore db;
   static List<DocumentReference> listDocReference;
 
-  @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
+  @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
+  @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
 
   private static IngestionPipelineFlags flags = new IngestionPipelineFlags();
 
   @BeforeClass
   public static void setUp() throws IOException {
     FirestoreOptions firestoreOptions =
-            FirestoreOptions.getDefaultInstance().toBuilder()
-                    .setProjectId(FIREBASE_PROJECT_ID)
-                    .setCredentials(GoogleCredentials.getApplicationDefault())
-                    .build();
+        FirestoreOptions.getDefaultInstance().toBuilder()
+            .setProjectId(FIREBASE_PROJECT_ID)
+            .setCredentials(GoogleCredentials.getApplicationDefault())
+            .build();
     db = firestoreOptions.getService();
     listDocReference = new ArrayList<>();
-    new CommandLine(flags).parseArgs(new String[]{"metrics=id1,id2"});
+    new CommandLine(flags).parseArgs(new String[]{"batchSize=1000"});
   }
 
   @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws Exception {
-    File phaFile = tmpFolder.newFile();
-    File facilitatorFile = tmpFolder.newFile();
+    File phaFile = tmpFolderPha.newFile();
+    File facilitatorFile = tmpFolderFac.newFile();
     IngestionPipelineOptions options =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
     List<String> forkedSharesFilePrefixes =
@@ -115,7 +118,7 @@ public class IngestionPipelineIT {
     options.setStartTime(StaticValueProvider.of(CREATION_TIME));
     options.setDuration(StaticValueProvider.of(DURATION));
     options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
-    Map<String, PrioDataSharePacket> inputDataSharePackets =
+    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal(db);
 
     try {
@@ -126,13 +129,14 @@ public class IngestionPipelineIT {
       TimeUnit.SECONDS.sleep(15);
     }
 
-    Map<String, PrioDataSharePacket> actualDataSharepackets = readOutput();
-    for (Map.Entry<String, PrioDataSharePacket> entry : actualDataSharepackets.entrySet()) {
+    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutput();
+    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
       Assert.assertTrue(
           "Output contains data which is not present in input",
           inputDataSharePackets.containsKey(entry.getKey()));
-      comparePrioDataSharePacket(entry.getValue(), inputDataSharePackets.get(entry.getKey()));
-      checkSuccessfulFork(forkedSharesFilePrefixes);
+      comparePrioDataSharePacket(entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
+      comparePrioDataSharePacket(entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
+      // checkSuccessfulFork(forkedSharesFilePrefixes);
     }
   }
 
@@ -149,20 +153,37 @@ public class IngestionPipelineIT {
     return FirestoreClient.create(settings);
   }
 
-  private Map<String, PrioDataSharePacket> readOutput() throws IOException {
-    Map<String, PrioDataSharePacket> result = new HashMap<>();
-    Stream<Path> paths = Files.walk(Paths.get(tmpFolder.getRoot().getPath()));
-    List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
-    for (Path path : pathList) {
+  private Map<String, List<PrioDataSharePacket>> readOutput() throws IOException {
+    Map<String, List<PrioDataSharePacket>> result = new HashMap<>();
+    Stream<Path> pathsPha = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
+    Stream<Path> pathsFac = Files.walk(Paths.get(tmpFolderFac.getRoot().getPath()));
+    List<Path> pathListPha = pathsPha.filter(Files::isRegularFile).collect(Collectors.toList());
+    List<Path> pathListFac = pathsFac.filter(Files::isRegularFile).collect(Collectors.toList());
+
+    for (Path path : pathListPha) {
       if (path.toString().endsWith(".avro")) {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
-        result.putAll(
-            packets.stream()
-                .collect(
-                    Collectors.toMap(packet -> packet.getUuid().toString(), Function.identity())));
+        for(PrioDataSharePacket pac : packets){
+          if(!result.containsKey(pac.getUuid().toString())) {
+            result.put(pac.getUuid().toString(), new ArrayList<>());
+          }
+          result.get(pac.getUuid().toString()).add(pac);
+        }
       }
     }
+
+    for (Path path : pathListFac) {
+      if (path.toString().endsWith(".avro")) {
+        List<PrioDataSharePacket> packets =
+            PrioSerializationHelper.deserializeDataSharePackets(path.toString());
+        for(PrioDataSharePacket pac : packets){
+          //should not check for existance as facilitator and pha should have same key
+          result.get(pac.getUuid().toString()).add(pac);
+        }
+      }
+    }
+
     return result;
   }
 
@@ -176,8 +197,9 @@ public class IngestionPipelineIT {
   /**
    * Creates test-users collection and adds sample documents to test queries. Returns entry value in
    * form of {@link Map<String, PrioDataSharePacket>}.
+   * @return
    */
-  private static Map<String, PrioDataSharePacket> seedDatabaseAndReturnEntryVal(
+  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(
       Firestore db)
       throws ExecutionException, InterruptedException, IOException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
@@ -206,7 +228,7 @@ public class IngestionPipelineIT {
 
     FirestoreClient client = getFirestoreClient();
 
-    Map<String, PrioDataSharePacket> dataShareByUuid = new HashMap<>();
+    Map<String, List<PrioDataSharePacket>> dataShareByUuid = new HashMap<>();
     for (DocumentReference reference : listDocReference) {
       Document doc =
           client.getDocument(
@@ -230,7 +252,7 @@ public class IngestionPipelineIT {
                 .build());
       }
 
-      dataShareByUuid.put(dataShare.getUuid(), splitDataShares.get(0));
+      dataShareByUuid.put(dataShare.getUuid(), splitDataShares);
     }
 
     client.shutdown();
@@ -246,7 +268,7 @@ public class IngestionPipelineIT {
   private static void comparePrioDataSharePacket(
       PrioDataSharePacket first, PrioDataSharePacket second) {
     Assert.assertEquals(first.getUuid().toString(), second.getUuid().toString());
-    Assert.assertEquals(first.getEncryptedPayload(), second.getEncryptedPayload());
+    Assert.assertEquals(first.getEncryptedPayload().toString(), second.getEncryptedPayload().toString());
     Assert.assertEquals(
         first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
   }
@@ -286,7 +308,7 @@ public class IngestionPipelineIT {
    *  The remaining fields (i.e. r_PIT)) should remain the same. This function ensures that this is the case.
    */
   private void checkSuccessfulFork(List<String> forkedSharesPrefixes) throws IOException {
-    Stream<Path> paths = Files.walk(Paths.get(tmpFolder.getRoot().getPath()));
+    Stream<Path> paths = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
     List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
     for (Path path : pathList) {

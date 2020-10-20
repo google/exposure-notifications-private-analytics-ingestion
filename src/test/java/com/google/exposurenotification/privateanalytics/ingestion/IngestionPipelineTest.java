@@ -15,6 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -43,45 +44,55 @@ public class IngestionPipelineTest {
   @Test
   @Category(ValidatesRunner.class)
   public void testDateFilter() {
+    DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> dataShares =
         Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).build(),
-            DataShare.builder().setPath("id3").setCreated(3L).build(),
-            DataShare.builder().setPath("missing").build());
+            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id3").setCreated(3L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
 
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
 
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
-    PCollection<DataShare> output = input.apply(ParDo.of(new DateFilterFn("dummyMetric")));
+    PCollection<DataShare> output = input.apply(ParDo.of(new DateFilterFn()));
 
     PAssert.that(output)
         .containsInAnyOrder(
-            Collections.singletonList(DataShare.builder().setPath("id2").setCreated(2L).build()));
+            Collections.singletonList(
+                DataShare
+                    .builder()
+                    .setPath("id2")
+                    .setCreated(2L)
+                    .setDataShareMetadata(meta).build()));
     pipeline.run().waitUntilFinish();
   }
 
   @Test
   @Category(ValidatesRunner.class)
   public void processDataShares_valid() {
-
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(1));
 
+    DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
         Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).build(),
-            DataShare.builder().setPath("id3").setCreated(4L).build(),
-            DataShare.builder().setPath("missing").build());
+            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
     List<DataShare> expectedOutput =
-        Arrays.asList(DataShare.builder().setPath("id2").setCreated(2L).build());
+        Arrays.asList(DataShare
+            .builder()
+            .setPath("id2")
+            .setCreated(2L)
+            .setDataShareMetadata(meta).build());
 
     PCollection<DataShare> actualOutput =
-        IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
+        IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
 
     PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
     pipeline.run().waitUntilFinish();
@@ -94,14 +105,15 @@ public class IngestionPipelineTest {
     options.setStartTime(StaticValueProvider.of(2L));
     options.setDuration(StaticValueProvider.of(1L));
     options.setMinimumParticipantCount(StaticValueProvider.of(2));
+    DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
         Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).build(),
-            DataShare.builder().setPath("id3").setCreated(4L).build(),
-            DataShare.builder().setPath("missing").build());
+            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
+            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
 
-    IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)), "dummyMetric");
+    IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
     pipeline.run().waitUntilFinish();
   }
 }

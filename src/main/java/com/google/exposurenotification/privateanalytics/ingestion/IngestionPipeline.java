@@ -18,13 +18,12 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.coders.AvroCoder;
-import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -118,36 +117,24 @@ public class IngestionPipeline {
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
     LOG.info("runIngestionPipeline Batch size: {}", flags.batchSize);
 
-    for (String metric : flags.metrics) {
-      PCollection<DataShare> metricDataShares =
-          dataShares.apply(
-              "FilterDataSharesByMetric=" + metric,
-              Filter.by(
-                  inputDataShare ->
-                      inputDataShare.getDataShareMetadata().getMetricName().equals(metric)));
+    PCollection<DataShare> processedDataShares = processDataShares(dataShares);
 
-      PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
-          processDataShares(metricDataShares, metric)
-              .apply(
-                  "MapMetadata-"+metric,
-                  MapElements.via(
-                      new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
-                        @Override
-                        public KV<DataShareMetadata, DataShare> apply(DataShare input) {
-                          return KV.of(input.getDataShareMetadata(), input);
-                        }
-                      }));
+    PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
+        processedDataShares.apply("MapMetadata-",
+                MapElements.via(
+                    new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
+                      @Override
+                      public KV<DataShareMetadata, DataShare> apply(DataShare input) {
+                        return KV.of(input.getDataShareMetadata(), input);
+                      }
+                    }));
 
-      PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-          processedDataSharesByMetadata
-              .setCoder(KvCoder.of(AvroCoder.of(DataShareMetadata.class),
-                  AvroCoder.of(DataShare.class)))
-              .apply("GroupIntoBatches-"+metric,GroupIntoBatches.ofSize(flags.batchSize));
+    //TODO fix the issue with default coder and replace.
+    PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
+         groupIntoBatches(processedDataSharesByMetadata, flags.batchSize);
 
-      datashareGroupedByMetadata.apply(
-          "SerializePacketHeaderSigFor_metric=" + metric,
-          ParDo.of(new BatchWriterFn()));
-    }
+    datashareGroupedByMetadata.apply(
+        "SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
 
     // TODO: delete if certain age, or if in set of DataShare's emitted by successful serialization
     dataShares.apply("DeleteDataShares", new FirestoreDeleter());
@@ -173,5 +160,36 @@ public class IngestionPipeline {
     } catch (Exception e) {
       LOG.error("Exception thrown during pipeline run.", e);
     }
+  }
+
+  private static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> groupIntoBatches(
+      PCollection<KV<DataShareMetadata, DataShare>> serializedDataShares,
+      long batchSize) {
+    return serializedDataShares
+        .apply("AddMetadataStringAsKey", MapElements.via(
+            new SimpleFunction<KV<DataShareMetadata, DataShare>,
+                KV<String, KV<DataShareMetadata, DataShare>>>() {
+              @Override
+              public KV<String, KV<DataShareMetadata, DataShare>> apply(
+                  KV<DataShareMetadata, DataShare> input) {
+                return KV.of(input.getKey().toString(), input);
+              }
+            }))
+        .apply("GroupIntoBatches" , GroupIntoBatches.ofSize(batchSize))
+        .apply("RemoveStringFromKey", MapElements.via(
+            new SimpleFunction<KV<String, Iterable<KV<DataShareMetadata, DataShare>>>,
+                KV<DataShareMetadata, Iterable<DataShare>>>() {
+              @Override
+              public KV<DataShareMetadata, Iterable<DataShare>> apply(
+                  KV<String, Iterable<KV<DataShareMetadata, DataShare>>> input) {
+                List<DataShare> packets = new ArrayList<>();
+                DataShareMetadata metadata = DataShareMetadata.builder().build();
+                for(KV<DataShareMetadata, DataShare> entry : input.getValue()) {
+                  metadata = entry.getKey();
+                  packets.add(entry.getValue());
+                }
+                return KV.of(metadata, packets);
+              }
+            }));
   }
 }

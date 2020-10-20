@@ -1,5 +1,7 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -11,16 +13,19 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
 
-  private final Counter dateFilterIncluded;
-  private final Counter dateFilterExcluded;
-
-  public DateFilterFn(String metric) {
-    this.dateFilterIncluded = Metrics.counter(DateFilterFn.class, "dateFilterIncluded_" + metric);
-    this.dateFilterExcluded = Metrics.counter(DateFilterFn.class, "dateFilterExcluded_" + metric);
-  }
+  private final Map<String, Counter> dateFilterIncluded = new HashMap<>();
+  private final Map<String, Counter> dateFilterExcluded = new HashMap<>();
 
   @ProcessElement
   public void processElement(ProcessContext c) {
+    String metricName = c.element().getDataShareMetadata().getMetricName();
+    if(!dateFilterIncluded.containsKey(metricName)) {
+      dateFilterIncluded.put(metricName,
+          Metrics.counter(DateFilterFn.class, "dateFilterIncluded_" + metricName));
+      dateFilterExcluded.put(metricName,
+          Metrics.counter(DateFilterFn.class, "dateFilterExcluded_" + metricName));
+    }
+
     if (c.element().getCreated() == null || c.element().getCreated() == 0) {
       return;
     }
@@ -31,11 +36,11 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
     if (c.element().getCreated() >= startTime && c.element().getCreated() < startTime + duration) {
       LOG.debug("Included: " + c.element());
-      dateFilterIncluded.inc();
+      dateFilterIncluded.get(metricName).inc();
       c.output(c.element());
     } else {
       LOG.trace("Excluded: " + c.element());
-      dateFilterExcluded.inc();
+      dateFilterExcluded.get(metricName).inc();
     }
   }
 }
