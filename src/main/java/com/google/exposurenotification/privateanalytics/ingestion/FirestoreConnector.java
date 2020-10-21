@@ -18,13 +18,10 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.ServerStream;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-import com.google.firebase.cloud.FirestoreClient;
 import com.google.firestore.v1.Cursor;
 import com.google.firestore.v1.PartitionQueryRequest;
 import com.google.firestore.v1.RunQueryRequest;
@@ -82,6 +79,9 @@ public class FirestoreConnector {
 
   private static final Counter documentsRead =
       Metrics.counter(FirestoreConnector.class, "documentsRead");
+
+  private static final Counter documentsDeleted =
+      Metrics.counter(FirestoreConnector.class, "documentsDeleted");
 
   private static final Counter skippedResults =
       Metrics.counter(FirestoreConnector.class, "skippedResults");
@@ -160,7 +160,7 @@ public class FirestoreConnector {
     static class PartitionQueryFn
         extends DoFn<StructuredQuery, ImmutableTriple<Cursor, Cursor, StructuredQuery>> {
 
-      private com.google.cloud.firestore.v1.FirestoreClient client;
+      private FirestoreClient client;
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
@@ -196,7 +196,7 @@ public class FirestoreConnector {
 
     static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, DataShare> {
 
-      private com.google.cloud.firestore.v1.FirestoreClient client;
+      private FirestoreClient client;
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
@@ -234,11 +234,11 @@ public class FirestoreConnector {
     // https://github.com/googleapis/nodejs-firestore/issues/64
     static class DeleteFn extends DoFn<DataShare, Void> {
 
-      private Firestore db;
+      private FirestoreClient client;
 
       @StartBundle
       public void startBundle(StartBundleContext context) throws Exception {
-        db = initializeFirestore(context.getPipelineOptions().as(IngestionPipelineOptions.class));
+        client = getFirestoreClient();
       }
 
       @ProcessElement
@@ -246,42 +246,27 @@ public class FirestoreConnector {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         // TODO: way to short circuit this earlier based on a ValueProvider flag?
+        // TODO: if this is the last document in the date subcollection, the date subcollection will be deleted.
+        //  If the date subcollection is the last element in its parent document, that document should also be deleted.
         if (options.getDelete().get()
             && context.element() != null
             && context.element().getPath() != null) {
-          db.document(context.element().getPath()).delete();
+          client.deleteDocument(context.element().getPath());
+          documentsDeleted.inc();
         }
       }
     }
   }
 
-  // TODO(larryjacobs): consolidate to v1 FirestoreClient. No need having both api's/clients and
-  // two types of initialization (for read and for delete)
-  // Initializes and returns a Firestore instance.
-  private static Firestore initializeFirestore(IngestionPipelineOptions pipelineOptions)
-      throws Exception {
-    if (FirebaseApp.getApps().isEmpty()) {
-      GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
-      FirebaseOptions options =
-          FirebaseOptions.builder()
-              .setProjectId(pipelineOptions.getFirebaseProjectId().get())
-              .setCredentials(credentials)
-              .build();
-      FirebaseApp.initializeApp(options);
-    }
-
-    return FirestoreClient.getFirestore();
-  }
-
   // Returns a v1.Firestore instance to be used to partition read queries.
-  private static com.google.cloud.firestore.v1.FirestoreClient getFirestoreClient()
+  private static FirestoreClient getFirestoreClient()
       throws IOException {
     FirestoreSettings settings =
         FirestoreSettings.newBuilder()
             .setCredentialsProvider(
                 FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()))
             .build();
-    return com.google.cloud.firestore.v1.FirestoreClient.create(settings);
+    return FirestoreClient.create(settings);
   }
 
   private static String getParentPath(String projectId) {
@@ -301,7 +286,7 @@ public class FirestoreConnector {
 
   // Returns a list of DataShares for documents captured within the given query Cursor pair.
   private static List<DataShare> readDocumentsFromFirestore(
-      com.google.cloud.firestore.v1.FirestoreClient firestoreClient,
+      FirestoreClient firestoreClient,
       String projectId,
       ImmutableTriple<Cursor, Cursor, StructuredQuery> cursors) {
     StructuredQuery.Builder queryBuilder = cursors.getRight().toBuilder();

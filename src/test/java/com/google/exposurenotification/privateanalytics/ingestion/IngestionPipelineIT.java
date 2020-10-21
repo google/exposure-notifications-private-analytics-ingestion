@@ -15,22 +15,24 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.formatDateTime;
+import static org.junit.Assert.assertThrows;
 
-import com.google.api.core.ApiFuture;
 import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.FirestoreOptions;
-import com.google.cloud.firestore.WriteBatch;
-import com.google.cloud.firestore.WriteResult;
 import com.google.cloud.firestore.v1.FirestoreClient;
+import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.firestore.v1.ArrayValue;
+import com.google.firestore.v1.CreateDocumentRequest;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.GetDocumentRequest;
+import com.google.firestore.v1.ListDocumentsRequest;
+import com.google.firestore.v1.MapValue;
+import com.google.firestore.v1.Value;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -46,10 +48,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.metrics.MetricNameFilter;
+import org.apache.beam.sdk.metrics.MetricsFilter;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -61,16 +67,17 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
-/** Integration tests for {@link IngestionPipeline}. */
+/**
+ * Integration tests for {@link IngestionPipeline}.
+ */
 @RunWith(JUnit4.class)
 public class IngestionPipelineIT {
 
-  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
-  static final long CREATION_TIME = 12345L;
+  // Randomize document creation time to avoid collisions between simultaneously running tests.
+  // FirestoreReader will query all documents with created times within one hour of this time.
+  static final long CREATION_TIME = ThreadLocalRandom.current().nextLong(0L, 1602720000L);
   static final long DURATION = 10000L;
   static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
   static final int MINIMUM_PARTICIPANT_COUNT = 1;
@@ -81,8 +88,7 @@ public class IngestionPipelineIT {
   static final String KEY_RESOURCE_NAME =
       "projects/appa-ingestion/locations/global/keyRings/appa-signature-key-ring/cryptoKeys/appa-signature-key/cryptoKeyVersions/1";
 
-  static Firestore db;
-  static List<DocumentReference> listDocReference;
+  static List<Document> documentList;
 
   @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
   @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
@@ -90,15 +96,9 @@ public class IngestionPipelineIT {
   private static IngestionPipelineFlags flags = new IngestionPipelineFlags();
 
   @BeforeClass
-  public static void setUp() throws IOException {
-    FirestoreOptions firestoreOptions =
-        FirestoreOptions.getDefaultInstance().toBuilder()
-            .setProjectId(FIREBASE_PROJECT_ID)
-            .setCredentials(GoogleCredentials.getApplicationDefault())
-            .build();
-    db = firestoreOptions.getService();
-    listDocReference = new ArrayList<>();
+  public static void setUp() {
     new CommandLine(flags).parseArgs(new String[]{"batchSize=1000"});
+    documentList = new ArrayList<>();
   }
 
   @Test
@@ -119,7 +119,7 @@ public class IngestionPipelineIT {
     options.setDuration(StaticValueProvider.of(DURATION));
     options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
-        seedDatabaseAndReturnEntryVal(db);
+        seedDatabaseAndReturnEntryVal();
 
     try {
       IngestionPipeline.runIngestionPipeline(options, flags);
@@ -135,14 +135,79 @@ public class IngestionPipelineIT {
           "Output contains data which is not present in input",
           inputDataSharePackets.containsKey(entry.getKey()));
       comparePrioDataSharePacket(entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
-      comparePrioDataSharePacket(entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
-      // checkSuccessfulFork(forkedSharesFilePrefixes);
+      comparePrioDataSharePacket(entry.getValue().get(1),
+          inputDataSharePackets.get(entry.getKey()).get(1));
+      checkSuccessfulFork(forkedSharesFilePrefixes);
     }
   }
 
-  private static void cleanUpDb() {
+  @Test
+  @Category(NeedsRunner.class)
+  public void testFirestoreDeleter_deletesDocs()
+      throws InterruptedException, IOException, ExecutionException {
+    File phaFile = tmpFolderPha.newFile();
+    File facilitatorFile = tmpFolderFac.newFile();
+    IngestionPipelineOptions options =
+        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
+    List<String> forkedSharesFilePrefixes =
+        Arrays.asList(
+            getFilePath(phaFile.getAbsolutePath()), getFilePath(facilitatorFile.getAbsolutePath()));
+    options.setDelete(StaticValueProvider.of(true));
+    options.setPHAOutput(StaticValueProvider.of(phaFile.getAbsolutePath()));
+    options.setFacilitatorOutput(StaticValueProvider.of(facilitatorFile.getAbsolutePath()));
+    options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
+    options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
+    options.setStartTime(StaticValueProvider.of(CREATION_TIME));
+    options.setDuration(StaticValueProvider.of(DURATION));
+    options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
+    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
+        seedDatabaseAndReturnEntryVal();
 
-    listDocReference.forEach(DocumentReference::delete);
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(options, flags);
+
+    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutput();
+    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
+      Assert.assertTrue(
+          "Output contains data which is not present in input",
+          inputDataSharePackets.containsKey(entry.getKey()));
+      comparePrioDataSharePacket(entry.getValue().get(0),
+          inputDataSharePackets.get(entry.getKey()).get(0));
+      comparePrioDataSharePacket(entry.getValue().get(1),
+          inputDataSharePackets.get(entry.getKey()).get(1));
+      checkSuccessfulFork(forkedSharesFilePrefixes);
+    }
+    // Wait for Pipeline to finish and assert processed documents have been deleted.
+    TimeUnit.SECONDS.sleep(10);
+    FirestoreClient client = getFirestoreClient();
+    documentList.forEach(doc -> assertThrows(
+        NotFoundException.class, () -> fetchDocumentFromFirestore(doc.getName(), client)));
+    long documentsDeleted = result.metrics().queryMetrics(MetricsFilter.builder()
+        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
+        .build()).getCounters().iterator().next().getCommitted();
+    assertThat(documentsDeleted).isEqualTo(2);
+    cleanUpParentResources(client);
+  }
+
+  private static Document fetchDocumentFromFirestore(String path, FirestoreClient client) {
+    return client.getDocument(GetDocumentRequest.newBuilder().setName(path).build());
+  }
+
+  private static void cleanUpDb() throws IOException {
+    FirestoreClient client = getFirestoreClient();
+    documentList.forEach(doc -> client.deleteDocument(doc.getName()));
+    cleanUpParentResources(client);
+  }
+
+  private static void cleanUpParentResources(FirestoreClient client) {
+    ListDocumentsPagedResponse documents =
+        client.listDocuments(
+            ListDocumentsRequest.newBuilder()
+                .setParent("projects/"
+                    + FIREBASE_PROJECT_ID
+                    + "/databases/(default)/documents")
+                .setCollectionId(TEST_COLLECTION_NAME)
+                .build());
+    documents.iterateAll().forEach(document -> client.deleteDocument(document.getName()));
   }
 
   private static FirestoreClient getFirestoreClient()
@@ -178,7 +243,7 @@ public class IngestionPipelineIT {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
         for(PrioDataSharePacket pac : packets){
-          //should not check for existance as facilitator and pha should have same key
+          // should not check for existence as facilitator and pha should have same key
           result.get(pac.getUuid().toString()).add(pac);
         }
       }
@@ -197,48 +262,56 @@ public class IngestionPipelineIT {
   /**
    * Creates test-users collection and adds sample documents to test queries. Returns entry value in
    * form of {@link Map<String, PrioDataSharePacket>}.
-   * @return
    */
-  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(
-      Firestore db)
+  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal()
       throws ExecutionException, InterruptedException, IOException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
 
-    WriteBatch batch = db.batch();
-
-    Map<String, Object> docData = new HashMap<>();
-    for (int i = 1; i <= 2; i++) {
-      docData.put("id", "id" + i);
-      docData.put(DataShare.PAYLOAD, getSamplePayload("uuid" + i, CREATION_TIME));
-      docData.put(DataShare.SIGNATURE, "signature");
-      docData.put(DataShare.CERT_CHAIN, Arrays.asList("cert1", "cert2"));
-      DocumentReference reference = db.collection(TEST_COLLECTION_NAME)
-          .document("random-assortment-" + i)
-          .collection(formatDateTime(CREATION_TIME))
-          .document("doc" + i);
-      batch.set(reference, docData);
-      listDocReference.add(reference);
-    }
-
-    ApiFuture<List<WriteResult>> future = batch.commit();
-    // future.get() blocks on batch commit operation
-    future.get();
-
     FirestoreClient client = getFirestoreClient();
 
-    Map<String, List<PrioDataSharePacket>> dataShareByUuid = new HashMap<>();
-    for (DocumentReference reference : listDocReference) {
+    for (int i = 1; i <= 2; i++) {
+      ArrayValue certs = ArrayValue.newBuilder()
+          .addValues(Value.newBuilder().setStringValue("cert1").build())
+          .addValues(Value.newBuilder().setStringValue("cert2").build())
+          .build();
       Document doc =
-          client.getDocument(
-              GetDocumentRequest.newBuilder()
-                  .setName(
-                      "projects/"
-                          + FIREBASE_PROJECT_ID
-                          + "/databases/(default)/documents/"
-                          + reference.getPath())
-                  .build());
+          Document.newBuilder()
+              .putFields(DataShare.SIGNATURE,
+                  Value.newBuilder().setStringValue("signature").build())
+              .putFields(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(certs).build())
+              .putFields(DataShare.PAYLOAD, Value.newBuilder().setMapValue(
+                  MapValue.newBuilder().putAllFields(getSamplePayload("uuid" + i, CREATION_TIME))
+                      .build()).build())
+              .build();
+      client.createDocument(CreateDocumentRequest.newBuilder()
+          .setCollectionId(TEST_COLLECTION_NAME)
+          .setDocumentId("testDoc" + i)
+          .setParent("projects/"
+              + FIREBASE_PROJECT_ID
+              + "/databases/(default)/documents")
+          .build());
+      client.createDocument(CreateDocumentRequest.newBuilder()
+          .setCollectionId(formatDateTime(CREATION_TIME))
+          .setDocumentId("metric1")
+          .setDocument(doc)
+          .setParent("projects/"
+              + FIREBASE_PROJECT_ID
+              + "/databases/(default)/documents/" + TEST_COLLECTION_NAME + "/testDoc" + i)
+          .build());
+    }
+
+    Map<String, List<PrioDataSharePacket>> dataShareByUuid = new HashMap<>();
+    for (int i = 1; i <= 2; i++) {
+      String docName =
+          "projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents/"
+              + TEST_COLLECTION_NAME
+              + "/testDoc" + i + "/"
+              + formatDateTime(CREATION_TIME)
+              + "/metric1";
+      Document doc = fetchDocumentFromFirestore(docName, client);
+      documentList.add(doc);
       DataShare dataShare = DataShare.from(doc);
       List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
       List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
@@ -258,9 +331,11 @@ public class IngestionPipelineIT {
     client.shutdown();
     int maxWait = 3;
     int wait = 1;
-    while (client.awaitTermination(1000,TimeUnit.MILLISECONDS) == false) {
-      if (wait++ == maxWait) break;
-    };
+    while (client.awaitTermination(1000, TimeUnit.MILLISECONDS) == false) {
+      if (wait++ == maxWait) {
+        break;
+      }
+    }
 
     return dataShareByUuid;
   }
@@ -273,32 +348,42 @@ public class IngestionPipelineIT {
         first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
   }
 
-  private static Map<String, Object> getSamplePayload(String uuid, long timestampSeconds) {
-    Map<String, Object> samplePayload = new HashMap<>();
+  private static Map<String, Value> getSamplePayload(String uuid, long timestampSeconds) {
+    Map<String, Value> samplePayload = new HashMap<>();
 
-    Map<String, Object> samplePrioParams = new HashMap<>();
-    samplePrioParams.put(DataShare.PRIME, 4293918721L);
-    samplePrioParams.put(DataShare.BINS, 2L);
-    samplePrioParams.put(DataShare.EPSILON, 5.2933D);
-    samplePrioParams.put(DataShare.NUMBER_OF_SERVERS_FIELD, 2L);
-    samplePrioParams.put(DataShare.HAMMING_WEIGHT, 1L);
-    samplePayload.put(DataShare.PRIO_PARAMS, samplePrioParams);
+    Map<String, Value> prioParams = new HashMap<>();
+    prioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(4293918721L).build());
+    prioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(2L).build());
+    prioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(5.2933D).build());
+    prioParams
+        .put(DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(2L).build());
+    prioParams.put(DataShare.HAMMING_WEIGHT, Value.newBuilder().setIntegerValue(1L).build());
+    samplePayload.put(DataShare.PRIO_PARAMS,
+        Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(prioParams).build())
+            .build());
 
-    List<Map<String, String>> sampleEncryptedDataShares = new ArrayList<>();
+    List<Value> encryptedDataShares = new ArrayList<>();
+    encryptedDataShares.add(
+        Value.newBuilder().setMapValue(MapValue.newBuilder()
+            .putFields(DataShare.ENCRYPTION_KEY_ID,
+                Value.newBuilder().setStringValue("fakeEncryptionKeyId1").build())
+            .putFields(DataShare.PAYLOAD, Value.newBuilder().setStringValue("fakePayload1").build())
+            .build()).build());
+    encryptedDataShares.add(
+        Value.newBuilder().setMapValue(MapValue.newBuilder()
+            .putFields(DataShare.ENCRYPTION_KEY_ID,
+                Value.newBuilder().setStringValue("fakeEncryptionKeyId2").build())
+            .putFields(DataShare.PAYLOAD, Value.newBuilder().setStringValue("fakePayload2").build())
+            .build()).build());
+    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, Value.newBuilder()
+        .setArrayValue(ArrayValue.newBuilder().addAllValues(encryptedDataShares).build()).build());
 
-    Map<String, String> sampleDataShare1 = new HashMap<>();
-    sampleDataShare1.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId1");
-    sampleDataShare1.put(DataShare.PAYLOAD, "fakePayload1");
-    sampleEncryptedDataShares.add(sampleDataShare1);
-
-    Map<String, String> sampleDataShare2 = new HashMap<>();
-    sampleDataShare2.put(DataShare.ENCRYPTION_KEY_ID, "fakeEncryptionKeyId2");
-    sampleDataShare2.put(DataShare.PAYLOAD, "fakePayload2");
-    sampleEncryptedDataShares.add(sampleDataShare2);
-
-    samplePayload.put(DataShare.CREATED, Timestamp.ofTimeSecondsAndNanos(timestampSeconds, 0));
-    samplePayload.put(DataShare.UUID, uuid);
-    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, sampleEncryptedDataShares);
+    samplePayload.put(DataShare.CREATED,
+        Value.newBuilder()
+            .setTimestampValue(
+                com.google.protobuf.Timestamp.newBuilder().setSeconds(timestampSeconds).build())
+            .build());
+    samplePayload.put(DataShare.UUID, Value.newBuilder().setStringValue(uuid).build());
 
     return samplePayload;
   }

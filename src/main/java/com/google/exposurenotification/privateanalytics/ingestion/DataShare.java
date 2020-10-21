@@ -89,12 +89,7 @@ public abstract class DataShare implements Serializable {
   /** @return Pipeline projection of Firestore document */
   public static DataShare from(Document doc) {
     DataShare.Builder builder = builder();
-    String fullyQualifiedPath = doc.getName();
-    // doc.getName() returns the fully qualified name of the document:
-    // e.g.: "projects/{project_id}/databases/{database_id}/documents/collection/..."
-    // We need the path relative to the beginning of the root collection, "collection/..."
-    String relativePath = fullyQualifiedPath.replaceFirst("^projects.*documents/", "");
-    builder.setPath(relativePath);
+    builder.setPath(doc.getName());
 
     // Process the payload.
     if (doc.getFieldsMap().get(PAYLOAD) == null) {
