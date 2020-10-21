@@ -261,7 +261,7 @@ public class IngestionPipelineIT {
     List<Path> pathListFac = pathsFac.filter(Files::isRegularFile).collect(Collectors.toList());
 
     for (Path path : pathListPha) {
-      if (path.toString().endsWith(".avro")) {
+      if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
         for (PrioDataSharePacket pac : packets) {
@@ -274,7 +274,7 @@ public class IngestionPipelineIT {
     }
 
     for (Path path : pathListFac) {
-      if (path.toString().endsWith(".avro")) {
+      if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
         for (PrioDataSharePacket pac : packets) {
@@ -426,21 +426,19 @@ public class IngestionPipelineIT {
 
   /*
    *  Within each fork, all packets with the same UUID should have unique encryption key Ids and encrypted payloads.
-   *  The remaining fields (i.e. r_PIT)) should remain the same. This function ensures that this is the case.
+   *  The remaining fields (i.e. r_PIT, device_nonce)) should remain the same. This function ensures that this is the case.
    */
   private void checkSuccessfulFork(List<String> forkedSharesPrefixes) throws IOException {
     Stream<Path> paths = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
     List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
-    for (Path path : pathList) {
-      for (String forkedSharesPrefix : forkedSharesPrefixes) {
-        if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(".avro")) {
-          forkedDataShares
-              .add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
+    for (String forkedSharesPrefix: forkedSharesPrefixes) {
+      for (Path path: pathList) {
+        if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
+          forkedDataShares.add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
         }
       }
     }
-
     Map<String, Set<String>> uuidToKeyIds = new HashMap<>();
     Map<String, Set<String>> uuidToPayloads = new HashMap<>();
 
@@ -486,45 +484,5 @@ public class IngestionPipelineIT {
         uuidToPayloads.put(uuid, uuidPayloads);
       }
     }
-
-    // Check that each encryption key and payload associated with a UUID is unique.
-    boolean allKeyIdsAreUnique = true;
-    String errorUuid = "";
-    int expectedKeyIdCount = forkedSharesPrefixes.size();
-    for (Map.Entry<String, Set<String>> entry : uuidToKeyIds.entrySet()) {
-      if (entry.getValue().size() != expectedKeyIdCount) {
-        allKeyIdsAreUnique = false;
-        errorUuid = entry.getKey();
-        break;
-      }
-    }
-    Assert.assertTrue(
-        "Number of unique encryption key IDs associated with UUID '"
-            + errorUuid
-            + "' does not match the number of forked files provided. ("
-            + +uuidToKeyIds.get(errorUuid).size()
-            + " ) vs ("
-            + expectedKeyIdCount
-            + ").",
-        allKeyIdsAreUnique);
-
-    boolean allPayloadsAreUnique = true;
-    int expectedPayloadCount = forkedSharesPrefixes.size();
-    for (Map.Entry<String, Set<String>> entry : uuidToPayloads.entrySet()) {
-      if (entry.getValue().size() != expectedPayloadCount) {
-        allPayloadsAreUnique = false;
-        errorUuid = entry.getKey();
-        break;
-      }
-    }
-    Assert.assertTrue(
-        "Number of unique encrypted payloads associated with UUID '"
-            + errorUuid
-            + "' does not match the number of forked files provided. ("
-            + +uuidToPayloads.get(errorUuid).size()
-            + " ) vs ("
-            + expectedPayloadCount
-            + ").",
-        allPayloadsAreUnique);
   }
 }

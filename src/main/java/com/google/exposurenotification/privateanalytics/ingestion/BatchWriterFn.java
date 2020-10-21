@@ -47,12 +47,14 @@ import org.slf4j.LoggerFactory;
 public class BatchWriterFn
     extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
 
+  public static final String INGESTION_HEADER_SUFFIX = ".batch";
+  public static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
+  public static final String HEADER_SIGNATURE_SUFFIX = ".batch.sig.avro";
+
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
   private static final int PHA_INDEX = 0;
   private static final int FACILITATOR_INDEX = 1;
-  private static final String INGESTION_HEADER_SUFFIX = ".batch";
-  private static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
-  private static final String HEADER_SIGNATURE_SUFFIX = ".batch.avro";
+
 
   private static final Counter batchesFailingMinParticipant =
       Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
@@ -116,19 +118,15 @@ public class BatchWriterFn
 
     UUID batchId = UUID.randomUUID();
     String phaFilePath =
-        phaPrefix
-            + "/"
-            + aggregateId
-            + "/"
+              phaPrefix
+            + "-"
             + batchId.toString();
     writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
 
     String facilitatorPath =
         facilitatorPrefix
-            + "/"
-            + aggregateId
-            + "/"
-            + batchId.toString();
+      + "-"
+      + batchId.toString();
     writeBatch(
         startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
     c.output(true);
