@@ -120,17 +120,17 @@ public class IngestionPipeline {
 
     PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
         processedDataShares.apply("MapMetadata-",
-                MapElements.via(
-                    new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
-                      @Override
-                      public KV<DataShareMetadata, DataShare> apply(DataShare input) {
-                        return KV.of(input.getDataShareMetadata(), input);
-                      }
-                    }));
+            MapElements.via(
+                new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
+                  @Override
+                  public KV<DataShareMetadata, DataShare> apply(DataShare input) {
+                    return KV.of(input.getDataShareMetadata(), input);
+                  }
+                }));
 
     //TODO fix the issue with default coder and replace.
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-         groupIntoBatches(processedDataSharesByMetadata, options.getBatchSize());
+        groupIntoBatches(processedDataSharesByMetadata, options.getBatchSize());
 
     datashareGroupedByMetadata.apply(
         "SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
@@ -172,7 +172,7 @@ public class IngestionPipeline {
                 return KV.of(input.getKey().toString(), input);
               }
             }))
-        .apply("GroupIntoBatches" , GroupIntoBatches.ofSize(batchSize))
+        .apply("GroupIntoBatches", GroupIntoBatches.ofSize(batchSize))
         .apply("RemoveStringFromKey", MapElements.via(
             new SimpleFunction<KV<String, Iterable<KV<DataShareMetadata, DataShare>>>,
                 KV<DataShareMetadata, Iterable<DataShare>>>() {
@@ -181,7 +181,7 @@ public class IngestionPipeline {
                   KV<String, Iterable<KV<DataShareMetadata, DataShare>>> input) {
                 List<DataShare> packets = new ArrayList<>();
                 DataShareMetadata metadata = DataShareMetadata.builder().build();
-                for(KV<DataShareMetadata, DataShare> entry : input.getValue()) {
+                for (KV<DataShareMetadata, DataShare> entry : input.getValue()) {
                   metadata = entry.getKey();
                   packets.add(entry.getValue());
                 }

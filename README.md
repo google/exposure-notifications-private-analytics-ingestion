@@ -29,29 +29,9 @@ page, and make sure you have a Google Cloud project with billing enabled
 and a *service account JSON key* set up in your `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 Additionally, you also need the following:
 
-1. Set up a [Firebase project](https://firebase.google.com/) and a
-    [Google Cloud project](https://console.cloud.google.com/projectcreate) or use existing ones.
-
-    ```sh
-    export FIREBASE_PROJECT_ID="my-firebase-project-id"
-    export GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
-    ```
-
 1. [Create an asymmetric key ring](https://cloud.google.com/kms/docs/creating-asymmetric-keys)
 
-    ```sh
-    export KMS_KEYRING="my-keyring"
-    export KMS_KEY="my-key"
-
-    export KMS_KEY_ID=$(gcloud --project $GCP_PROJECT_ID kms keys list --location global --keyring $KMS_KEYRING --filter $KMS_KEY --format "value(NAME)")
-    ```
-
-1. Specify a path prefix for the PHA and Facilitator output files.
-
-    ```sh
-    export PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
-    export FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
-    ```
+<!-- TODO: set the roles needed for the service account -->
 
 ## Testing
 
@@ -86,32 +66,71 @@ To run integration tests (includes standing up a Firestore emulator):
 ./mvnw verify
 ```
 
+## Deploying / Building DataFlow template
+
+We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
+that takes all pipeline options as runtime parameters.
+
+Setting the following environment variables is useful for the commands below.
+
+```sh
+FIREBASE_PROJECT_ID="my-firebase-project-id"
+GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
+PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
+FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
+KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
+METRICS="metricOfInterest1,metricOfInterest2,metricOfInterestN"
+```
+
+```sh
+TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-%m-%d-%H-%M'`"
+STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
+
+BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
+    "--runner=DataflowRunner"
+    "--project=$GCP_PROJECT_ID"
+    "--stagingLocation=$STAGING_LOCATION"
+    "--region=us-central1"
+    "--templateLocation=$TEMPLATE_LOCATION"
+)
+./mvnw -Pdataflow-runner compile exec:java \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
+```
+
 ## Running the pipeline
 
 ### Locally
 
 ```sh
 BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
-    "--keyResourceName=$KMS_KEY_ID"
+    "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
 )
-./mvnw compile exec:java \
+./mvnw -Pdirect-runner compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 
-### Dataflow in Google Cloud
+### On Cloud
+
+#### From local build
 
 ```sh
-export TEMP_LOCATION="gs://my-google-cloud-bucket/temp"
-export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
+SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 BEAM_ARGS=(
+    "--metrics=$METRICS"
+    "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
-    "--keyResourceName=$KMS_KEY_ID"
+    "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
     "--runner=DataflowRunner"
@@ -120,7 +139,24 @@ BEAM_ARGS=(
     "--region=us-central1"
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
-./mvnw compile exec:java \
+./mvnw -Pdataflow-runner compile exec:java \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
+```
+
+#### From previously built template
+
+```sh
+BEAM_ARGS=(
+    "firebaseProjectId=$FIREBASE_PROJECT_ID"
+    "keyResourceName=$KEY_RESOURCE_NAME"
+    "PHAOutput=$PHA_OUTPUT"
+    "facilitatorOutput=$FACILITATOR_OUTPUT"
+    "deviceAttestation=false"
+    "serviceAccount=$SERVICE_ACCOUNT_EMAIL"
+)
+gcloud dataflow jobs run "ingestion-manual-run-$USER-`date +'%Y-%m-%d-%H-%M'`" \
+    --gcs-location="$TEMPLATE_LOCATION" \
+    --region="us-central1" \
+    --parameters="$(IFS=, eval 'echo "${BEAM_ARGS[*]}"')"
 ```

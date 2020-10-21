@@ -41,7 +41,9 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Function to write files (header, data records, signature) for a batch of {@link DataShare} */
+/**
+ * Function to write files (header, data records, signature) for a batch of {@link DataShare}
+ */
 public class BatchWriterFn
     extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
 
@@ -99,22 +101,22 @@ public class BatchWriterFn
 
     LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
     String aggregateId =
-            metadata.getMetricName()
-                    + "/"
-                    + currentTime.getYear()
-                    + "/"
-                    + currentTime.getMonthValue()
-                    + "/"
-                    + currentTime.getDayOfMonth()
-                    + "/"
-                    + currentTime.getHour()
-                    + "/"
-                    + currentTime.getMinute()
-                    + "/";
+        metadata.getMetricName()
+            + "/"
+            + currentTime.getYear()
+            + "/"
+            + currentTime.getMonthValue()
+            + "/"
+            + currentTime.getDayOfMonth()
+            + "/"
+            + currentTime.getHour()
+            + "/"
+            + currentTime.getMinute()
+            + "/";
 
     UUID batchId = UUID.randomUUID();
     String phaFilePath =
-              phaPrefix
+        phaPrefix
             + "/"
             + aggregateId
             + "/"
@@ -123,10 +125,10 @@ public class BatchWriterFn
 
     String facilitatorPath =
         facilitatorPrefix
-      + "/"
-      + aggregateId
-      + "/"
-      + batchId.toString();
+            + "/"
+            + aggregateId
+            + "/"
+            + batchId.toString();
     writeBatch(
         startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
     c.output(true);

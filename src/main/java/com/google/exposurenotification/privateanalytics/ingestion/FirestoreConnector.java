@@ -33,6 +33,8 @@ import com.google.firestore.v1.StructuredQuery.FieldReference;
 import com.google.firestore.v1.StructuredQuery.Order;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -90,13 +92,10 @@ public class FirestoreConnector {
   private static final Counter partialProgress =
       Metrics.counter(FirestoreConnector.class, "partialProgress");
 
-  /** Reads documents from Firestore */
+  /**
+   * Reads documents from Firestore
+   */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
-
-    private static final Logger LOG = LoggerFactory.getLogger(FirestoreReader.class);
-    // Order must be name ascending. Right now, this is the only ordering that the
-    // Firestore SDK supports.
-    private final String NAME_FIELD = "__name__";
 
     @Override
     public PCollection<DataShare> expand(PBegin input) {
@@ -124,7 +123,9 @@ public class FirestoreConnector {
      */
     static class GenerateQueriesFn extends DoFn<String, StructuredQuery> {
 
-      private static final long SECONDS_IN_HOUR = 3600L;
+      private static final long SECONDS_IN_HOUR = Duration.of(1, ChronoUnit.HOURS).getSeconds();
+      // Order must be name ascending. Right now, this is the only ordering that the
+      // Firestore SDK supports.
       private static final String NAME_FIELD = "__name__";
 
       @ProcessElement
@@ -142,8 +143,6 @@ public class FirestoreConnector {
         // forwardWindow].
         for (long i = (-1 * backwardWindow); i <= forwardWindow; i++) {
           long timeToQuery = startTime + i * SECONDS_IN_HOUR;
-          LocalDateTime dateTimeToQuery =
-              LocalDateTime.ofEpochSecond(timeToQuery, 0, ZoneOffset.UTC);
           // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
           String formattedDateTime = formatDateTime(timeToQuery);
           // Construct and output query.

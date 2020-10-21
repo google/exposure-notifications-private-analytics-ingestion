@@ -26,6 +26,7 @@ import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.CreateDocumentRequest;
 import com.google.firestore.v1.Document;
@@ -57,7 +58,11 @@ import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
 import org.apache.beam.sdk.testing.NeedsRunner;
+import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.testing.ValidatesRunner;
+import org.apache.beam.sdk.transforms.Count;
+import org.apache.beam.sdk.values.PCollection;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -66,7 +71,6 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import picocli.CommandLine;
 
 /**
  * Integration tests for {@link IngestionPipeline}.
@@ -89,8 +93,16 @@ public class IngestionPipelineIT {
 
   static List<Document> documentList;
 
-  @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
-  @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
+  @Rule
+  public TemporaryFolder tmpFolderPha = new TemporaryFolder();
+  @Rule
+  public TemporaryFolder tmpFolderFac = new TemporaryFolder();
+
+  public transient IngestionPipelineOptions testOptions =
+      TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
+
+  @Rule
+  public final transient TestPipeline testPipeline = TestPipeline.fromOptions(testOptions);
 
   @BeforeClass
   public static void setUp() {
@@ -130,7 +142,8 @@ public class IngestionPipelineIT {
       Assert.assertTrue(
           "Output contains data which is not present in input",
           inputDataSharePackets.containsKey(entry.getKey()));
-      comparePrioDataSharePacket(entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
+      comparePrioDataSharePacket(entry.getValue().get(0),
+          inputDataSharePackets.get(entry.getKey()).get(0));
       comparePrioDataSharePacket(entry.getValue().get(1),
           inputDataSharePackets.get(entry.getKey()).get(1));
       checkSuccessfulFork(forkedSharesFilePrefixes);
@@ -182,6 +195,32 @@ public class IngestionPipelineIT {
         .build()).getCounters().iterator().next().getCommitted();
     assertThat(documentsDeleted).isEqualTo(2);
     cleanUpParentResources(client);
+    // Allow time for delete to execute.
+    TimeUnit.SECONDS.sleep(10);
+  }
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void testFirestoreReader_readsCorrectNumberDocuments() {
+    // Time at which the test collection with 10k docs was created.
+    long startTimeFor10kDocs = 1603137600L;
+    testOptions.setFirebaseProjectId(FIREBASE_PROJECT_ID);
+    testOptions.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
+    testOptions.setStartTime(startTimeFor10kDocs);
+    testOptions.setDuration(DURATION);
+    testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+
+    PCollection<Long> numShares = testPipeline.apply(new FirestoreReader())
+        .apply(Count.globally());
+
+    PAssert.that(numShares).containsInAnyOrder(10000L);
+    PipelineResult result = testPipeline.run();
+    long partitionsCreated = result.metrics().queryMetrics(MetricsFilter.builder()
+        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "partitionCursors"))
+        .build()).getCounters().iterator().next().getCommitted();
+    // Assert that at least one partition was created. Number of partitions created is determined at
+    // runtime, so we can't specify an exact number.
+    assertThat(partitionsCreated).isGreaterThan(1);
   }
 
   private static Document fetchDocumentFromFirestore(String path, FirestoreClient client) {
@@ -225,8 +264,8 @@ public class IngestionPipelineIT {
       if (path.toString().endsWith(".avro")) {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
-        for(PrioDataSharePacket pac : packets){
-          if(!result.containsKey(pac.getUuid().toString())) {
+        for (PrioDataSharePacket pac : packets) {
+          if (!result.containsKey(pac.getUuid().toString())) {
             result.put(pac.getUuid().toString(), new ArrayList<>());
           }
           result.get(pac.getUuid().toString()).add(pac);
@@ -238,7 +277,7 @@ public class IngestionPipelineIT {
       if (path.toString().endsWith(".avro")) {
         List<PrioDataSharePacket> packets =
             PrioSerializationHelper.deserializeDataSharePackets(path.toString());
-        for(PrioDataSharePacket pac : packets){
+        for (PrioDataSharePacket pac : packets) {
           // should not check for existence as facilitator and pha should have same key
           result.get(pac.getUuid().toString()).add(pac);
         }
@@ -339,7 +378,8 @@ public class IngestionPipelineIT {
   private static void comparePrioDataSharePacket(
       PrioDataSharePacket first, PrioDataSharePacket second) {
     Assert.assertEquals(first.getUuid().toString(), second.getUuid().toString());
-    Assert.assertEquals(first.getEncryptedPayload().toString(), second.getEncryptedPayload().toString());
+    Assert.assertEquals(first.getEncryptedPayload().toString(),
+        second.getEncryptedPayload().toString());
     Assert.assertEquals(
         first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
   }
@@ -395,7 +435,8 @@ public class IngestionPipelineIT {
     for (Path path : pathList) {
       for (String forkedSharesPrefix : forkedSharesPrefixes) {
         if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(".avro")) {
-          forkedDataShares.add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
+          forkedDataShares
+              .add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
         }
       }
     }
