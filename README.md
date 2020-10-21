@@ -106,14 +106,13 @@ BEAM_ARGS=(
 
 ```sh
 BEAM_ARGS=(
-    "--metrics=$METRICS"
     "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
 )
-./mvnw -Pdirect-runner compile exec:java \
+./mvnw compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
@@ -127,7 +126,6 @@ BEAM_ARGS=(
 SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 BEAM_ARGS=(
-    "--metrics=$METRICS"
     "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
@@ -139,7 +137,7 @@ BEAM_ARGS=(
     "--region=us-central1"
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
-./mvnw -Pdataflow-runner compile exec:java \
+./mvnw compile exec:java \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
