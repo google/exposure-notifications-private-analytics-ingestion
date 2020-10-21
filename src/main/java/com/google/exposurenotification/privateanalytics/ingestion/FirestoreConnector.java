@@ -44,6 +44,7 @@ import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PDone;
@@ -106,7 +107,15 @@ public class FirestoreConnector {
           .apply("GenerateQueries", ParDo.of(new GenerateQueriesFn()))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           .apply("Read", ParDo.of(new ReadFn()))
-          .apply(Distinct.<DataShare, String>withRepresentativeValueFn(DataShare::getPath));
+          // In case workers retried on some shards and duplicates got emitted, ensure distinctness
+          .apply(Distinct.<DataShare, String>withRepresentativeValueFn(
+              // Not using a lambda here as Beam has trouble inferring a coder
+              new SerializableFunction<DataShare, String>() {
+                @Override
+                public String apply(DataShare dataShare) {
+                  return dataShare.getPath();
+                }
+              }));
     }
 
     /**
