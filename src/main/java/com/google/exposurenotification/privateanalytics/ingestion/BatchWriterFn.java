@@ -63,17 +63,17 @@ public class BatchWriterFn
     client = KeyManagementServiceClient.create();
     IngestionPipelineOptions options =
         context.getPipelineOptions().as(IngestionPipelineOptions.class);
-    keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName().get());
+    keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName());
   }
 
   @ProcessElement
   public void processElement(ProcessContext c) {
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    String phaPrefix = options.getPHAOutput().get();
-    String facilitatorPrefix = options.getFacilitatorOutput().get();
-    long startTime = options.getStartTime().get();
-    long duration = options.getDuration().get();
+    String phaPrefix = options.getPHAOutput();
+    String facilitatorPrefix = options.getFacilitatorOutput();
+    long startTime = options.getStartTime();
+    long duration = options.getDuration();
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
@@ -82,7 +82,7 @@ public class BatchWriterFn
     for (DataShare dataShare : input.getValue()) {
       serializedDatashare.add(PrioSerializationHelper.splitPackets(dataShare));
     }
-    if (serializedDatashare.size() < options.getMinimumParticipantCount().get()) {
+    if (serializedDatashare.size() < options.getMinimumParticipantCount()) {
       LOG.warn("skipping batch of datashares for min participation");
       batchesFailingMinParticipant.inc();
       return;

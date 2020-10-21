@@ -111,11 +111,10 @@ public class IngestionPipeline {
     return dataShares;
   }
 
-  static PipelineResult runIngestionPipeline(
-      IngestionPipelineOptions options, IngestionPipelineFlags flags) {
+  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
-    LOG.info("runIngestionPipeline Batch size: {}", flags.batchSize);
+    LOG.info("runIngestionPipeline Batch size: {}", options.getBatchSize());
 
     PCollection<DataShare> processedDataShares = processDataShares(dataShares);
 
@@ -131,7 +130,7 @@ public class IngestionPipeline {
 
     //TODO fix the issue with default coder and replace.
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-         groupIntoBatches(processedDataSharesByMetadata, flags.batchSize);
+         groupIntoBatches(processedDataSharesByMetadata, options.getBatchSize());
 
     datashareGroupedByMetadata.apply(
         "SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
@@ -142,15 +141,13 @@ public class IngestionPipeline {
   }
 
   public static void main(String[] args) {
-    IngestionPipelineFlags flags = new IngestionPipelineFlags();
-    new CommandLine(flags).parseArgs(args);
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
     IngestionPipelineOptions options =
-        PipelineOptionsFactory.fromArgs(flags.pipelineOptionsParams)
+        PipelineOptionsFactory.fromArgs(args)
             .withValidation()
             .as(IngestionPipelineOptions.class);
     try {
-      PipelineResult result = runIngestionPipeline(options, flags);
+      PipelineResult result = runIngestionPipeline(options);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
       LOG.info("Metrics:\n\n" + metrics.toString());

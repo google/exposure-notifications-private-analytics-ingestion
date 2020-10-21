@@ -31,8 +31,8 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
     }
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    long startTime = options.getStartTime().get();
-    long duration = options.getDuration().get();
+    long startTime = options.getStartTime();
+    long duration = options.getDuration();
 
     if (c.element().getCreated() >= startTime && c.element().getCreated() < startTime + duration) {
       LOG.debug("Included: " + c.element());

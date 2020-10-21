@@ -19,30 +19,29 @@ import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.Validation.Required;
-import org.apache.beam.sdk.options.ValueProvider;
 
 /** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends PipelineOptions {
   /** Firebase project to read from. */
   @Description("Firebase Project Id to read from")
   @Required
-  ValueProvider<String> getFirebaseProjectId();
+  String getFirebaseProjectId();
 
-  void setFirebaseProjectId(ValueProvider<String> value);
+  void setFirebaseProjectId(String value);
 
   /** File prefix for output files for PHA */
   @Description("File prefix for output files for PHA.")
   @Required
-  ValueProvider<String> getPHAOutput();
+  String getPHAOutput();
 
-  void setPHAOutput(ValueProvider<String> value);
+  void setPHAOutput(String value);
 
   /** File prefix for output files for Facilitator */
   @Description("File prefix for output files for Facilitator.")
   @Required
-  ValueProvider<String> getFacilitatorOutput();
+  String getFacilitatorOutput();
 
-  void setFacilitatorOutput(ValueProvider<String> value);
+  void setFacilitatorOutput(String value);
 
   /**
    * Start time of window to process. Used to filter documents that have been read from Firestore on
@@ -50,9 +49,9 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description("Start time in seconds of documents to process")
   @Default.Long(0)
-  ValueProvider<Long> getStartTime();
+  Long getStartTime();
 
-  void setStartTime(ValueProvider<Long> value);
+  void setStartTime(Long value);
 
   /**
    * Duration of time window to process. Used to filter documents that have been read from Firestore
@@ -60,64 +59,66 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description("Duration of window in seconds")
   @Default.Long(1728000000)
-  ValueProvider<Long> getDuration();
+  Long getDuration();
 
   void setDuration(ValueProvider<Long> value);
-<<<<<<< HEAD
-=======
+
 
   /**
    * Seconds to look before startTime when querying Firestore collection. Used to construct document
    * path for Firestore reads.
    */
-  @Description(
-      "Seconds to read backwards from startTime. Used to construct document path for Firestore"
-          + " reads.")
+  @Description("Seconds to read backwards from startTime. Used to construct document path for Firestore" + " reads.")
   @Default.Long(3600)
-  ValueProvider<Long> getGracePeriodBackwards();
+  Long getGracePeriodBackwards();
 
-  void setGracePeriodBackwards(ValueProvider<Long> value);
+  void setGracePeriodBackwards(Long value);
 
   /**
    * Seconds to look before startTime when querying Firestore. Used to construct document path for
    * Firestore reads.
    */
-  @Description(
-      "Seconds to read forward from startTime. Used to construct document path for Firestore"
-          + " reads.")
+  @Description("Seconds to read forward from startTime. Used to construct document path for Firestore" + " reads.")
   @Default.Long(3600)
-  ValueProvider<Long> getGracePeriodForwards();
+  Long getGracePeriodForwards();
 
-  void setGracePeriodForwards(ValueProvider<Long> value);
+  void setGracePeriodForwards(Long value);
 
   /** Minimum count of participants to preserve privacy(e.g., not allow batch of 1). */
   @Description("Minimum count of participants to preserve privacy.")
   @Default.Integer(0)
-  ValueProvider<Integer> getMinimumParticipantCount();
+  Integer getMinimumParticipantCount();
 
   @Description("Minimum count of participants to preserve privacy.")
-  void setMinimumParticipantCount(ValueProvider<Integer> value);
+  void setMinimumParticipantCount(Integer value);
 
   /** Whether to delete documents once they've been processed */
   @Description("Delete documents at end of pipeline")
   @Default.Boolean(false)
-  ValueProvider<Boolean> getDelete();
+  Boolean getDelete();
 
-  void setDelete(ValueProvider<Boolean> value);
+  void setDelete(Boolean value);
 
   /** Maximum number of query partitions to create for running Firestore read. */
   @Description("Maximum number of partitions to create for Firestore query.")
   @Default.Long(10000)
-  ValueProvider<Long> getPartitionCount();
+  Long getPartitionCount();
 
-  void setPartitionCount(ValueProvider<Long> value);
+  void setPartitionCount(Long value);
+
+  /** Batch size of individual files. */
+  @Description("Batch size of individual files.")
+  @Default.Long(1000)
+  Long getBatchSize();
+
+  void setBatchSize(Long value);
 
   /** Whether to check device hardware attestations */
   @Description("Verify device attestations")
   @Default.Boolean(true)
-  ValueProvider<Boolean> getDeviceAttestation();
+  Boolean getDeviceAttestation();
 
-  void setDeviceAttestation(ValueProvider<Boolean> value);
+  void setDeviceAttestation(Boolean value);
 
   /**
    * Signing key resource name. See https://cloud.google.com/kms/docs/resource-hierarchy E.g.,
@@ -125,9 +126,9 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    */
   @Description("KMS resource name for signature generation")
   @Default.String("")
-  ValueProvider<String> getKeyResourceName();
+  String getKeyResourceName();
 
-  void setKeyResourceName(ValueProvider<String> value);
+  void setKeyResourceName(String value);
 
   static String displayString(IngestionPipelineOptions options) {
     return "IngestionPipelineOptions:"
@@ -148,5 +149,4 @@ public interface IngestionPipelineOptions extends PipelineOptions {
         + "\nfacilitatorOutput="
         + options.getFacilitatorOutput();
   }
->>>>>>> f447de7 (log options during execution, graph during init)
 }

@@ -122,9 +122,9 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        long startTime = options.getStartTime().get();
-        long backwardWindow = options.getGracePeriodBackwards().get() / SECONDS_IN_HOUR;
-        long forwardWindow = options.getGracePeriodForwards().get() / SECONDS_IN_HOUR;
+        long startTime = options.getStartTime();
+        long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
+        long forwardWindow = options.getGracePeriodForwards() / SECONDS_IN_HOUR;
 
         // Each datashare in Firestore is stored under a Date collection with the format:
         // yyyy-MM-dd-HH.
@@ -173,8 +173,8 @@ public class FirestoreConnector {
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
-                .setPartitionCount(options.getPartitionCount().get())
-                .setParent(getParentPath(options.getFirebaseProjectId().get()))
+                .setPartitionCount(options.getPartitionCount())
+                .setParent(getParentPath(options.getFirebaseProjectId()))
                 .setStructuredQuery(context.element())
                 .build();
         PartitionQueryPagedResponse response = client.partitionQuery(request);
@@ -210,7 +210,7 @@ public class FirestoreConnector {
         for (DataShare ds :
             readDocumentsFromFirestore(
                 client,
-                options.getFirebaseProjectId().get(),
+                options.getFirebaseProjectId(),
                 context.element())) {
           context.output(ds);
           dataShares.inc();
@@ -245,10 +245,9 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        // TODO: way to short circuit this earlier based on a ValueProvider flag?
         // TODO: if this is the last document in the date subcollection, the date subcollection will be deleted.
         //  If the date subcollection is the last element in its parent document, that document should also be deleted.
-        if (options.getDelete().get()
+        if (options.getDelete()
             && context.element() != null
             && context.element().getPath() != null) {
           client.deleteDocument(context.element().getPath());

@@ -19,7 +19,6 @@ import com.google.exposurenotification.privateanalytics.ingestion.DataShare.Data
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
@@ -52,8 +51,8 @@ public class IngestionPipelineTest {
             DataShare.builder().setPath("id3").setCreated(3L).setDataShareMetadata(meta).build(),
             DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
 
-    options.setStartTime(StaticValueProvider.of(2L));
-    options.setDuration(StaticValueProvider.of(1L));
+    options.setStartTime(2L);
+    options.setDuration(1L);
 
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
@@ -73,9 +72,9 @@ public class IngestionPipelineTest {
   @Test
   @Category(ValidatesRunner.class)
   public void processDataShares_valid() {
-    options.setStartTime(StaticValueProvider.of(2L));
-    options.setDuration(StaticValueProvider.of(1L));
-    options.setMinimumParticipantCount(StaticValueProvider.of(1));
+    options.setStartTime(2L);
+    options.setDuration(1L);
+    options.setMinimumParticipantCount(1);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
@@ -102,9 +101,9 @@ public class IngestionPipelineTest {
   //  @Test(expected = AssertionError.class)
   @Category(ValidatesRunner.class)
   public void processDataShares_participantCountlessThanMinCount() {
-    options.setStartTime(StaticValueProvider.of(2L));
-    options.setDuration(StaticValueProvider.of(1L));
-    options.setMinimumParticipantCount(StaticValueProvider.of(2));
+    options.setStartTime(2L);
+    options.setDuration(1L);
+    options.setMinimumParticipantCount(2);
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
         Arrays.asList(

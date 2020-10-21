@@ -56,7 +56,6 @@ import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
-import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.junit.Assert;
@@ -93,11 +92,8 @@ public class IngestionPipelineIT {
   @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
   @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
 
-  private static IngestionPipelineFlags flags = new IngestionPipelineFlags();
-
   @BeforeClass
   public static void setUp() {
-    new CommandLine(flags).parseArgs(new String[]{"batchSize=1000"});
     documentList = new ArrayList<>();
   }
 
@@ -111,18 +107,18 @@ public class IngestionPipelineIT {
     List<String> forkedSharesFilePrefixes =
         Arrays.asList(
             getFilePath(phaFile.getAbsolutePath()), getFilePath(facilitatorFile.getAbsolutePath()));
-    options.setPHAOutput(StaticValueProvider.of(phaFile.getAbsolutePath()));
-    options.setFacilitatorOutput(StaticValueProvider.of(facilitatorFile.getAbsolutePath()));
-    options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
-    options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
-    options.setStartTime(StaticValueProvider.of(CREATION_TIME));
-    options.setDuration(StaticValueProvider.of(DURATION));
-    options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
+    options.setPHAOutput(phaFile.getAbsolutePath());
+    options.setFacilitatorOutput(facilitatorFile.getAbsolutePath());
+    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
+    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
+    options.setStartTime(CREATION_TIME);
+    options.setDuration(DURATION);
+    options.setKeyResourceName(KEY_RESOURCE_NAME);
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal();
 
     try {
-      IngestionPipeline.runIngestionPipeline(options, flags);
+      IngestionPipeline.runIngestionPipeline(options);
     } finally {
       cleanUpDb();
       // Allow time for delete to execute.
@@ -152,18 +148,18 @@ public class IngestionPipelineIT {
     List<String> forkedSharesFilePrefixes =
         Arrays.asList(
             getFilePath(phaFile.getAbsolutePath()), getFilePath(facilitatorFile.getAbsolutePath()));
-    options.setDelete(StaticValueProvider.of(true));
-    options.setPHAOutput(StaticValueProvider.of(phaFile.getAbsolutePath()));
-    options.setFacilitatorOutput(StaticValueProvider.of(facilitatorFile.getAbsolutePath()));
-    options.setFirebaseProjectId(StaticValueProvider.of(FIREBASE_PROJECT_ID));
-    options.setMinimumParticipantCount(StaticValueProvider.of(MINIMUM_PARTICIPANT_COUNT));
-    options.setStartTime(StaticValueProvider.of(CREATION_TIME));
-    options.setDuration(StaticValueProvider.of(DURATION));
-    options.setKeyResourceName(StaticValueProvider.of(KEY_RESOURCE_NAME));
+    options.setDelete(true);
+    options.setPHAOutput(phaFile.getAbsolutePath());
+    options.setFacilitatorOutput(facilitatorFile.getAbsolutePath());
+    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
+    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
+    options.setStartTime(CREATION_TIME);
+    options.setDuration(DURATION);
+    options.setKeyResourceName(KEY_RESOURCE_NAME);
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal();
 
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(options, flags);
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
 
     Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutput();
     for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
