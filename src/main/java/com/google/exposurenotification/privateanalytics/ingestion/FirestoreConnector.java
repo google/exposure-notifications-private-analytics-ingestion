@@ -43,6 +43,7 @@ import java.util.Locale;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -104,8 +105,8 @@ public class FirestoreConnector {
           .apply("Begin", Create.of(""))
           .apply("GenerateQueries", ParDo.of(new GenerateQueriesFn()))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
-          // TODO(larryjacobs): reshuffle if necessary at scale
-          .apply("Read", ParDo.of(new ReadFn()));
+          .apply("Read", ParDo.of(new ReadFn()))
+          .apply(Distinct.<DataShare, String>withRepresentativeValueFn(DataShare::getPath));
     }
 
     /**
