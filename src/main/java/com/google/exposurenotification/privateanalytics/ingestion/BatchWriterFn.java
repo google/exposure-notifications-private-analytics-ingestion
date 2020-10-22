@@ -19,10 +19,15 @@ import com.google.cloud.kms.v1.AsymmetricSignResponse;
 import com.google.cloud.kms.v1.CryptoKeyVersionName;
 import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
+import com.google.common.io.CharStreams;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.protobuf.ByteString;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
@@ -33,11 +38,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
+import org.apache.beam.sdk.io.FileSystems;
+import org.apache.beam.sdk.io.fs.MatchResult;
+import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.sdk.values.KV;
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,12 +148,13 @@ public class BatchWriterFn
       String filenamePrefix,
       List<PrioDataSharePacket> packets) {
     try {
+
       // write PrioDataSharePackets in this batch to file
       String packetsFilename = filenamePrefix + DATASHARE_PACKET_SUFFIX;
-      PrioSerializationHelper.serializeDataSharePackets(packets, packetsFilename);
+      writeToFile(packetsFilename, PrioSerializationHelper.serializeDataSharePackets(packets));
 
       // read back PrioDataSharePacket batch file and generate digest
-      String packetsFileContent = FileUtils.readFileToString(new File(packetsFilename));
+      String packetsFileContent = readFromFile(packetsFilename);
       MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
       byte[] packetFileContentHash = sha256.digest(packetsFileContent.getBytes());
       Digest digest =
@@ -155,10 +164,10 @@ public class BatchWriterFn
       String headerFilename = filenamePrefix + INGESTION_HEADER_SUFFIX;
       PrioIngestionHeader header = PrioSerializationHelper
           .createHeader(metadata, digest, uuid, startTime, duration);
-      FileUtils.writeByteArrayToFile(new File(headerFilename), header.toByteBuffer().array());
+      writeToFile(headerFilename, header.toByteBuffer());
 
       // Read back header file content and generate .sig file
-      String headerFileContent = FileUtils.readFileToString(new File(headerFilename));
+      String headerFileContent = readFromFile(headerFilename);
       String signatureFileName = filenamePrefix + HEADER_SIGNATURE_SUFFIX;
       byte[] hashHeaderFileContent = sha256.digest(headerFileContent.getBytes());
       Digest digestHeader =
@@ -169,12 +178,24 @@ public class BatchWriterFn
       // full pipeline?
       // perform signature
       AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
-      FileUtils.writeByteArrayToFile(
-          new File(signatureFileName), result.getSignature().toByteArray());
+      writeToFile(signatureFileName, result.getSignature().asReadOnlyByteBuffer());
     } catch (IOException e) {
       LOG.warn("Unable to serialize or read back Packet/Header/Sig file", e);
     } catch (NoSuchAlgorithmException e) {
       LOG.warn("Message Digest with SHA256 does not exist.", e);
     }
+  }
+
+  public static void writeToFile(String filename, ByteBuffer contents) throws IOException {
+    ResourceId resourceId = FileSystems.matchNewResource(filename, false);
+    try (WritableByteChannel out = FileSystems.create(resourceId, MimeTypes.TEXT)) {
+      out.write(contents);
+    }
+  }
+
+  String readFromFile(String pathToFile) throws IOException {
+    MatchResult.Metadata m = FileSystems.matchSingleFileSpec(pathToFile);
+    InputStream inputStream = Channels.newInputStream(FileSystems.open(m.resourceId()));
+    return CharStreams.toString(new InputStreamReader(inputStream));
   }
 }

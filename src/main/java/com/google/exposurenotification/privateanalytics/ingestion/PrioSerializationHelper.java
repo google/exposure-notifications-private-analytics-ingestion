@@ -18,6 +18,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.cloud.kms.v1.Digest;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -61,6 +62,22 @@ public class PrioSerializationHelper {
       dataFileWriter.append(prioDataSharePacket);
     }
     dataFileWriter.close();
+  }
+
+  public static ByteBuffer serializeDataSharePackets(
+      List<PrioDataSharePacket> prioDataSharePackets) throws IOException {
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    DatumWriter<PrioDataSharePacket> dataShareDatumWriter =
+        new SpecificDatumWriter<>(PrioDataSharePacket.class);
+    DataFileWriter<PrioDataSharePacket> dataFileWriter = new DataFileWriter<>(dataShareDatumWriter);
+    dataFileWriter.create(PrioDataSharePacket.getClassSchema(), outputStream);
+    for (PrioDataSharePacket prioDataSharePacket : prioDataSharePackets) {
+      dataFileWriter.append(prioDataSharePacket);
+    }
+    dataFileWriter.flush();
+    dataFileWriter.close();
+    return ByteBuffer.wrap(outputStream.toByteArray());
   }
 
   public static List<PrioIngestionHeader> deserializeIngestionHeaders(String pathname)
