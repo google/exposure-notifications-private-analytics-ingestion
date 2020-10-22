@@ -17,6 +17,7 @@ Exposure Notifications Private Analytics.
 First install the emulator, npm testing library and jest:
 
 ```shell script
+npm install -g firebase-tools
 firebase setup:emulators:firestore
 npm init -y
 npm i @firebase/testing

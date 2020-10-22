@@ -45,25 +45,11 @@ To run unit tests:
 
 ### Integration Tests
 
-Install the [Firebase CLI](https://firebase.google.com/docs/cli),
+Integration tests go against an actual test project and so need an environment
+variable:
 
 ```shell script
-npm install -g firebase-tools
-```
-
-login and setup the emulator as follows:
-
-```sh
-firebase login
-firebase setup:emulators:firestore
-```
-
-Copy the Google credentials json file and store it in "credentials/google-application.json"
-
-To run integration tests (includes standing up a Firestore emulator):
-
-```shell script
-./mvnw verify
+FIREBASE_PROJECT_ID=my-firebase-project-id  ./mvnw verify
 ```
 
 ## Deploying / Building DataFlow template
@@ -87,8 +73,6 @@ TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-
 STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
 
 BEAM_ARGS=(
-    "--metrics=$METRICS"
-    "--"
     "--runner=DataflowRunner"
     "--project=$GCP_PROJECT_ID"
     "--stagingLocation=$STAGING_LOCATION"
@@ -106,8 +90,6 @@ BEAM_ARGS=(
 
 ```sh
 BEAM_ARGS=(
-    "--metrics=$METRICS"
-    "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
@@ -127,8 +109,6 @@ BEAM_ARGS=(
 SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 BEAM_ARGS=(
-    "--metrics=$METRICS"
-    "--"
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
