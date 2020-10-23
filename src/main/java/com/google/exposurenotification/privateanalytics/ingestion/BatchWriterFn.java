@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
@@ -57,6 +58,7 @@ public class BatchWriterFn
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
   private static final int PHA_INDEX = 0;
   private static final int FACILITATOR_INDEX = 1;
+  private static final Long KMS_WAIT_TIME = 100L;
 
 
   private static final Counter batchesFailingMinParticipant =
@@ -71,6 +73,14 @@ public class BatchWriterFn
     IngestionPipelineOptions options =
         context.getPipelineOptions().as(IngestionPipelineOptions.class);
     keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName());
+  }
+
+  @FinishBundle
+  public void finishBundle() throws InterruptedException {
+    client.shutdown();
+    while (!client.awaitTermination(KMS_WAIT_TIME, TimeUnit.MILLISECONDS)) {
+      LOG.info("Waiting for KMS Client to shutdown.");
+    }
   }
 
   @ProcessElement
