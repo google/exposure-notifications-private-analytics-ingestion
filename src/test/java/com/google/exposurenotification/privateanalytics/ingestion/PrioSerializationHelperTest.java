@@ -37,7 +37,8 @@ public class PrioSerializationHelperTest {
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
   @Test
-  public void testPrioBatchHeaderSerialization() throws IOException {
+  public void testPrioBatchHeaderSerialization()
+      throws IOException, InstantiationException, IllegalAccessException {
     List<PrioIngestionHeader> ingestionHeaders = new ArrayList<>();
     PrioIngestionHeader header1 =
         PrioIngestionHeader.newBuilder()
@@ -68,14 +69,19 @@ public class PrioSerializationHelperTest {
     ingestionHeaders.add(header1);
     ingestionHeaders.add(header2);
     File serializedHeaders = tmpFolder.newFile();
-    PrioSerializationHelper.serializeIngestionHeaders(ingestionHeaders, serializedHeaders.getAbsolutePath());
+    ByteBuffer resultBytes = PrioSerializationHelper.serializeRecords(
+        ingestionHeaders, PrioIngestionHeader.class, PrioIngestionHeader.getClassSchema());
+
+    BatchWriterFn.writeToFile(serializedHeaders.getAbsolutePath(), resultBytes);
     List<PrioIngestionHeader> deserializedHeaders =
-        PrioSerializationHelper.deserializeIngestionHeaders(serializedHeaders.getAbsolutePath());
+        PrioSerializationHelper.deserializeRecords(
+            PrioIngestionHeader.class, serializedHeaders.getAbsolutePath());
     assertEquals(ingestionHeaders, deserializedHeaders);
   }
 
   @Test
-  public void testPrioDataSharePacketSerialization() throws IOException {
+  public void testPrioDataSharePacketSerialization()
+      throws IOException, InstantiationException, IllegalAccessException {
     List<PrioDataSharePacket> dataSharePackets = new ArrayList<>();
     PrioDataSharePacket dataSharePacket1 =
         PrioDataSharePacket.newBuilder()
@@ -100,10 +106,12 @@ public class PrioSerializationHelperTest {
     dataSharePackets.add(dataSharePacket2);
 
     File serializedDataShares = tmpFolder.newFile();
-    PrioSerializationHelper.serializeDataSharePackets(
-        dataSharePackets, serializedDataShares.getAbsolutePath());
+    ByteBuffer resultBytes = PrioSerializationHelper.serializeRecords(
+        dataSharePackets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
+    BatchWriterFn.writeToFile(serializedDataShares.getAbsolutePath(), resultBytes);
     List<PrioDataSharePacket> deserializedHeaders =
-        PrioSerializationHelper.deserializeDataSharePackets(serializedDataShares.getAbsolutePath());
+        PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class,
+            serializedDataShares.getAbsolutePath());
     assertEquals(dataSharePackets, deserializedHeaders);
   }
 }

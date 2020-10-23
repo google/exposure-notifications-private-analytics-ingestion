@@ -27,89 +27,50 @@ import java.util.List;
 import java.util.UUID;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
+import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
+import org.apache.avro.specific.SpecificRecordBase;
 
 /**
  * Helpers for serializing and deserializing Prio data shares into (or from) the Apache Avro file
  * format.
  */
 public class PrioSerializationHelper {
-  public static void serializeIngestionHeaders(
-      List<PrioIngestionHeader> ingestionHeaders, String pathname) throws IOException {
-    DatumWriter<PrioIngestionHeader> ingestionHeaderDatumWriter =
-        new SpecificDatumWriter<>(PrioIngestionHeader.class);
-    DataFileWriter<PrioIngestionHeader> dataFileWriter =
-        new DataFileWriter<>(ingestionHeaderDatumWriter);
-    dataFileWriter.create(PrioIngestionHeader.getClassSchema(), new File(pathname));
-    for (PrioIngestionHeader ingestionHeader : ingestionHeaders) {
-      dataFileWriter.append(ingestionHeader);
-    }
-    dataFileWriter.close();
-  }
-
-  public static void serializeDataSharePackets(
-      List<PrioDataSharePacket> prioDataSharePackets, String pathname) throws IOException {
-    DatumWriter<PrioDataSharePacket> dataShareDatumWriter =
-        new SpecificDatumWriter<>(PrioDataSharePacket.class);
-    DataFileWriter<PrioDataSharePacket> dataFileWriter = new DataFileWriter<>(dataShareDatumWriter);
-    dataFileWriter.create(PrioDataSharePacket.getClassSchema(), new File(pathname));
-    for (PrioDataSharePacket prioDataSharePacket : prioDataSharePackets) {
-      dataFileWriter.append(prioDataSharePacket);
-    }
-    dataFileWriter.close();
-  }
-
-  public static ByteBuffer serializeDataSharePackets(
-      List<PrioDataSharePacket> prioDataSharePackets) throws IOException {
-
+  public static <T extends SpecificRecordBase> ByteBuffer serializeRecords(
+      List<T> records, Class<T> recordClass, Schema schema) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    DatumWriter<PrioDataSharePacket> dataShareDatumWriter =
-        new SpecificDatumWriter<>(PrioDataSharePacket.class);
-    DataFileWriter<PrioDataSharePacket> dataFileWriter = new DataFileWriter<>(dataShareDatumWriter);
-    dataFileWriter.create(PrioDataSharePacket.getClassSchema(), outputStream);
-    for (PrioDataSharePacket prioDataSharePacket : prioDataSharePackets) {
-      dataFileWriter.append(prioDataSharePacket);
+    DatumWriter<T> dataShareDatumWriter = new SpecificDatumWriter<>(recordClass);
+    DataFileWriter<T> dataFileWriter = new DataFileWriter<T>(dataShareDatumWriter);
+    dataFileWriter.create(schema, outputStream);
+
+    for (T record : records) {
+      dataFileWriter.append(record);
     }
+
     dataFileWriter.flush();
     dataFileWriter.close();
     return ByteBuffer.wrap(outputStream.toByteArray());
   }
 
-  public static List<PrioIngestionHeader> deserializeIngestionHeaders(String pathname)
-      throws IOException {
-    DatumReader<PrioIngestionHeader> ingestionHeaderDatumReader =
-        new SpecificDatumReader<>(PrioIngestionHeader.class);
-    DataFileReader<PrioIngestionHeader> dataFileReader =
-        new DataFileReader<>(new File(pathname), ingestionHeaderDatumReader);
-    List<PrioIngestionHeader> ingestionHeaders = new ArrayList<>();
-    PrioIngestionHeader ingestionHeader;
-    while (dataFileReader.hasNext()) {
-      ingestionHeader = new PrioIngestionHeader();
-      ingestionHeader = dataFileReader.next(ingestionHeader);
-      ingestionHeaders.add(ingestionHeader);
-    }
-    return ingestionHeaders;
-  }
+  public static <T extends SpecificRecordBase> List<T> deserializeRecords(
+      Class<T> recordClass, String pathname)
+      throws IOException, IllegalAccessException, InstantiationException {
+    DatumReader<T> datumReader = new SpecificDatumReader<>(recordClass);
+    DataFileReader<T> dataFileReader = new DataFileReader<>(new File(pathname), datumReader);
 
-  public static List<PrioDataSharePacket> deserializeDataSharePackets(String pathname)
-      throws IOException {
-    DatumReader<PrioDataSharePacket> dataShareDatumReader =
-        new SpecificDatumReader<>(PrioDataSharePacket.class);
-    DataFileReader<PrioDataSharePacket> dataFileReader =
-        new DataFileReader<>(new File(pathname), dataShareDatumReader);
-    List<PrioDataSharePacket> prioDataSharePackets = new ArrayList<>();
-    PrioDataSharePacket prioDataSharePacket;
+    List<T> results = new ArrayList<>();
+    T record;
     while (dataFileReader.hasNext()) {
-      prioDataSharePacket = new PrioDataSharePacket();
-      prioDataSharePacket = dataFileReader.next(prioDataSharePacket);
-      prioDataSharePackets.add(prioDataSharePacket);
+      record = recordClass.newInstance();
+      record = dataFileReader.next(record);
+      results.add(record);
     }
-    return prioDataSharePackets;
+    return results;
   }
 
   public static PrioIngestionHeader createHeader(

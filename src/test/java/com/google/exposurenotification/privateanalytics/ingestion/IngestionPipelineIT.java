@@ -89,7 +89,11 @@ public class IngestionPipelineIT {
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
   // TODO(amanraj): figure out way to not check this in
   static final String KEY_RESOURCE_NAME =
-      "projects/appa-ingestion/locations/global/keyRings/appa-signature-key-ring/cryptoKeys/appa-signature-key/cryptoKeyVersions/1";
+      "projects/appa-ingestion/"
+          + "locations/global/"
+          + "keyRings/appa-signature-key-ring/"
+          + "cryptoKeys/appa-signature-key/"
+          + "cryptoKeyVersions/1";
 
   static List<Document> documentList;
 
@@ -153,7 +157,8 @@ public class IngestionPipelineIT {
   @Test
   @Category(NeedsRunner.class)
   public void testFirestoreDeleter_deletesDocs()
-      throws InterruptedException, IOException, ExecutionException {
+      throws InterruptedException, IOException, ExecutionException, IllegalAccessException,
+      InstantiationException {
     File phaFile = tmpFolderPha.newFile();
     File facilitatorFile = tmpFolderFac.newFile();
     IngestionPipelineOptions options =
@@ -253,7 +258,8 @@ public class IngestionPipelineIT {
     return FirestoreClient.create(settings);
   }
 
-  private Map<String, List<PrioDataSharePacket>> readOutput() throws IOException {
+  private Map<String, List<PrioDataSharePacket>> readOutput()
+      throws IOException, InstantiationException, IllegalAccessException {
     Map<String, List<PrioDataSharePacket>> result = new HashMap<>();
     Stream<Path> pathsPha = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
     Stream<Path> pathsFac = Files.walk(Paths.get(tmpFolderFac.getRoot().getPath()));
@@ -263,7 +269,7 @@ public class IngestionPipelineIT {
     for (Path path : pathListPha) {
       if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
         List<PrioDataSharePacket> packets =
-            PrioSerializationHelper.deserializeDataSharePackets(path.toString());
+            PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString());
         for (PrioDataSharePacket pac : packets) {
           if (!result.containsKey(pac.getUuid().toString())) {
             result.put(pac.getUuid().toString(), new ArrayList<>());
@@ -276,7 +282,7 @@ public class IngestionPipelineIT {
     for (Path path : pathListFac) {
       if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
         List<PrioDataSharePacket> packets =
-            PrioSerializationHelper.deserializeDataSharePackets(path.toString());
+            PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString());
         for (PrioDataSharePacket pac : packets) {
           // should not check for existence as facilitator and pha should have same key
           result.get(pac.getUuid().toString()).add(pac);
@@ -428,7 +434,8 @@ public class IngestionPipelineIT {
    *  Within each fork, all packets with the same UUID should have unique encryption key Ids and encrypted payloads.
    *  The remaining fields (i.e. r_PIT, device_nonce)) should remain the same. This function ensures that this is the case.
    */
-  private void checkSuccessfulFork(List<String> forkedSharesPrefixes) throws IOException {
+  private void checkSuccessfulFork(List<String> forkedSharesPrefixes)
+      throws IOException, InstantiationException, IllegalAccessException {
     Stream<Path> paths = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
     List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
@@ -437,7 +444,8 @@ public class IngestionPipelineIT {
         if (path.toString().startsWith(forkedSharesPrefix) && path.toString()
             .endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
           forkedDataShares
-              .add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
+              .add(PrioSerializationHelper.deserializeRecords(
+                  PrioDataSharePacket.class, path.toString()));
         }
       }
     }

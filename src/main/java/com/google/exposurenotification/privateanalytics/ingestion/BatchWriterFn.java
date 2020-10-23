@@ -19,6 +19,7 @@ import com.google.cloud.kms.v1.AsymmetricSignResponse;
 import com.google.cloud.kms.v1.CryptoKeyVersionName;
 import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
+import com.google.common.collect.ImmutableList;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
@@ -26,13 +27,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.io.FileSystems;
@@ -144,7 +144,8 @@ public class BatchWriterFn
     try {
 
       // write PrioDataSharePackets in this batch to file
-      ByteBuffer packetsByteBuffer = PrioSerializationHelper.serializeDataSharePackets(packets);
+      ByteBuffer packetsByteBuffer = PrioSerializationHelper.serializeRecords(
+          packets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
       writeToFile(filenamePrefix + DATASHARE_PACKET_SUFFIX, packetsByteBuffer);
 
       MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
@@ -162,8 +163,15 @@ public class BatchWriterFn
       // TODO(amanraj): What happens if we fail an individual signing, should we fail that batch or
       // the full pipeline?
       AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
-      writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX,
-          result.getSignature().asReadOnlyByteBuffer());
+      PrioBatchSignature signature = PrioBatchSignature
+          .newBuilder()
+          .setBatchHeaderSignature(result.getSignature().asReadOnlyByteBuffer())
+          .setKeyIdentifier(keyVersionName.toString())
+          .build();
+      ByteBuffer signatureBytes = PrioSerializationHelper.serializeRecords(
+          ImmutableList.of(signature), PrioBatchSignature.class,
+              PrioBatchSignature.getClassSchema());
+      writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX, signatureBytes);
 
     } catch (IOException e) {
       LOG.warn("Unable to serialize or read back Packet/Header/Sig file", e);
