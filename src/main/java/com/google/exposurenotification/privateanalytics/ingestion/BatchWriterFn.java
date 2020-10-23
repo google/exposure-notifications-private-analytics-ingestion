@@ -109,30 +109,19 @@ public class BatchWriterFn
             .map(listPacket -> listPacket.get(FACILITATOR_INDEX))
             .collect(Collectors.toList());
 
-    LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
-    String aggregateId =
-        metadata.getMetricName()
-            + "/"
-            + currentTime.getYear()
-            + "/"
-            + currentTime.getMonthValue()
-            + "/"
-            + currentTime.getDayOfMonth()
-            + "/"
-            + currentTime.getHour()
-            + "/"
-            + currentTime.getMinute()
-            + "/";
-
     UUID batchId = UUID.randomUUID();
     String phaFilePath =
         phaPrefix
+            + "-"
+            + metadata.getMetricName()
             + "-"
             + batchId.toString();
     writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
 
     String facilitatorPath =
         facilitatorPrefix
+            + "-"
+            + metadata.getMetricName()
             + "-"
             + batchId.toString();
     writeBatch(
