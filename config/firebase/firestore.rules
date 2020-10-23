@@ -78,8 +78,9 @@ service cloud.firestore {
       ];
     }
 
-    match /uuid/{uuid}/{date}/{metricName} {
+    match /{top}/{uuid}/{date}/{metricName} {
       allow create: if request.resource.data.payload.uuid == uuid
+                    && top.matches('uuid[0-9]*')
                     && request.resource.data.payload.created == request.time
                     // Don't ingest anything with auth tokens attached
                     && request.auth == null

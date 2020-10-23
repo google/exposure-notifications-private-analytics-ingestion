@@ -134,6 +134,14 @@ describe('Tests of document writes and access', () => {
                       .collection(getPath(oldDate)).doc('fakeMetric-v1');
         await firebase.assertSucceeds(doc.set(correctContents('correct2')));
       });
+  it('documents can be created at sharded top level collection',
+      async () => {
+        var oldDate = new Date();
+        oldDate.setHours(oldDate.getHours() - 1);
+        const doc = db.collection('uuid24').doc('correct3')
+                      .collection(getPath(oldDate)).doc('fakeMetric-v1');
+        await firebase.assertSucceeds(doc.set(correctContents('correct3')));
+      });
   it('document cannot be deleted',
       async () => {
         const doc = db.collection('uuid').doc('preexisting')
@@ -161,6 +169,6 @@ describe('Tests of document writes and access', () => {
           foundUuids.push(doc.data()['payload']['uuid']);
         });
         assert.notStrictEqual(foundUuids,
-                [ 'correct1', 'correct2', 'preexisting' ])
+                [ 'correct1', 'correct2', 'correct3', 'preexisting' ])
       });
 });
