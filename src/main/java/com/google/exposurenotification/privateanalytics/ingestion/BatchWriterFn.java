@@ -126,15 +126,15 @@ public class BatchWriterFn
 
     UUID batchId = UUID.randomUUID();
     String phaFilePath =
-              phaPrefix
+        phaPrefix
             + "-"
             + batchId.toString();
     writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
 
     String facilitatorPath =
         facilitatorPrefix
-      + "-"
-      + batchId.toString();
+            + "-"
+            + batchId.toString();
     writeBatch(
         startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
     c.output(true);

@@ -432,10 +432,12 @@ public class IngestionPipelineIT {
     Stream<Path> paths = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
     List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
-    for (String forkedSharesPrefix: forkedSharesPrefixes) {
-      for (Path path: pathList) {
-        if (path.toString().startsWith(forkedSharesPrefix) && path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
-          forkedDataShares.add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
+    for (String forkedSharesPrefix : forkedSharesPrefixes) {
+      for (Path path : pathList) {
+        if (path.toString().startsWith(forkedSharesPrefix) && path.toString()
+            .endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
+          forkedDataShares
+              .add(PrioSerializationHelper.deserializeDataSharePackets(path.toString()));
         }
       }
     }

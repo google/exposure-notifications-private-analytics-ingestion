@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
@@ -65,6 +66,8 @@ import org.threeten.bp.format.DateTimeFormatter;
 public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
+
+  private static final Long FIRESTORE_WAIT_TIME = 100L;
 
   private static final Counter queriesGenerated =
       Metrics.counter(FirestoreConnector.class, "queriesGenerated");
@@ -200,6 +203,14 @@ public class FirestoreConnector {
         context.output(ImmutableTriple.of(start, null, context.element()));
         partitionCursors.inc();
       }
+
+      @FinishBundle
+      public void finishBundle() throws InterruptedException {
+        client.shutdown();
+        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
+          LOG.info("Waiting for FirestoreClient to shutdown.");
+        }
+      }
     }
 
     static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, DataShare> {
@@ -222,6 +233,14 @@ public class FirestoreConnector {
                 context.element())) {
           context.output(ds);
           dataShares.inc();
+        }
+      }
+
+      @FinishBundle
+      public void finishBundle() throws InterruptedException {
+        client.shutdown();
+        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
+          LOG.info("Waiting for FirestoreClient to shutdown.");
         }
       }
     }
@@ -260,6 +279,14 @@ public class FirestoreConnector {
             && context.element().getPath() != null) {
           client.deleteDocument(context.element().getPath());
           documentsDeleted.inc();
+        }
+      }
+
+      @FinishBundle
+      public void finishBundle() throws InterruptedException {
+        client.shutdown();
+        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
+          LOG.info("Waiting for FirestoreClient to shutdown.");
         }
       }
     }
