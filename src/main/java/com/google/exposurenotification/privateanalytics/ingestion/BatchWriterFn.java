@@ -19,14 +19,10 @@ import com.google.cloud.kms.v1.AsymmetricSignResponse;
 import com.google.cloud.kms.v1.CryptoKeyVersionName;
 import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
-import com.google.common.io.CharStreams;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,7 +35,6 @@ import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.io.fs.MatchResult;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
@@ -139,35 +134,27 @@ public class BatchWriterFn
     try {
 
       // write PrioDataSharePackets in this batch to file
-      String packetsFilename = filenamePrefix + DATASHARE_PACKET_SUFFIX;
-      writeToFile(packetsFilename, PrioSerializationHelper.serializeDataSharePackets(packets));
+      ByteBuffer packetsByteBuffer = PrioSerializationHelper.serializeDataSharePackets(packets);
+      writeToFile(filenamePrefix + DATASHARE_PACKET_SUFFIX, packetsByteBuffer);
 
-      // read back PrioDataSharePacket batch file and generate digest
-      String packetsFileContent = readFromFile(packetsFilename);
       MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-      byte[] packetFileContentHash = sha256.digest(packetsFileContent.getBytes());
-      Digest digest =
-          Digest.newBuilder().setSha256(ByteString.copyFrom(packetFileContentHash)).build();
+      byte[] packetsBytesHash = sha256.digest(packetsByteBuffer.array());
+      Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetsBytesHash)).build();
 
       // create Header and write to file
-      String headerFilename = filenamePrefix + INGESTION_HEADER_SUFFIX;
       PrioIngestionHeader header = PrioSerializationHelper
           .createHeader(metadata, digest, uuid, startTime, duration);
-      writeToFile(headerFilename, header.toByteBuffer());
+      writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, header.toByteBuffer());
 
-      // Read back header file content and generate .sig file
-      String headerFileContent = readFromFile(headerFilename);
-      String signatureFileName = filenamePrefix + HEADER_SIGNATURE_SUFFIX;
-      byte[] hashHeaderFileContent = sha256.digest(headerFileContent.getBytes());
-      Digest digestHeader =
-          Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeaderFileContent)).build();
+      byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
+      Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
 
       // TODO(amanraj): What happens if we fail an individual signing, should we fail that batch or
-      // the
-      // full pipeline?
-      // perform signature
+      // the full pipeline?
       AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
-      writeToFile(signatureFileName, result.getSignature().asReadOnlyByteBuffer());
+      writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX,
+          result.getSignature().asReadOnlyByteBuffer());
+
     } catch (IOException e) {
       LOG.warn("Unable to serialize or read back Packet/Header/Sig file", e);
     } catch (NoSuchAlgorithmException e) {
@@ -180,11 +167,5 @@ public class BatchWriterFn
     try (WritableByteChannel out = FileSystems.create(resourceId, MimeTypes.TEXT)) {
       out.write(contents);
     }
-  }
-
-  String readFromFile(String pathToFile) throws IOException {
-    MatchResult.Metadata m = FileSystems.matchSingleFileSpec(pathToFile);
-    InputStream inputStream = Channels.newInputStream(FileSystems.open(m.resourceId()));
-    return CharStreams.toString(new InputStreamReader(inputStream));
   }
 }
