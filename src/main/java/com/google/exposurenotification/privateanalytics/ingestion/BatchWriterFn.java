@@ -155,7 +155,10 @@ public class BatchWriterFn
       // create Header and write to file
       PrioIngestionHeader header = PrioSerializationHelper
           .createHeader(metadata, digest, uuid, startTime, duration);
-      writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, header.toByteBuffer());
+      ByteBuffer headerBytes = PrioSerializationHelper
+          .serializeRecords(ImmutableList.of(header), PrioIngestionHeader.class,
+              PrioIngestionHeader.getClassSchema());
+      writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, headerBytes);
 
       byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
       Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
@@ -180,7 +183,7 @@ public class BatchWriterFn
     }
   }
 
-  public static void writeToFile(String filename, ByteBuffer contents) throws IOException {
+  static void writeToFile(String filename, ByteBuffer contents) throws IOException {
     ResourceId resourceId = FileSystems.matchNewResource(filename, false);
     try (WritableByteChannel out = FileSystems.create(resourceId, MimeTypes.TEXT)) {
       out.write(contents);
