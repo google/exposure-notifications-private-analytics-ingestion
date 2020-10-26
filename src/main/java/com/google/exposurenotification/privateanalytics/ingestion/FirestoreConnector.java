@@ -95,9 +95,7 @@ public class FirestoreConnector {
   private static final Counter partialProgress =
       Metrics.counter(FirestoreConnector.class, "partialProgress");
 
-  /**
-   * Reads documents from Firestore
-   */
+  /** Reads documents from Firestore */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
 
     @Override
@@ -110,14 +108,15 @@ public class FirestoreConnector {
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           .apply("Read", ParDo.of(new ReadFn()))
           // In case workers retried on some shards and duplicates got emitted, ensure distinctness
-          .apply(Distinct.<DataShare, String>withRepresentativeValueFn(
-              // Not using a lambda here as Beam has trouble inferring a coder
-              new SerializableFunction<DataShare, String>() {
-                @Override
-                public String apply(DataShare dataShare) {
-                  return dataShare.getPath();
-                }
-              }));
+          .apply(
+              Distinct.<DataShare, String>withRepresentativeValueFn(
+                  // Not using a lambda here as Beam has trouble inferring a coder
+                  new SerializableFunction<DataShare, String>() {
+                    @Override
+                    public String apply(DataShare dataShare) {
+                      return dataShare.getPath();
+                    }
+                  }));
     }
 
     /**
@@ -137,7 +136,8 @@ public class FirestoreConnector {
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         long startTime = options.getStartTime();
         long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
-        long forwardWindow = options.getGracePeriodForwards() / SECONDS_IN_HOUR;
+        long forwardWindow =
+            (options.getDuration() + options.getGracePeriodForwards()) / SECONDS_IN_HOUR;
 
         // Each datashare in Firestore is stored under a Date collection with the format:
         // yyyy-MM-dd-HH.
@@ -221,20 +221,17 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options = context.getPipelineOptions()
-            .as(IngestionPipelineOptions.class);
+        IngestionPipelineOptions options =
+            context.getPipelineOptions().as(IngestionPipelineOptions.class);
         for (DataShare ds :
-            readDocumentsFromFirestore(
-                client,
-                options.getFirebaseProjectId(),
-                context.element())) {
+            readDocumentsFromFirestore(client, options.getFirebaseProjectId(), context.element())) {
           context.output(ds);
           dataShares.inc();
         }
       }
 
       @FinishBundle
-      public void finishBundle()  {
+      public void finishBundle() {
         shutdownFirestoreClient(client);
       }
     }
@@ -266,8 +263,10 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        // TODO: if this is the last document in the date subcollection, the date subcollection will be deleted.
-        //  If the date subcollection is the last element in its parent document, that document should also be deleted.
+        // TODO: if this is the last document in the date subcollection, the date subcollection will
+        // be deleted.
+        //  If the date subcollection is the last element in its parent document, that document
+        // should also be deleted.
         if (options.getDelete()
             && context.element() != null
             && context.element().getPath() != null) {
@@ -284,8 +283,7 @@ public class FirestoreConnector {
   }
 
   // Returns a v1.Firestore instance to be used to partition read queries.
-  private static FirestoreClient getFirestoreClient()
-      throws IOException {
+  private static FirestoreClient getFirestoreClient() throws IOException {
     FirestoreSettings settings =
         FirestoreSettings.newBuilder()
             .setCredentialsProvider(
@@ -310,12 +308,10 @@ public class FirestoreConnector {
 
   // Formats a time given in epoch seconds in the format: yyyy-MM-dd-HH
   public static String formatDateTime(Long time) {
-    LocalDateTime dateTimeToQuery = LocalDateTime
-        .ofEpochSecond(time, 0, ZoneOffset.UTC);
+    LocalDateTime dateTimeToQuery = LocalDateTime.ofEpochSecond(time, 0, ZoneOffset.UTC);
     // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
     DateTimeFormatter formatter =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US)
-            .withZone(ZoneOffset.UTC);
+        DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US).withZone(ZoneOffset.UTC);
     return formatter.format(dateTimeToQuery);
   }
 
