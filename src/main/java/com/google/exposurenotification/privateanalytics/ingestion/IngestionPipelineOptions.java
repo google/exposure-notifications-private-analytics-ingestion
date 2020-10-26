@@ -56,7 +56,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * Start time of window to process. Used to filter documents that have been read from Firestore on
    * the "Creation" field.
    */
-  @Description("Start time in seconds of documents to process")
+  @Description("Start time in UTC seconds of documents to process")
   @Default.Long(0)
   Long getStartTime();
 
@@ -120,7 +120,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * Maximum number of query partitions to create for running Firestore read.
    */
   @Description("Maximum number of partitions to create for Firestore query.")
-  @Default.Long(10000)
+  @Default.Long(20)
   Long getPartitionCount();
 
   void setPartitionCount(Long value);

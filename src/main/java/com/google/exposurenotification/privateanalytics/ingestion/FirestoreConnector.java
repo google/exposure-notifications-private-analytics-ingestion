@@ -67,7 +67,7 @@ public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
-  private static final Long FIRESTORE_WAIT_TIME = 100L;
+  private static final Duration FIRESTORE_WAIT_TIME = Duration.ofSeconds(30);
 
   private static final Counter queriesGenerated =
       Metrics.counter(FirestoreConnector.class, "queriesGenerated");
@@ -205,11 +205,8 @@ public class FirestoreConnector {
       }
 
       @FinishBundle
-      public void finishBundle() throws InterruptedException {
-        client.shutdown();
-        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
-          LOG.info("Waiting for FirestoreClient to shutdown.");
-        }
+      public void finishBundle() {
+        shutdownFirestoreClient(client);
       }
     }
 
@@ -237,11 +234,8 @@ public class FirestoreConnector {
       }
 
       @FinishBundle
-      public void finishBundle() throws InterruptedException {
-        client.shutdown();
-        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
-          LOG.info("Waiting for FirestoreClient to shutdown.");
-        }
+      public void finishBundle()  {
+        shutdownFirestoreClient(client);
       }
     }
   }
@@ -284,10 +278,7 @@ public class FirestoreConnector {
 
       @FinishBundle
       public void finishBundle() throws InterruptedException {
-        client.shutdown();
-        while (!client.awaitTermination(FIRESTORE_WAIT_TIME, TimeUnit.MILLISECONDS)) {
-          LOG.info("Waiting for FirestoreClient to shutdown.");
-        }
+        shutdownFirestoreClient(client);
       }
     }
   }
@@ -301,6 +292,16 @@ public class FirestoreConnector {
                 FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()))
             .build();
     return FirestoreClient.create(settings);
+  }
+
+  private static void shutdownFirestoreClient(FirestoreClient client) {
+    client.shutdown();
+    LOG.info("Waiting for FirestoreClient to shutdown.");
+    try {
+      client.awaitTermination(FIRESTORE_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while waiting for client shutdown", e);
+    }
   }
 
   private static String getParentPath(String projectId) {

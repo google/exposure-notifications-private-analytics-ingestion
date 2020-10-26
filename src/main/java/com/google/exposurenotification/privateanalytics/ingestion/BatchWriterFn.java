@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -58,7 +59,7 @@ public class BatchWriterFn
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
   private static final int PHA_INDEX = 0;
   private static final int FACILITATOR_INDEX = 1;
-  private static final Long KMS_WAIT_TIME = 100L;
+  private static final Duration KMS_WAIT_TIME = Duration.ofSeconds(30);
 
 
   private static final Counter batchesFailingMinParticipant =
@@ -76,10 +77,13 @@ public class BatchWriterFn
   }
 
   @FinishBundle
-  public void finishBundle() throws InterruptedException {
+  public void finishBundle() {
     client.shutdown();
-    while (!client.awaitTermination(KMS_WAIT_TIME, TimeUnit.MILLISECONDS)) {
-      LOG.info("Waiting for KMS Client to shutdown.");
+    LOG.info("Waiting for KMS Client to shutdown.");
+    try {
+      client.awaitTermination(KMS_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while waiting for client shutdown", e);
     }
   }
 
