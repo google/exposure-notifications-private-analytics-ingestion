@@ -34,7 +34,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
-  private static final int NUMBER_OF_SERVERS = 2;
+  public static final int NUMBER_OF_SERVERS = 2;
+  public static final int LATEST_SCHEMA_VERSION = 1;
+
   private static final Counter missingRequiredCounter =
       Metrics.counter(DataShare.class, "datashare-missingRequired");
   private static final Counter castExceptionCounter =
@@ -50,6 +52,7 @@ public abstract class DataShare implements Serializable {
   public static final String CERT_CHAIN = "certificateChain";
 
   // Payload fields
+  public static final String SCHEMA_VERSION = "schemaVersion";
   public static final String ENCRYPTED_DATA_SHARES = "encryptedDataShares";
   public static final String CREATED = "created";
   public static final String UUID = "uuid";
@@ -82,6 +85,8 @@ public abstract class DataShare implements Serializable {
 
   public abstract @Nullable Long getRPit();
 
+  public abstract @Nullable Integer getSchemaVersion();
+
   public abstract @Nullable List<EncryptedShare> getEncryptedDataShares();
 
   public abstract @Nullable DataShareMetadata getDataShareMetadata();
@@ -102,6 +107,20 @@ public abstract class DataShare implements Serializable {
     checkValuePresent(UUID, payload, PAYLOAD, ValueTypeCase.STRING_VALUE);
     builder.setCreated(payload.get(CREATED).getTimestampValue().getSeconds());
     builder.setUuid(payload.get(UUID).getStringValue());
+
+    // Check against the latest schema version.
+    // In the future, if we want to support different schema versions, the logic may need to change
+    // according to the value in the payload.
+    if (payload.get(SCHEMA_VERSION) == null) {
+      missingRequiredCounter.inc();
+      throw new InvalidDataShareException("Missing required field: " + SCHEMA_VERSION);
+    }
+    Integer schemaVersion = (int) payload.get(SCHEMA_VERSION).getIntegerValue();
+    if (schemaVersion != LATEST_SCHEMA_VERSION) {
+      illegalArgCounter.inc();
+      throw new InvalidDataShareException("Invalid schema version: " + schemaVersion);
+    }
+    builder.setSchemaVersion(schemaVersion);
 
     // Get the Prio parameters.
     checkValuePresent(PRIO_PARAMS, payload, PAYLOAD, ValueTypeCase.MAP_VALUE);
@@ -239,6 +258,8 @@ public abstract class DataShare implements Serializable {
     abstract Builder setException(@Nullable String value);
 
     abstract Builder setRPit(@Nullable Long value);
+
+    abstract Builder setSchemaVersion(@Nullable Integer value);
 
     abstract Builder setEncryptedDataShares(@Nullable List<EncryptedShare> value);
 

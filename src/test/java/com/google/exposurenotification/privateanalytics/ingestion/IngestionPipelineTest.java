@@ -53,6 +53,7 @@ public class IngestionPipelineTest {
 
     options.setStartTime(2L);
     options.setDuration(1L);
+    options.setDeviceAttestation(false);
 
     PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
 
@@ -61,11 +62,11 @@ public class IngestionPipelineTest {
     PAssert.that(output)
         .containsInAnyOrder(
             Collections.singletonList(
-                DataShare
-                    .builder()
+                DataShare.builder()
                     .setPath("id2")
                     .setCreated(2L)
-                    .setDataShareMetadata(meta).build()));
+                    .setDataShareMetadata(meta)
+                    .build()));
     pipeline.run().waitUntilFinish();
   }
 
@@ -75,6 +76,7 @@ public class IngestionPipelineTest {
     options.setStartTime(2L);
     options.setDuration(1L);
     options.setMinimumParticipantCount(1);
+    options.setDeviceAttestation(false);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
@@ -84,11 +86,8 @@ public class IngestionPipelineTest {
             DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
             DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
     List<DataShare> expectedOutput =
-        Arrays.asList(DataShare
-            .builder()
-            .setPath("id2")
-            .setCreated(2L)
-            .setDataShareMetadata(meta).build());
+        Arrays.asList(
+            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build());
 
     PCollection<DataShare> actualOutput =
         IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
@@ -104,6 +103,8 @@ public class IngestionPipelineTest {
     options.setStartTime(2L);
     options.setDuration(1L);
     options.setMinimumParticipantCount(2);
+    options.setDeviceAttestation(false);
+
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> inputData =
         Arrays.asList(

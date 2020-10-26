@@ -176,6 +176,26 @@
           </descriptorRefs>
         </configuration>
       </plugin>
+
+      <plugin>
+        <groupId>com.github.os72</groupId>
+        <artifactId>protoc-jar-maven-plugin</artifactId>
+        <version>3.11.4</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <protocVersion>3.13.0</protocVersion>
+              <inputDirectories>
+                <include>src/proto</include>
+              </inputDirectories>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
 
     <pluginManagement>
@@ -361,6 +381,11 @@
       <groupId>com.google.cloud</groupId>
       <artifactId>google-cloud-kms</artifactId>
       <version>1.40.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.13.0</version>
     </dependency>
   </dependencies>
 </project>

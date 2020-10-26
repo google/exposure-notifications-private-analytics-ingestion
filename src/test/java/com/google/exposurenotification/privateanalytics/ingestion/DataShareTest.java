@@ -47,9 +47,15 @@ public class DataShareTest {
   public static final String UUID = "uniqueuserid";
   public static final long PRIME = 4293918721L;
   public static final String SIGNATURE = "signature";
-  public static final long BINS = 2L;
-  public static final long HAMMING_WEIGHT = 1L;
+  public static final Integer BINS = 2;
+  public static final Integer HAMMING_WEIGHT = 1;
   public static final double EPSILON = 5.2933D;
+  public static final Integer SCHEMA_VERSION = 1;
+  public static final String ENCRYPTION_KEY_1 = "fakeEncryptionKeyId1";
+  public static final String ENCRYPTION_KEY_2 = "fakeEncryptionKeyId2";
+  public static final String PAYLOAD_1 = "fakePayload1";
+  public static final String PAYLOAD_2 = "fakePayload2";
+  public static final Integer CREATED = 1234;
 
   Document document;
 
@@ -57,52 +63,21 @@ public class DataShareTest {
 
   @Test
   public void testHappyCase() {
-    Document.Builder docBuilder = Document.newBuilder();
-    // Construct the payload.
-    Map<String, Value> prioParams = createPrioParams();
-    List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
-    Map<String, Value> fields = new HashMap<>();
-    fields.put(
-        DataShare.CERT_CHAIN,
-        Value.newBuilder()
-            .setArrayValue(
-                ArrayValue.newBuilder()
-                    .addValues(Value.newBuilder().setStringValue("cert1").build())
-                    .addValues(Value.newBuilder().setStringValue("cert2").build())
-                    .build())
-            .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
-    fields.put(
-        DataShare.PAYLOAD,
-        Value.newBuilder()
-            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
-            .build());
-    docBuilder.setName(PATH_ID);
-    docBuilder.putAllFields(fields);
-    document = docBuilder.build();
+    DataShare dataShare = createValidDataShare(CREATED, PATH_ID);
 
-    DataShare dataShare = DataShare.from(document);
     DataShareMetadata metadata = dataShare.getDataShareMetadata();
+    assertThat(metadata).isEqualTo(createDataShareMetadata());
+
+    List<DataShare.EncryptedShare> encryptedShares = dataShare.getEncryptedDataShares();
+    assertThat(encryptedShares).hasSize(DataShare.NUMBER_OF_SERVERS);
+    assertThat(encryptedShares).isEqualTo(createListEncryptedShares());
 
     assertThat(dataShare.getPath()).isEqualTo(PATH_ID);
     assertThat(dataShare.getUuid()).isEqualTo(UUID);
     assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < metadata.getPrime());
-    assertThat(metadata.getPrime()).isEqualTo(PRIME);
-    assertThat(metadata.getBins()).isEqualTo(BINS);
-    assertThat(metadata.getHammingWeight()).isEqualTo(HAMMING_WEIGHT);
-    assertThat(metadata.getEpsilon()).isEqualTo(EPSILON);
-    assertThat(dataShare.getEncryptedDataShares()).hasSize(2);
-    assertThat(dataShare.getEncryptedDataShares().get(0).getEncryptionKeyId())
-        .isEqualTo("fakeEncryptionKeyId1");
-    assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptionKeyId())
-        .isEqualTo("fakeEncryptionKeyId2");
-    assertThat(dataShare.getEncryptedDataShares().get(0).getEncryptedPayload())
-        .isEqualTo("fakePayload1".getBytes());
-    assertThat(dataShare.getEncryptedDataShares().get(1).getEncryptedPayload())
-        .isEqualTo("fakePayload2".getBytes());
-    assertThat(dataShare.getSignature()).isEqualTo(SIGNATURE);
-    assertThat(dataShare.getDataShareMetadata().getMetricName()).isEqualTo(METRIC_NAME);
+
+    assertThat(dataShare.getSignature())
+        .isEqualTo(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()));
   }
 
   /** Tests with missing fields */
@@ -112,7 +87,7 @@ public class DataShareTest {
     // Construct the payload.
     Map<String, Value> prioParams = createPrioParams();
     List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
     // Remove the Prio params
     samplePayload.remove(DataShare.PRIO_PARAMS);
     Map<String, Value> fields = new HashMap<>();
@@ -125,7 +100,11 @@ public class DataShareTest {
                     .addValues(Value.newBuilder().setStringValue("cert2").build())
                     .build())
             .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
     fields.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
@@ -161,7 +140,11 @@ public class DataShareTest {
                     .addValues(Value.newBuilder().setStringValue("cert2").build())
                     .build())
             .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
     docBuilder.setName(PATH_ID);
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
@@ -178,7 +161,7 @@ public class DataShareTest {
     // Construct the payload.
     Map<String, Value> prioParams = createPrioParams();
     List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
     fields.put(
         DataShare.CERT_CHAIN,
@@ -210,14 +193,18 @@ public class DataShareTest {
     // Construct the payload.
     Map<String, Value> prioParams = createPrioParams();
     List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
     fields.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
             .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
             .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
     docBuilder.setName(PATH_ID);
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
@@ -236,7 +223,7 @@ public class DataShareTest {
     prioParams.remove(DataShare.PRIME);
     // Construct payload
     List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
     Map<String, Value> fields = new HashMap<>();
     fields.put(
         DataShare.CERT_CHAIN,
@@ -247,7 +234,11 @@ public class DataShareTest {
                     .addValues(Value.newBuilder().setStringValue("cert2").build())
                     .build())
             .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
     fields.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
@@ -277,7 +268,7 @@ public class DataShareTest {
     // Construct the payload
     Map<String, Value> prioParams = createPrioParams();
     List<Value> encryptedDataShares = createEncryptedDataShares();
-    Map<String, Value> samplePayload = createPayload(prioParams, encryptedDataShares);
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
     // Set a payload field, CREATED, to invalid type
     samplePayload.replace(DataShare.CREATED, Value.newBuilder().setStringValue("false").build());
     Map<String, Value> fields = new HashMap<>();
@@ -290,7 +281,11 @@ public class DataShareTest {
                     .addValues(Value.newBuilder().setStringValue("cert2").build())
                     .build())
             .build());
-    fields.put(DataShare.SIGNATURE, Value.newBuilder().setStringValue(SIGNATURE).build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
     fields.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
@@ -313,14 +308,127 @@ public class DataShareTest {
         e.getMessage());
   }
 
+  /** Test with incorrect schema version. */
+  @Test
+  public void testWrongSchemaVersion() {
+    Integer invalidSchemaVersion = DataShare.LATEST_SCHEMA_VERSION + 1;
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct the payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
+    samplePayload.replace(
+        DataShare.SCHEMA_VERSION,
+        Value.newBuilder().setIntegerValue(DataShare.LATEST_SCHEMA_VERSION).build(),
+        Value.newBuilder().setIntegerValue(invalidSchemaVersion).build());
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("cert1").build())
+                    .addValues(Value.newBuilder().setStringValue("cert2").build())
+                    .build())
+            .build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
+    fields.put(
+        DataShare.PAYLOAD,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
+            .build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
+
+    InvalidDataShareException e =
+        assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
+
+    assertThat(e).hasMessageThat().contains("Invalid schema version: " + invalidSchemaVersion);
+  }
+
+  /** Test with missing schema version. */
+  @Test
+  public void testMissingSchemaVersion() {
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct the payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
+    samplePayload.remove(DataShare.SCHEMA_VERSION);
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("cert1").build())
+                    .addValues(Value.newBuilder().setStringValue("cert2").build())
+                    .build())
+            .build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
+    fields.put(
+        DataShare.PAYLOAD,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
+            .build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
+
+    InvalidDataShareException e =
+        assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
+
+    assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.SCHEMA_VERSION);
+  }
+
   /** Static functions to create the objects used in the tests above. */
+  public static DataShare createValidDataShare(Integer timestamp, String path) {
+    Document.Builder docBuilder = Document.newBuilder();
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(timestamp, prioParams, encryptedDataShares);
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(
+        DataShare.PAYLOAD,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
+            .build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
+    fields.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("cert1").build())
+                    .addValues(Value.newBuilder().setStringValue("cert2").build())
+                    .build())
+            .build());
+    docBuilder.setName(path);
+    docBuilder.putAllFields(fields);
+    return DataShare.from(docBuilder.build());
+  }
+
   public static Map<String, Value> createPrioParams() {
     Map<String, Value> samplePrioParams = new HashMap<>();
     samplePrioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(PRIME).build());
     samplePrioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(BINS).build());
     samplePrioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(EPSILON).build());
     samplePrioParams.put(
-        DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(BINS).build());
+        DataShare.NUMBER_OF_SERVERS_FIELD,
+        Value.newBuilder().setIntegerValue(DataShare.NUMBER_OF_SERVERS).build());
     samplePrioParams.put(
         DataShare.HAMMING_WEIGHT, Value.newBuilder().setIntegerValue(HAMMING_WEIGHT).build());
     return samplePrioParams;
@@ -330,21 +438,19 @@ public class DataShareTest {
     List<Value> sampleEncryptedDataShares = new ArrayList<>();
     Map<String, Value> sampleDataShare1 = new HashMap<>();
     sampleDataShare1.put(
-        DataShare.ENCRYPTION_KEY_ID,
-        Value.newBuilder().setStringValue("fakeEncryptionKeyId1").build());
+        DataShare.ENCRYPTION_KEY_ID, Value.newBuilder().setStringValue(ENCRYPTION_KEY_1).build());
     sampleDataShare1.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
-            .setStringValue(Base64.getEncoder().encodeToString("fakePayload1".getBytes()))
+            .setStringValue(Base64.getEncoder().encodeToString(PAYLOAD_1.getBytes()))
             .build());
     Map<String, Value> sampleDataShare2 = new HashMap<>();
     sampleDataShare2.put(
-        DataShare.ENCRYPTION_KEY_ID,
-        Value.newBuilder().setStringValue("fakeEncryptionKeyId2").build());
+        DataShare.ENCRYPTION_KEY_ID, Value.newBuilder().setStringValue(ENCRYPTION_KEY_2).build());
     sampleDataShare2.put(
         DataShare.PAYLOAD,
         Value.newBuilder()
-            .setStringValue(Base64.getEncoder().encodeToString("fakePayload2".getBytes()))
+            .setStringValue(Base64.getEncoder().encodeToString(PAYLOAD_2.getBytes()))
             .build());
     sampleEncryptedDataShares.add(
         Value.newBuilder()
@@ -358,12 +464,13 @@ public class DataShareTest {
   }
 
   public static Map<String, Value> createPayload(
-      Map<String, Value> prioParams, List<Value> encryptedDataShares) {
+      Integer timestamp, Map<String, Value> prioParams, List<Value> encryptedDataShares) {
     Map<String, Value> samplePayload = new HashMap<>();
     samplePayload.put(
         DataShare.CREATED,
         Value.newBuilder()
-            .setTimestampValue(com.google.protobuf.Timestamp.newBuilder().setSeconds(1234).build())
+            .setTimestampValue(
+                com.google.protobuf.Timestamp.newBuilder().setSeconds(timestamp).build())
             .build());
     samplePayload.put(DataShare.UUID, Value.newBuilder().setStringValue(UUID).build());
     samplePayload.put(
@@ -376,6 +483,35 @@ public class DataShareTest {
         Value.newBuilder()
             .setMapValue(MapValue.newBuilder().putAllFields(prioParams).build())
             .build());
+    samplePayload.put(
+        DataShare.SCHEMA_VERSION,
+        Value.newBuilder().setIntegerValue(DataShare.LATEST_SCHEMA_VERSION).build());
     return samplePayload;
+  }
+
+  public static DataShareMetadata createDataShareMetadata() {
+    return DataShareMetadata.builder()
+        .setBins(BINS)
+        .setEpsilon(EPSILON)
+        .setHammingWeight(HAMMING_WEIGHT)
+        .setMetricName(METRIC_NAME)
+        .setNumberOfServers(DataShare.NUMBER_OF_SERVERS)
+        .setPrime(PRIME)
+        .build();
+  }
+
+  public static List<DataShare.EncryptedShare> createListEncryptedShares() {
+    List<DataShare.EncryptedShare> encryptedShares = new ArrayList<>();
+    encryptedShares.add(
+        DataShare.EncryptedShare.builder()
+            .setEncryptionKeyId(ENCRYPTION_KEY_1)
+            .setEncryptedPayload(PAYLOAD_1.getBytes())
+            .build());
+    encryptedShares.add(
+        DataShare.EncryptedShare.builder()
+            .setEncryptionKeyId(ENCRYPTION_KEY_2)
+            .setEncryptedPayload(PAYLOAD_2.getBytes())
+            .build());
+    return encryptedShares;
   }
 }
