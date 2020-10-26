@@ -48,9 +48,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Function to write files (header, data records, signature) for a batch of {@link DataShare}
+ *
+ * Outputs those DataShares that did not successfully make it into a batch file.
  */
 public class BatchWriterFn
-    extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Boolean> {
+    extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, DataShare> {
 
   public static final String INGESTION_HEADER_SUFFIX = ".batch";
   public static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
@@ -98,6 +100,7 @@ public class BatchWriterFn
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
+    LOG.info("Processing batch: " + metadata.toString());
     // batch size explicitly chosen so that this list fits in memory on a single worker
     List<List<PrioDataSharePacket>> serializedDatashare = new ArrayList<>();
     for (DataShare dataShare : input.getValue()) {
@@ -106,6 +109,7 @@ public class BatchWriterFn
     if (serializedDatashare.size() < options.getMinimumParticipantCount()) {
       LOG.warn("skipping batch of datashares for min participation");
       batchesFailingMinParticipant.inc();
+      input.getValue().forEach(c::output);
       return;
     }
 
@@ -125,27 +129,31 @@ public class BatchWriterFn
             + metadata.getMetricName()
             + "-"
             + batchId.toString();
-    writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
-
     String facilitatorPath =
         facilitatorPrefix
             + "-"
             + metadata.getMetricName()
             + "-"
             + batchId.toString();
-    writeBatch(
-        startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
-    c.output(true);
+
+    try {
+      writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
+      writeBatch(
+          startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
+    } catch (IOException|NoSuchAlgorithmException e) {
+      LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
+      input.getValue().forEach(c::output);
+    }
   }
 
+  /** Writes the triplet of files defined per batch of data shares (packet file, header, and sig) */
   private void writeBatch(
       long startTime,
       long duration,
       DataShareMetadata metadata,
       UUID uuid,
       String filenamePrefix,
-      List<PrioDataSharePacket> packets) {
-    try {
+      List<PrioDataSharePacket> packets) throws IOException, NoSuchAlgorithmException {
 
       // write PrioDataSharePackets in this batch to file
       ByteBuffer packetsByteBuffer = PrioSerializationHelper.serializeRecords(
@@ -167,8 +175,6 @@ public class BatchWriterFn
       byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
       Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
 
-      // TODO(amanraj): What happens if we fail an individual signing, should we fail that batch or
-      // the full pipeline?
       AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
       PrioBatchSignature signature = PrioBatchSignature
           .newBuilder()
@@ -179,15 +185,10 @@ public class BatchWriterFn
           ImmutableList.of(signature), PrioBatchSignature.class,
               PrioBatchSignature.getClassSchema());
       writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX, signatureBytes);
-
-    } catch (IOException e) {
-      LOG.warn("Unable to serialize or read back Packet/Header/Sig file", e);
-    } catch (NoSuchAlgorithmException e) {
-      LOG.warn("Message Digest with SHA256 does not exist.", e);
-    }
   }
 
   static void writeToFile(String filename, ByteBuffer contents) throws IOException {
+    LOG.info("Writing output file: " + filename);
     ResourceId resourceId = FileSystems.matchNewResource(filename, false);
     try (WritableByteChannel out = FileSystems.create(resourceId, MimeTypes.TEXT)) {
       out.write(contents);

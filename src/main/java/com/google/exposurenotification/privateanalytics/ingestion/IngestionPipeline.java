@@ -128,14 +128,11 @@ public class IngestionPipeline {
                   }
                 }));
 
-    // TODO fix the issue with default coder and replace.
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
         groupIntoBatches(processedDataSharesByMetadata, options.getBatchSize());
 
     datashareGroupedByMetadata.apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
 
-    // TODO: delete if certain age, or if in set of DataShare's emitted by successful serialization
-    dataShares.apply("DeleteDataShares", new FirestoreDeleter());
     return pipeline.run();
   }
 
@@ -159,6 +156,7 @@ public class IngestionPipeline {
   private static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> groupIntoBatches(
       PCollection<KV<DataShareMetadata, DataShare>> serializedDataShares, long batchSize) {
     return serializedDataShares
+        // TODO fix the issue with default coder and replace.
         .apply(
             "AddMetadataStringAsKey",
             MapElements.via(

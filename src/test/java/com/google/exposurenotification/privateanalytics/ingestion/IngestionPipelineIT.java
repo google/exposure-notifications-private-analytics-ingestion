@@ -17,10 +17,8 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.formatDateTime;
-import static org.junit.Assert.assertThrows;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
-import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
@@ -152,56 +150,6 @@ public class IngestionPipelineIT {
           inputDataSharePackets.get(entry.getKey()).get(1));
       checkSuccessfulFork(forkedSharesFilePrefixes);
     }
-  }
-
-  @Test
-  @Category(NeedsRunner.class)
-  public void testFirestoreDeleter_deletesDocs()
-      throws InterruptedException, IOException, ExecutionException, IllegalAccessException,
-      InstantiationException {
-    File phaFile = tmpFolderPha.newFile();
-    File facilitatorFile = tmpFolderFac.newFile();
-    IngestionPipelineOptions options =
-        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-    List<String> forkedSharesFilePrefixes =
-        Arrays.asList(
-            getFilePath(phaFile.getAbsolutePath()), getFilePath(facilitatorFile.getAbsolutePath()));
-    options.setDelete(true);
-    options.setPHAOutput(phaFile.getAbsolutePath());
-    options.setFacilitatorOutput(facilitatorFile.getAbsolutePath());
-    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
-    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
-    options.setStartTime(CREATION_TIME);
-    options.setDuration(DURATION);
-    options.setKeyResourceName(KEY_RESOURCE_NAME);
-    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
-        seedDatabaseAndReturnEntryVal();
-
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
-
-    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutput();
-    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
-      Assert.assertTrue(
-          "Output contains data which is not present in input",
-          inputDataSharePackets.containsKey(entry.getKey()));
-      comparePrioDataSharePacket(entry.getValue().get(0),
-          inputDataSharePackets.get(entry.getKey()).get(0));
-      comparePrioDataSharePacket(entry.getValue().get(1),
-          inputDataSharePackets.get(entry.getKey()).get(1));
-      checkSuccessfulFork(forkedSharesFilePrefixes);
-    }
-    // Wait for Pipeline to finish and assert processed documents have been deleted.
-    TimeUnit.SECONDS.sleep(10);
-    FirestoreClient client = getFirestoreClient();
-    documentList.forEach(doc -> assertThrows(
-        NotFoundException.class, () -> fetchDocumentFromFirestore(doc.getName(), client)));
-    long documentsDeleted = result.metrics().queryMetrics(MetricsFilter.builder()
-        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
-        .build()).getCounters().iterator().next().getCommitted();
-    assertThat(documentsDeleted).isEqualTo(2);
-    cleanUpParentResources(client);
-    // Allow time for delete to execute.
-    TimeUnit.SECONDS.sleep(10);
   }
 
   @Test
