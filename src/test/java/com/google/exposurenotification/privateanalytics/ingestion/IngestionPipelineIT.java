@@ -407,6 +407,9 @@ public class IngestionPipelineIT {
                 com.google.protobuf.Timestamp.newBuilder().setSeconds(timestampSeconds).build())
             .build());
     samplePayload.put(DataShare.UUID, Value.newBuilder().setStringValue(uuid).build());
+    samplePayload.put(
+        DataShare.SCHEMA_VERSION,
+        Value.newBuilder().setIntegerValue(DataShare.LATEST_SCHEMA_VERSION).build());
 
     return samplePayload;
   }
