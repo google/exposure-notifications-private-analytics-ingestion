@@ -69,8 +69,9 @@ public class PrioSerializationHelperTest {
     ingestionHeaders.add(header1);
     ingestionHeaders.add(header2);
     File serializedHeaders = tmpFolder.newFile();
-    ByteBuffer resultBytes = PrioSerializationHelper.serializeRecords(
-        ingestionHeaders, PrioIngestionHeader.class, PrioIngestionHeader.getClassSchema());
+    ByteBuffer resultBytes =
+        PrioSerializationHelper.serializeRecords(
+            ingestionHeaders, PrioIngestionHeader.class, PrioIngestionHeader.getClassSchema());
 
     BatchWriterFn.writeToFile(serializedHeaders.getAbsolutePath(), resultBytes);
     List<PrioIngestionHeader> deserializedHeaders =
@@ -106,12 +107,13 @@ public class PrioSerializationHelperTest {
     dataSharePackets.add(dataSharePacket2);
 
     File serializedDataShares = tmpFolder.newFile();
-    ByteBuffer resultBytes = PrioSerializationHelper.serializeRecords(
-        dataSharePackets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
+    ByteBuffer resultBytes =
+        PrioSerializationHelper.serializeRecords(
+            dataSharePackets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
     BatchWriterFn.writeToFile(serializedDataShares.getAbsolutePath(), resultBytes);
     List<PrioDataSharePacket> deserializedHeaders =
-        PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class,
-            serializedDataShares.getAbsolutePath());
+        PrioSerializationHelper.deserializeRecords(
+            PrioDataSharePacket.class, serializedDataShares.getAbsolutePath());
     assertEquals(dataSharePackets, deserializedHeaders);
   }
 }

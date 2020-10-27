@@ -20,32 +20,24 @@ import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.Validation.Required;
 
-/**
- * Specific options for the pipeline.
- */
+/** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends PipelineOptions {
 
-  /**
-   * Firebase project to read from.
-   */
+  /** Firebase project to read from. */
   @Description("Firebase Project Id to read from")
   @Required
   String getFirebaseProjectId();
 
   void setFirebaseProjectId(String value);
 
-  /**
-   * File prefix for output files for PHA
-   */
+  /** File prefix for output files for PHA */
   @Description("File prefix for output files for PHA.")
   @Required
   String getPHAOutput();
 
   void setPHAOutput(String value);
 
-  /**
-   * File prefix for output files for Facilitator
-   */
+  /** File prefix for output files for Facilitator */
   @Description("File prefix for output files for Facilitator.")
   @Required
   String getFacilitatorOutput();
@@ -97,9 +89,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setGracePeriodForwards(Long value);
 
-  /**
-   * Minimum count of participants to preserve privacy(e.g., not allow batch of 1).
-   */
+  /** Minimum count of participants to preserve privacy(e.g., not allow batch of 1). */
   @Description("Minimum count of participants to preserve privacy.")
   @Default.Integer(0)
   Integer getMinimumParticipantCount();
@@ -107,36 +97,28 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   @Description("Minimum count of participants to preserve privacy.")
   void setMinimumParticipantCount(Integer value);
 
-  /**
-   * Whether to delete documents once they've been processed
-   */
+  /** Whether to delete documents once they've been processed */
   @Description("Delete documents at end of pipeline")
   @Default.Boolean(false)
   Boolean getDelete();
 
   void setDelete(Boolean value);
 
-  /**
-   * Maximum number of query partitions to create for running Firestore read.
-   */
+  /** Maximum number of query partitions to create for running Firestore read. */
   @Description("Maximum number of partitions to create for Firestore query.")
   @Default.Long(20)
   Long getPartitionCount();
 
   void setPartitionCount(Long value);
 
-  /**
-   * Batch size of individual files.
-   */
+  /** Batch size of individual files. */
   @Description("Batch size of individual files.")
   @Default.Long(1000)
   Long getBatchSize();
 
   void setBatchSize(Long value);
 
-  /**
-   * Whether to check device hardware attestations
-   */
+  /** Whether to check device hardware attestations */
   @Description("Verify device attestations")
   @Default.Boolean(true)
   Boolean getDeviceAttestation();

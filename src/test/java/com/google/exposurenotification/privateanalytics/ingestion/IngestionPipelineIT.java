@@ -70,9 +70,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/**
- * Integration tests for {@link IngestionPipeline}.
- */
+/** Integration tests for {@link IngestionPipeline}. */
 @RunWith(JUnit4.class)
 public class IngestionPipelineIT {
 
@@ -95,16 +93,13 @@ public class IngestionPipelineIT {
 
   static List<Document> documentList;
 
-  @Rule
-  public TemporaryFolder tmpFolderPha = new TemporaryFolder();
-  @Rule
-  public TemporaryFolder tmpFolderFac = new TemporaryFolder();
+  @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
+  @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
 
   public transient IngestionPipelineOptions testOptions =
       TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
 
-  @Rule
-  public final transient TestPipeline testPipeline = TestPipeline.fromOptions(testOptions);
+  @Rule public final transient TestPipeline testPipeline = TestPipeline.fromOptions(testOptions);
 
   @BeforeClass
   public static void setUp() {
@@ -128,8 +123,7 @@ public class IngestionPipelineIT {
     options.setStartTime(CREATION_TIME);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
-    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
-        seedDatabaseAndReturnEntryVal();
+    Map<String, List<PrioDataSharePacket>> inputDataSharePackets = seedDatabaseAndReturnEntryVal();
 
     try {
       IngestionPipeline.runIngestionPipeline(options);
@@ -144,10 +138,10 @@ public class IngestionPipelineIT {
       Assert.assertTrue(
           "Output contains data which is not present in input",
           inputDataSharePackets.containsKey(entry.getKey()));
-      comparePrioDataSharePacket(entry.getValue().get(0),
-          inputDataSharePackets.get(entry.getKey()).get(0));
-      comparePrioDataSharePacket(entry.getValue().get(1),
-          inputDataSharePackets.get(entry.getKey()).get(1));
+      comparePrioDataSharePacket(
+          entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
+      comparePrioDataSharePacket(
+          entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
       checkSuccessfulFork(forkedSharesFilePrefixes);
     }
   }
@@ -163,14 +157,22 @@ public class IngestionPipelineIT {
     testOptions.setDuration(DURATION);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
 
-    PCollection<Long> numShares = testPipeline.apply(new FirestoreReader())
-        .apply(Count.globally());
+    PCollection<Long> numShares = testPipeline.apply(new FirestoreReader()).apply(Count.globally());
 
     PAssert.that(numShares).containsInAnyOrder(10000L);
     PipelineResult result = testPipeline.run();
-    long partitionsCreated = result.metrics().queryMetrics(MetricsFilter.builder()
-        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "partitionCursors"))
-        .build()).getCounters().iterator().next().getCommitted();
+    long partitionsCreated =
+        result
+            .metrics()
+            .queryMetrics(
+                MetricsFilter.builder()
+                    .addNameFilter(
+                        MetricNameFilter.named(FirestoreConnector.class, "partitionCursors"))
+                    .build())
+            .getCounters()
+            .iterator()
+            .next()
+            .getCommitted();
     // Assert that at least one partition was created. Number of partitions created is determined at
     // runtime, so we can't specify an exact number.
     assertThat(partitionsCreated).isGreaterThan(1);
@@ -190,19 +192,18 @@ public class IngestionPipelineIT {
     ListDocumentsPagedResponse documents =
         client.listDocuments(
             ListDocumentsRequest.newBuilder()
-                .setParent("projects/"
-                    + FIREBASE_PROJECT_ID
-                    + "/databases/(default)/documents")
+                .setParent("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents")
                 .setCollectionId(TEST_COLLECTION_NAME)
                 .build());
     documents.iterateAll().forEach(document -> client.deleteDocument(document.getName()));
   }
 
-  private static FirestoreClient getFirestoreClient()
-      throws IOException {
+  private static FirestoreClient getFirestoreClient() throws IOException {
     FirestoreSettings settings =
-        FirestoreSettings.newBuilder().setCredentialsProvider(FixedCredentialsProvider.create(
-            GoogleCredentials.getApplicationDefault())).build();
+        FirestoreSettings.newBuilder()
+            .setCredentialsProvider(
+                FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()))
+            .build();
     return FirestoreClient.create(settings);
   }
 
@@ -261,42 +262,56 @@ public class IngestionPipelineIT {
     FirestoreClient client = getFirestoreClient();
 
     for (int i = 1; i <= 2; i++) {
-      ArrayValue certs = ArrayValue.newBuilder()
-          .addValues(Value.newBuilder().setStringValue("cert1").build())
-          .addValues(Value.newBuilder().setStringValue("cert2").build())
-          .build();
+      ArrayValue certs =
+          ArrayValue.newBuilder()
+              .addValues(Value.newBuilder().setStringValue("cert1").build())
+              .addValues(Value.newBuilder().setStringValue("cert2").build())
+              .build();
       Document doc =
           Document.newBuilder()
-              .putFields(DataShare.SIGNATURE,
-                  Value.newBuilder().setStringValue("signature").build())
+              .putFields(
+                  DataShare.SIGNATURE, Value.newBuilder().setStringValue("signature").build())
               .putFields(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(certs).build())
-              .putFields(DataShare.PAYLOAD, Value.newBuilder().setMapValue(
-                  MapValue.newBuilder().putAllFields(getSamplePayload("uuid" + i, CREATION_TIME))
-                      .build()).build())
+              .putFields(
+                  DataShare.PAYLOAD,
+                  Value.newBuilder()
+                      .setMapValue(
+                          MapValue.newBuilder()
+                              .putAllFields(getSamplePayload("uuid" + i, CREATION_TIME))
+                              .build())
+                      .build())
               .build();
-      client.createDocument(CreateDocumentRequest.newBuilder()
-          .setCollectionId(TEST_COLLECTION_NAME)
-          .setDocumentId("testDoc" + i)
-          .setParent("projects/"
-              + FIREBASE_PROJECT_ID
-              + "/databases/(default)/documents")
-          .build());
-      client.createDocument(CreateDocumentRequest.newBuilder()
-          .setCollectionId(formatDateTime(CREATION_TIME))
-          .setDocumentId("metric1")
-          .setDocument(doc)
-          .setParent("projects/"
-              + FIREBASE_PROJECT_ID
-              + "/databases/(default)/documents/" + TEST_COLLECTION_NAME + "/testDoc" + i)
-          .build());
+      client.createDocument(
+          CreateDocumentRequest.newBuilder()
+              .setCollectionId(TEST_COLLECTION_NAME)
+              .setDocumentId("testDoc" + i)
+              .setParent("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents")
+              .build());
+      client.createDocument(
+          CreateDocumentRequest.newBuilder()
+              .setCollectionId(formatDateTime(CREATION_TIME))
+              .setDocumentId("metric1")
+              .setDocument(doc)
+              .setParent(
+                  "projects/"
+                      + FIREBASE_PROJECT_ID
+                      + "/databases/(default)/documents/"
+                      + TEST_COLLECTION_NAME
+                      + "/testDoc"
+                      + i)
+              .build());
     }
 
     Map<String, List<PrioDataSharePacket>> dataShareByUuid = new HashMap<>();
     for (int i = 1; i <= 2; i++) {
       String docName =
-          "projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents/"
+          "projects/"
+              + FIREBASE_PROJECT_ID
+              + "/databases/(default)/documents/"
               + TEST_COLLECTION_NAME
-              + "/testDoc" + i + "/"
+              + "/testDoc"
+              + i
+              + "/"
               + formatDateTime(CREATION_TIME)
               + "/metric1";
       Document doc = fetchDocumentFromFirestore(docName, client);
@@ -332,8 +347,8 @@ public class IngestionPipelineIT {
   private static void comparePrioDataSharePacket(
       PrioDataSharePacket first, PrioDataSharePacket second) {
     Assert.assertEquals(first.getUuid().toString(), second.getUuid().toString());
-    Assert.assertEquals(first.getEncryptedPayload().toString(),
-        second.getEncryptedPayload().toString());
+    Assert.assertEquals(
+        first.getEncryptedPayload().toString(), second.getEncryptedPayload().toString());
     Assert.assertEquals(
         first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
   }
@@ -345,30 +360,48 @@ public class IngestionPipelineIT {
     prioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(4293918721L).build());
     prioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(2L).build());
     prioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(5.2933D).build());
-    prioParams
-        .put(DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(2L).build());
+    prioParams.put(
+        DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(2L).build());
     prioParams.put(DataShare.HAMMING_WEIGHT, Value.newBuilder().setIntegerValue(1L).build());
-    samplePayload.put(DataShare.PRIO_PARAMS,
-        Value.newBuilder().setMapValue(MapValue.newBuilder().putAllFields(prioParams).build())
+    samplePayload.put(
+        DataShare.PRIO_PARAMS,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(prioParams).build())
             .build());
 
     List<Value> encryptedDataShares = new ArrayList<>();
     encryptedDataShares.add(
-        Value.newBuilder().setMapValue(MapValue.newBuilder()
-            .putFields(DataShare.ENCRYPTION_KEY_ID,
-                Value.newBuilder().setStringValue("fakeEncryptionKeyId1").build())
-            .putFields(DataShare.PAYLOAD, Value.newBuilder().setStringValue("fakePayload1").build())
-            .build()).build());
+        Value.newBuilder()
+            .setMapValue(
+                MapValue.newBuilder()
+                    .putFields(
+                        DataShare.ENCRYPTION_KEY_ID,
+                        Value.newBuilder().setStringValue("fakeEncryptionKeyId1").build())
+                    .putFields(
+                        DataShare.PAYLOAD,
+                        Value.newBuilder().setStringValue("fakePayload1").build())
+                    .build())
+            .build());
     encryptedDataShares.add(
-        Value.newBuilder().setMapValue(MapValue.newBuilder()
-            .putFields(DataShare.ENCRYPTION_KEY_ID,
-                Value.newBuilder().setStringValue("fakeEncryptionKeyId2").build())
-            .putFields(DataShare.PAYLOAD, Value.newBuilder().setStringValue("fakePayload2").build())
-            .build()).build());
-    samplePayload.put(DataShare.ENCRYPTED_DATA_SHARES, Value.newBuilder()
-        .setArrayValue(ArrayValue.newBuilder().addAllValues(encryptedDataShares).build()).build());
+        Value.newBuilder()
+            .setMapValue(
+                MapValue.newBuilder()
+                    .putFields(
+                        DataShare.ENCRYPTION_KEY_ID,
+                        Value.newBuilder().setStringValue("fakeEncryptionKeyId2").build())
+                    .putFields(
+                        DataShare.PAYLOAD,
+                        Value.newBuilder().setStringValue("fakePayload2").build())
+                    .build())
+            .build());
+    samplePayload.put(
+        DataShare.ENCRYPTED_DATA_SHARES,
+        Value.newBuilder()
+            .setArrayValue(ArrayValue.newBuilder().addAllValues(encryptedDataShares).build())
+            .build());
 
-    samplePayload.put(DataShare.CREATED,
+    samplePayload.put(
+        DataShare.CREATED,
         Value.newBuilder()
             .setTimestampValue(
                 com.google.protobuf.Timestamp.newBuilder().setSeconds(timestampSeconds).build())
@@ -389,10 +422,10 @@ public class IngestionPipelineIT {
     List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
     for (String forkedSharesPrefix : forkedSharesPrefixes) {
       for (Path path : pathList) {
-        if (path.toString().startsWith(forkedSharesPrefix) && path.toString()
-            .endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
-          forkedDataShares
-              .add(PrioSerializationHelper.deserializeRecords(
+        if (path.toString().startsWith(forkedSharesPrefix)
+            && path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
+          forkedDataShares.add(
+              PrioSerializationHelper.deserializeRecords(
                   PrioDataSharePacket.class, path.toString()));
         }
       }

@@ -49,10 +49,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Function to write files (header, data records, signature) for a batch of {@link DataShare}
  *
- * Outputs those DataShares that did not successfully make it into a batch file.
+ * <p>Outputs those DataShares that did not successfully make it into a batch file.
  */
-public class BatchWriterFn
-    extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, DataShare> {
+public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, DataShare> {
 
   public static final String INGESTION_HEADER_SUFFIX = ".batch";
   public static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
@@ -128,25 +127,15 @@ public class BatchWriterFn
             .collect(Collectors.toList());
 
     UUID batchId = UUID.randomUUID();
-    String phaFilePath =
-        phaPrefix
-            + "-"
-            + metadata.getMetricName()
-            + "-"
-            + batchId.toString();
+    String phaFilePath = phaPrefix + "-" + metadata.getMetricName() + "-" + batchId.toString();
     String facilitatorPath =
-        facilitatorPrefix
-            + "-"
-            + metadata.getMetricName()
-            + "-"
-            + batchId.toString();
+        facilitatorPrefix + "-" + metadata.getMetricName() + "-" + batchId.toString();
 
     try {
       writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
-      writeBatch(
-          startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
+      writeBatch(startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
       successfulBatches.inc();
-    } catch (IOException|NoSuchAlgorithmException e) {
+    } catch (IOException | NoSuchAlgorithmException e) {
       LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
       failedBatches.inc();
       input.getValue().forEach(c::output);
@@ -160,38 +149,44 @@ public class BatchWriterFn
       DataShareMetadata metadata,
       UUID uuid,
       String filenamePrefix,
-      List<PrioDataSharePacket> packets) throws IOException, NoSuchAlgorithmException {
+      List<PrioDataSharePacket> packets)
+      throws IOException, NoSuchAlgorithmException {
 
-      // write PrioDataSharePackets in this batch to file
-      ByteBuffer packetsByteBuffer = PrioSerializationHelper.serializeRecords(
-          packets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
-      writeToFile(filenamePrefix + DATASHARE_PACKET_SUFFIX, packetsByteBuffer);
+    // write PrioDataSharePackets in this batch to file
+    ByteBuffer packetsByteBuffer =
+        PrioSerializationHelper.serializeRecords(
+            packets, PrioDataSharePacket.class, PrioDataSharePacket.getClassSchema());
+    writeToFile(filenamePrefix + DATASHARE_PACKET_SUFFIX, packetsByteBuffer);
 
-      MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-      byte[] packetsBytesHash = sha256.digest(packetsByteBuffer.array());
-      Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetsBytesHash)).build();
+    MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+    byte[] packetsBytesHash = sha256.digest(packetsByteBuffer.array());
+    Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetsBytesHash)).build();
 
-      // create Header and write to file
-      PrioIngestionHeader header = PrioSerializationHelper
-          .createHeader(metadata, digest, uuid, startTime, duration);
-      ByteBuffer headerBytes = PrioSerializationHelper
-          .serializeRecords(ImmutableList.of(header), PrioIngestionHeader.class,
-              PrioIngestionHeader.getClassSchema());
-      writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, headerBytes);
+    // create Header and write to file
+    PrioIngestionHeader header =
+        PrioSerializationHelper.createHeader(metadata, digest, uuid, startTime, duration);
+    ByteBuffer headerBytes =
+        PrioSerializationHelper.serializeRecords(
+            ImmutableList.of(header),
+            PrioIngestionHeader.class,
+            PrioIngestionHeader.getClassSchema());
+    writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, headerBytes);
 
-      byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
-      Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
+    byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
+    Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
 
-      AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
-      PrioBatchSignature signature = PrioBatchSignature
-          .newBuilder()
-          .setBatchHeaderSignature(result.getSignature().asReadOnlyByteBuffer())
-          .setKeyIdentifier(keyVersionName.toString())
-          .build();
-      ByteBuffer signatureBytes = PrioSerializationHelper.serializeRecords(
-          ImmutableList.of(signature), PrioBatchSignature.class,
-              PrioBatchSignature.getClassSchema());
-      writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX, signatureBytes);
+    AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
+    PrioBatchSignature signature =
+        PrioBatchSignature.newBuilder()
+            .setBatchHeaderSignature(result.getSignature().asReadOnlyByteBuffer())
+            .setKeyIdentifier(keyVersionName.toString())
+            .build();
+    ByteBuffer signatureBytes =
+        PrioSerializationHelper.serializeRecords(
+            ImmutableList.of(signature),
+            PrioBatchSignature.class,
+            PrioBatchSignature.getClassSchema());
+    writeToFile(filenamePrefix + HEADER_SIGNATURE_SUFFIX, signatureBytes);
   }
 
   static void writeToFile(String filename, ByteBuffer contents) throws IOException {

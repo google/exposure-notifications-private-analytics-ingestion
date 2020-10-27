@@ -16,7 +16,6 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import java.util.ArrayList;
 import java.util.List;

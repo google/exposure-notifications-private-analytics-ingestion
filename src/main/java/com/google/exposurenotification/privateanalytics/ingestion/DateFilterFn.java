@@ -8,9 +8,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A DoFn that filters documents in particular time window
- */
+/** A DoFn that filters documents in particular time window */
 public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
@@ -22,10 +20,10 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
   public void processElement(ProcessContext c) {
     String metricName = c.element().getDataShareMetadata().getMetricName();
     if (!dateFilterIncluded.containsKey(metricName)) {
-      dateFilterIncluded.put(metricName,
-          Metrics.counter(DateFilterFn.class, "dateFilterIncluded_" + metricName));
-      dateFilterExcluded.put(metricName,
-          Metrics.counter(DateFilterFn.class, "dateFilterExcluded_" + metricName));
+      dateFilterIncluded.put(
+          metricName, Metrics.counter(DateFilterFn.class, "dateFilterIncluded_" + metricName));
+      dateFilterExcluded.put(
+          metricName, Metrics.counter(DateFilterFn.class, "dateFilterExcluded_" + metricName));
     }
 
     if (c.element().getCreated() == null || c.element().getCreated() == 0) {
