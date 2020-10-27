@@ -63,6 +63,11 @@ public class BatchWriterFn
   private static final int FACILITATOR_INDEX = 1;
   private static final Duration KMS_WAIT_TIME = Duration.ofSeconds(30);
 
+  private static final Counter successfulBatches =
+      Metrics.counter(BatchWriterFn.class, "successfulBatches");
+
+  private static final Counter failedBatches =
+      Metrics.counter(BatchWriterFn.class, "failedBatches");
 
   private static final Counter batchesFailingMinParticipant =
       Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
@@ -140,8 +145,10 @@ public class BatchWriterFn
       writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
       writeBatch(
           startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
+      successfulBatches.inc();
     } catch (IOException|NoSuchAlgorithmException e) {
       LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
+      failedBatches.inc();
       input.getValue().forEach(c::output);
     }
   }
