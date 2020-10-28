@@ -29,6 +29,18 @@ page, and make sure you have a Google Cloud project with billing enabled
 and a *service account JSON key* set up in your `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 Additionally, you also need the following:
 
+1. Set up a
+    [Google Cloud project](https://console.cloud.google.com/projectcreate) or use an existing one.
+    Then [import the Google Cloud project into Firebase](https://cloud.google.com/firestore/docs/client/get-firebase).
+
+    ```sh
+    export GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
+    export FIREBASE_PROJECT_ID="$GCP_PROJECT_ID"
+    ```
+
+1. [Enable APIs](https://console.cloud.google.com/flows/enableapi?apiid=containerregistry.googleapis.com,cloudbuild.googleapis.com):
+    Container Registry, Cloud Build
+
 1. [Create an asymmetric key ring](https://cloud.google.com/kms/docs/creating-asymmetric-keys)
 
 <!-- TODO: set the roles needed for the service account -->
@@ -49,7 +61,9 @@ Integration tests go against an actual test project and so need an environment
 variable:
 
 ```shell script
-FIREBASE_PROJECT_ID=my-firebase-project-id  ./mvnw verify
+export FIREBASE_PROJECT_ID="my-firebase-project-id"
+
+./mvnw verify
 ```
 
 ## Deploying / Building DataFlow template
@@ -60,19 +74,18 @@ that takes all pipeline options as runtime parameters.
 Setting the following environment variables is useful for the commands below.
 
 ```sh
-FIREBASE_PROJECT_ID="my-firebase-project-id"
-GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
-PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
-FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
-KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
-METRICS="metricOfInterest1,metricOfInterest2,metricOfInterestN"
+export FIREBASE_PROJECT_ID="my-firebase-project-id"
+export GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
+export PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
+export FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
+export KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
 ```
 
 ```sh
-TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-%m-%d-%H-%M'`"
-STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
+export TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-%m-%d-%H-%M'`"
+export STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
 
-BEAM_ARGS=(
+export BEAM_ARGS=(
     "--runner=DataflowRunner"
     "--project=$GCP_PROJECT_ID"
     "--stagingLocation=$STAGING_LOCATION"
@@ -89,7 +102,7 @@ BEAM_ARGS=(
 ### Locally
 
 ```sh
-BEAM_ARGS=(
+export BEAM_ARGS=(
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
@@ -106,16 +119,15 @@ BEAM_ARGS=(
 #### From local build
 
 ```sh
-SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
+export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
-BEAM_ARGS=(
+export BEAM_ARGS=(
     "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
     "--runner=DataflowRunner"
     "--project=$GCP_PROJECT_ID"
-    "--tempLocation=$TEMP_LOCATION"
     "--region=us-central1"
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
@@ -124,19 +136,42 @@ BEAM_ARGS=(
     -Dexec.args="$BEAM_ARGS"
 ```
 
-#### From previously built template
+## Using templates
+
+### Creating a Flex Template
+
+Compile and package into an Uber JAR file.
 
 ```sh
-BEAM_ARGS=(
-    "firebaseProjectId=$FIREBASE_PROJECT_ID"
-    "keyResourceName=$KEY_RESOURCE_NAME"
-    "PHAOutput=$PHA_OUTPUT"
-    "facilitatorOutput=$FACILITATOR_OUTPUT"
-    "deviceAttestation=false"
-    "serviceAccount=$SERVICE_ACCOUNT_EMAIL"
-)
-gcloud dataflow jobs run "ingestion-manual-run-$USER-`date +'%Y-%m-%d-%H-%M'`" \
-    --gcs-location="$TEMPLATE_LOCATION" \
-    --region="us-central1" \
-    --parameters="$(IFS=, eval 'echo "${BEAM_ARGS[*]}"')"
+./mvnw clean package
+```
+
+Build the Flex Template.
+
+```sh
+export TEMPLATE_PATH="gs://my-google-cloud-bucket/templates/ingestion-pipeline.json"
+export TEMPLATE_IMAGE="gcr.io/$GCP_PROJECT_ID/ingestion-pipeline:latest"
+
+gcloud dataflow flex-template build $TEMPLATE_PATH \
+    --image-gcr-path "$TEMPLATE_IMAGE" \
+    --sdk-language "JAVA" \
+    --flex-template-base-image JAVA11 \
+    --metadata-file "metadata.json" \
+    --jar "target/enpa-ingestion-bundled-0.1.jar" \
+    --env FLEX_TEMPLATE_JAVA_MAIN_CLASS="com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline"
+```
+
+### Running the Flex Template
+
+```sh
+export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
+
+gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S`" \
+    --template-file-gcs-location "$TEMPLATE_PATH" \
+    --parameters firebaseProjectId="$FIREBASE_PROJECT_ID" \
+    --parameters keyResourceName="$KEY_RESOURCE_NAME" \
+    --parameters PHAOutput="$PHA_OUTPUT" \
+    --parameters facilitatorOutput="$FACILITATOR_OUTPUT" \
+    --service-account-email "$SERVICE_ACCOUNT_EMAIL" \
+    --region "us-central1"
 ```
