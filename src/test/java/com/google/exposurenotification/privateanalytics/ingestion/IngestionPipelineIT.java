@@ -23,6 +23,8 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
+import com.google.cloud.kms.v1.Digest;
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.firestore.v1.ArrayValue;
@@ -32,26 +34,29 @@ import com.google.firestore.v1.GetDocumentRequest;
 import com.google.firestore.v1.ListDocumentsRequest;
 import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.Value;
+import com.google.protobuf.ByteString;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
+import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
@@ -61,8 +66,9 @@ import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.values.PCollection;
+import org.junit.After;
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -77,7 +83,7 @@ public class IngestionPipelineIT {
   // Randomize document creation time to avoid collisions between simultaneously running tests.
   // FirestoreReader will query all documents with created times within one hour of this time.
   static final long CREATION_TIME = ThreadLocalRandom.current().nextLong(0L, 1602720000L);
-  static final long DURATION = 10000L;
+  static final long DURATION = 10800L;
   static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
   static final int MINIMUM_PARTICIPANT_COUNT = 1;
   // Randomize test collection name to avoid collisions between simultaneously running tests.
@@ -91,49 +97,63 @@ public class IngestionPipelineIT {
           + "cryptoKeys/appa-signature-key/"
           + "cryptoKeyVersions/1";
 
-  static List<Document> documentList;
+  // Default ingestion header fields
+  static final Long DEFAULT_PRIME = 4293918721L;
+  static final Long DEFAULT_BINS = 2L;
+  static final Double DEFAULT_EPSILON = 5.2933D;
+  static final Long DEFAULT_NUM_SERVERS = 2L;
+  static final Long DEFAULT_HAMMING_WEIGHT = 1L;
 
-  @Rule public TemporaryFolder tmpFolderPha = new TemporaryFolder();
-  @Rule public TemporaryFolder tmpFolderFac = new TemporaryFolder();
+  static final String STATE_ABBR = "NY";
+  static List<Document> documentList;
+  static FirestoreClient client;
+
+  @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
   public transient IngestionPipelineOptions testOptions =
       TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
 
   @Rule public final transient TestPipeline testPipeline = TestPipeline.fromOptions(testOptions);
 
-  @BeforeClass
-  public static void setUp() {
+  @Before
+  public void setUp() throws IOException {
     documentList = new ArrayList<>();
+    client = getFirestoreClient();
+  }
+
+  @After
+  public void tearDown() {
+    FirestoreConnector.shutdownFirestoreClient(client);
   }
 
   @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws Exception {
-    File phaFile = tmpFolderPha.newFile();
-    File facilitatorFile = tmpFolderFac.newFile();
     IngestionPipelineOptions options =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-    List<String> forkedSharesFilePrefixes =
-        Arrays.asList(
-            getFilePath(phaFile.getAbsolutePath()), getFilePath(facilitatorFile.getAbsolutePath()));
-    options.setPHAOutput(phaFile.getAbsolutePath());
-    options.setFacilitatorOutput(facilitatorFile.getAbsolutePath());
+    String phaDir =
+        tmpFolder.newFolder("testIngestionPipeline/pha/" + STATE_ABBR).getAbsolutePath();
+    String facDir =
+        tmpFolder.newFolder("testIngestionPipeline/facilitator/" + STATE_ABBR).getAbsolutePath();
+    options.setPHAOutput(phaDir);
+    options.setFacilitatorOutput(facDir);
     options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
     options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
     options.setStartTime(CREATION_TIME);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
+    options.setDeviceAttestation(false);
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets = seedDatabaseAndReturnEntryVal();
 
     try {
-      IngestionPipeline.runIngestionPipeline(options);
+      PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
+      result.waitUntilFinish();
     } finally {
       cleanUpDb();
-      // Allow time for delete to execute.
-      TimeUnit.SECONDS.sleep(15);
     }
 
-    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutput();
+    Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
+        readOutputShares(phaDir, facDir);
     for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
       Assert.assertTrue(
           "Output contains data which is not present in input",
@@ -142,9 +162,60 @@ public class IngestionPipelineIT {
           entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
       comparePrioDataSharePacket(
           entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
-      checkSuccessfulFork(forkedSharesFilePrefixes);
     }
+    checkSuccessfulFork(phaDir, facDir);
+    verifyBatchOutput(phaDir);
+    verifyBatchOutput(facDir);
   }
+
+  //  TODO: Uncomment this test & resolve why the NotFoundException is not being thrown (currently
+  // causing test failure)
+  //  @Test
+  //  @Category(NeedsRunner.class)
+  //  public void testFirestoreDeleter_deletesDocs()
+  //      throws InterruptedException, IOException, ExecutionException, IllegalAccessException,
+  //      InstantiationException {
+  //    String phaDir = tmpFolder.newFolder("testFirestoreDeleter/pha/" +
+  // STATE_ABBR).getAbsolutePath();
+  //    String facDir = tmpFolder.newFolder("testFirestoreDeleter/facilitator/" +
+  // STATE_ABBR).getAbsolutePath();
+  //    IngestionPipelineOptions options =
+  //        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
+  //    options.setDelete(true);
+  //    options.setPHAOutput(phaDir);
+  //    options.setFacilitatorOutput(facDir);
+  //    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
+  //    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
+  //    options.setStartTime(CREATION_TIME);
+  //    options.setDuration(DURATION);
+  //    options.setKeyResourceName(KEY_RESOURCE_NAME);
+  //    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
+  //        seedDatabaseAndReturnEntryVal();
+  //
+  //    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
+  //    result.waitUntilFinish();
+  //
+  //    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutputShares(phaDir,
+  // facDir);
+  //    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet())
+  // {
+  //      Assert.assertTrue(
+  //          "Output contains data which is not present in input",
+  //          inputDataSharePackets.containsKey(entry.getKey()));
+  //      comparePrioDataSharePacket(entry.getValue().get(0),
+  //          inputDataSharePackets.get(entry.getKey()).get(0));
+  //      comparePrioDataSharePacket(entry.getValue().get(1),
+  //          inputDataSharePackets.get(entry.getKey()).get(1));
+  //    }
+  ////     Assert that processed documents have been deleted.
+  //    documentList.forEach(doc -> assertThrows(
+  //        NotFoundException.class, () -> fetchDocumentFromFirestore(doc.getName(), client)));
+  //    long documentsDeleted = result.metrics().queryMetrics(MetricsFilter.builder()
+  //        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
+  //        .build()).getCounters().iterator().next().getCommitted();
+  //    assertThat(documentsDeleted).isEqualTo(2);
+  //    cleanUpParentResources(client);
+  //  }
 
   @Test
   @Category(ValidatesRunner.class)
@@ -183,7 +254,6 @@ public class IngestionPipelineIT {
   }
 
   private static void cleanUpDb() throws IOException {
-    FirestoreClient client = getFirestoreClient();
     documentList.forEach(doc -> client.deleteDocument(doc.getName()));
     cleanUpParentResources(client);
   }
@@ -207,38 +277,18 @@ public class IngestionPipelineIT {
     return FirestoreClient.create(settings);
   }
 
-  private Map<String, List<PrioDataSharePacket>> readOutput()
-      throws IOException, InstantiationException, IllegalAccessException {
+  private Map<String, List<PrioDataSharePacket>> readOutputShares(String phaDir, String facDir)
+      throws IOException, IllegalAccessException, InstantiationException {
     Map<String, List<PrioDataSharePacket>> result = new HashMap<>();
-    Stream<Path> pathsPha = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
-    Stream<Path> pathsFac = Files.walk(Paths.get(tmpFolderFac.getRoot().getPath()));
-    List<Path> pathListPha = pathsPha.filter(Files::isRegularFile).collect(Collectors.toList());
-    List<Path> pathListFac = pathsFac.filter(Files::isRegularFile).collect(Collectors.toList());
-
-    for (Path path : pathListPha) {
-      if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
-        List<PrioDataSharePacket> packets =
-            PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString());
-        for (PrioDataSharePacket pac : packets) {
-          if (!result.containsKey(pac.getUuid().toString())) {
-            result.put(pac.getUuid().toString(), new ArrayList<>());
-          }
-          result.get(pac.getUuid().toString()).add(pac);
-        }
+    List<PrioDataSharePacket> allPackets = new ArrayList<>();
+    allPackets.addAll(getSharesInFolder(phaDir));
+    allPackets.addAll(getSharesInFolder(facDir));
+    for (PrioDataSharePacket packet : allPackets) {
+      if (!result.containsKey(packet.getUuid().toString())) {
+        result.put(packet.getUuid().toString(), new ArrayList<>());
       }
+      result.get(packet.getUuid().toString()).add(packet);
     }
-
-    for (Path path : pathListFac) {
-      if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
-        List<PrioDataSharePacket> packets =
-            PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString());
-        for (PrioDataSharePacket pac : packets) {
-          // should not check for existence as facilitator and pha should have same key
-          result.get(pac.getUuid().toString()).add(pac);
-        }
-      }
-    }
-
     return result;
   }
 
@@ -259,18 +309,33 @@ public class IngestionPipelineIT {
     // to connect.
     TimeUnit.SECONDS.sleep(1);
 
-    FirestoreClient client = getFirestoreClient();
-
     for (int i = 1; i <= 2; i++) {
       ArrayValue certs =
           ArrayValue.newBuilder()
-              .addValues(Value.newBuilder().setStringValue("cert1").build())
-              .addValues(Value.newBuilder().setStringValue("cert2").build())
+              .addValues(
+                  Value.newBuilder()
+                      .setStringValue(
+                          "MIICyjCCAm+gAwIBAgIBATAKBggqhkjOPQQDAjCBiDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFTATBgNVBAoMDEdvb2dsZSwgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDE7MDkGA1UEAwwyQW5kcm9pZCBLZXlzdG9yZSBTb2Z0d2FyZSBBdHRlc3RhdGlvbiBJbnRlcm1lZGlhdGUwHhcNNzAwMTAxMDAwMDAwWhcNMjAxMDI2MDQyNDExWjAfMR0wGwYDVQQDDBRBbmRyb2lkIEtleXN0b3JlIEtleTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFmB6pr+Vx3tRG5IbJmr5svDCVzN6Vj5umTvqX2zNnlX87NbSWa5+sO4vM/4UXhzBHilO9iCSgk0kqnmcV/kcVmjggEwMIIBLDALBgNVHQ8EBAMCB4AwgfsGCisGAQQB1nkCAREEgewwgekCAQIKAQACAQEKAQEEIArEEV+M4a4CIbE4ZI9LnZ+I3XNBCOwqLfGg8C7LbVDzBAAwgYa/gxEIAgYBdWMmPOu/gxIIAgYBdWMmPOu/hT0IAgYBdV4bVTi/hUVeBFwwWjE0MDIELGNvbS5nb29nbGUuYW5kcm9pZC5hcHBzLmV4cG9zdXJlbm90aWZpY2F0aW9uAgIifzEiBCBFC/YpsGWC0cg6i2+RVALAksa2I8XSSSCl8Vo9jBtuZTAuoQgxBgIBAgIBA6IDAgEDowQCAgEApQUxAwIBBKoDAgEBv4N3AgUAv4U+AwIBADAfBgNVHSMEGDAWgBQ//KzWGrE6noEguNUlHMVlux6RqTAKBggqhkjOPQQDAgNJADBGAiEAksHrOxEq1B1zmPCI0Pcj44l9uiBZVFipIj2XgIoO1pgCIQCGKcumj8qa3eGnwu5MqToIju0869uo0vUc/hyOvU1/aQ==")
+                      .build())
+              .addValues(
+                  Value.newBuilder()
+                      .setStringValue(
+                          "MIICeDCCAh6gAwIBAgICEAEwCgYIKoZIzj0EAwIwgZgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1Nb3VudGFpbiBWaWV3MRUwEwYDVQQKDAxHb29nbGUsIEluYy4xEDAOBgNVBAsMB0FuZHJvaWQxMzAxBgNVBAMMKkFuZHJvaWQgS2V5c3RvcmUgU29mdHdhcmUgQXR0ZXN0YXRpb24gUm9vdDAeFw0xNjAxMTEwMDQ2MDlaFw0yNjAxMDgwMDQ2MDlaMIGIMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEVMBMGA1UECgwMR29vZ2xlLCBJbmMuMRAwDgYDVQQLDAdBbmRyb2lkMTswOQYDVQQDDDJBbmRyb2lkIEtleXN0b3JlIFNvZnR3YXJlIEF0dGVzdGF0aW9uIEludGVybWVkaWF0ZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABOueefhCY1msyyqRTImGzHCtkGaTgqlzJhP+rMv4ISdMIXSXSir+pblNf2bU4GUQZjW8U7ego6ZxWD7bPhGuEBSjZjBkMB0GA1UdDgQWBBQ//KzWGrE6noEguNUlHMVlux6RqTAfBgNVHSMEGDAWgBTIrel3TEXDo88NFhDkeUM6IVowzzASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQEAwIChDAKBggqhkjOPQQDAgNIADBFAiBLipt77oK8wDOHri/AiZi03cONqycqRZ9pDMfDktQPjgIhAO7aAV229DLp1IQ7YkyUBO86fMy9Xvsiu+f+uXc/WT/7")
+                      .build())
+              .addValues(
+                  Value.newBuilder()
+                      .setStringValue(
+                          "MIICizCCAjKgAwIBAgIJAKIFntEOQ1tXMAoGCCqGSM49BAMCMIGYMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNTW91bnRhaW4gVmlldzEVMBMGA1UECgwMR29vZ2xlLCBJbmMuMRAwDgYDVQQLDAdBbmRyb2lkMTMwMQYDVQQDDCpBbmRyb2lkIEtleXN0b3JlIFNvZnR3YXJlIEF0dGVzdGF0aW9uIFJvb3QwHhcNMTYwMTExMDA0MzUwWhcNMzYwMTA2MDA0MzUwWjCBmDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDU1vdW50YWluIFZpZXcxFTATBgNVBAoMDEdvb2dsZSwgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDEzMDEGA1UEAwwqQW5kcm9pZCBLZXlzdG9yZSBTb2Z0d2FyZSBBdHRlc3RhdGlvbiBSb290MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7l1ex+HA220Dpn7mthvsTWpdamguD/9/SQ59dx9EIm29sa/6FsvHrcV30lacqrewLVQBXT5DKyqO107sSHVBpKNjMGEwHQYDVR0OBBYEFMit6XdMRcOjzw0WEOR5QzohWjDPMB8GA1UdIwQYMBaAFMit6XdMRcOjzw0WEOR5QzohWjDPMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgKEMAoGCCqGSM49BAMCA0cAMEQCIDUho++LNEYenNVg8x1YiSBq3KNlQfYNns6KGYxmSGB7AiBNC/NR2TB8fVvaNTQdqEcbY6WFZTytTySn502vQX3xvw==")
+                      .build())
               .build();
       Document doc =
           Document.newBuilder()
               .putFields(
-                  DataShare.SIGNATURE, Value.newBuilder().setStringValue("signature").build())
+                  DataShare.SIGNATURE,
+                  Value.newBuilder()
+                      .setStringValue(
+                          "MEYCIQCkprsCPR34TAINZE+bfx+R1u96qKpvvWuLAQVlG/9ROQIhAIvRvSxor4fF0HHbolnfrA2rA5Cxor5W3HoTcQyS3bfM")
+                      .build())
               .putFields(DataShare.CERT_CHAIN, Value.newBuilder().setArrayValue(certs).build())
               .putFields(
                   DataShare.PAYLOAD,
@@ -328,19 +393,8 @@ public class IngestionPipelineIT {
                 .setUuid(dataShare.getUuid())
                 .build());
       }
-
       dataShareByUuid.put(dataShare.getUuid(), splitDataShares);
     }
-
-    client.shutdown();
-    int maxWait = 3;
-    int wait = 1;
-    while (client.awaitTermination(1000, TimeUnit.MILLISECONDS) == false) {
-      if (wait++ == maxWait) {
-        break;
-      }
-    }
-
     return dataShareByUuid;
   }
 
@@ -357,12 +411,15 @@ public class IngestionPipelineIT {
     Map<String, Value> samplePayload = new HashMap<>();
 
     Map<String, Value> prioParams = new HashMap<>();
-    prioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(4293918721L).build());
-    prioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(2L).build());
-    prioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(5.2933D).build());
+    prioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(DEFAULT_PRIME).build());
+    prioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(DEFAULT_BINS).build());
+    prioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(DEFAULT_EPSILON).build());
     prioParams.put(
-        DataShare.NUMBER_OF_SERVERS_FIELD, Value.newBuilder().setIntegerValue(2L).build());
-    prioParams.put(DataShare.HAMMING_WEIGHT, Value.newBuilder().setIntegerValue(1L).build());
+        DataShare.NUMBER_OF_SERVERS_FIELD,
+        Value.newBuilder().setIntegerValue(DEFAULT_NUM_SERVERS).build());
+    prioParams.put(
+        DataShare.HAMMING_WEIGHT,
+        Value.newBuilder().setIntegerValue(DEFAULT_HAMMING_WEIGHT).build());
     samplePayload.put(
         DataShare.PRIO_PARAMS,
         Value.newBuilder()
@@ -415,68 +472,147 @@ public class IngestionPipelineIT {
   }
 
   /*
-   *  Within each fork, all packets with the same UUID should have unique encryption key Ids and encrypted payloads.
-   *  The remaining fields (i.e. r_PIT, device_nonce)) should remain the same. This function ensures that this is the case.
+   *  Within each fork, all packets with the same UUID should have unique encryption key Ids. On the other hand, certain
+   *  fields should remain the same (r_PIT, device_nonce, version config) This function ensures that this is the case.
    */
-  private void checkSuccessfulFork(List<String> forkedSharesPrefixes)
-      throws IOException, InstantiationException, IllegalAccessException {
-    Stream<Path> paths = Files.walk(Paths.get(tmpFolderPha.getRoot().getPath()));
+  private void checkSuccessfulFork(String phaDir, String facDir)
+      throws IOException, IllegalAccessException, InstantiationException {
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir);
+    Assert.assertTrue("No shares found in phaFolder", phaShares.size() > 0);
+    Map<String, PrioDataSharePacket> phaUuidToPacket = new HashMap<>();
+    for (PrioDataSharePacket packet : phaShares) {
+      phaUuidToPacket.put(packet.getUuid().toString(), packet);
+    }
+
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir);
+    Assert.assertTrue("No shares found in facilitatorFolder", facShares.size() > 0);
+    Assert.assertEquals(
+        "Number of data shares in each fork is not equal. \nPHA Shares Count: "
+            + phaShares.size()
+            + "\nFacilitator shares count: "
+            + facShares.size(),
+        phaShares.size(),
+        facShares.size());
+
+    for (PrioDataSharePacket facPacket : facShares) {
+      String uuid = facPacket.getUuid().toString();
+      Assert.assertTrue(
+          "UUID '" + uuid + "' appears in the facilitator fork but not in the PHA fork.",
+          phaUuidToPacket.containsKey(uuid));
+      PrioDataSharePacket phaPacket = phaUuidToPacket.get(uuid);
+      Assert.assertEquals(phaPacket.getRPit(), facPacket.getRPit());
+      Assert.assertEquals(phaPacket.getVersionConfiguration(), facPacket.getVersionConfiguration());
+      Assert.assertEquals(phaPacket.getDeviceNonce(), facPacket.getDeviceNonce());
+      Assert.assertFalse(
+          phaPacket
+              .getEncryptionKeyId()
+              .toString()
+              .equals(facPacket.getEncryptionKeyId().toString()));
+    }
+  }
+
+  private void verifyBatchOutput(String batchFolder)
+      throws IOException, IllegalAccessException, InstantiationException,
+          java.security.NoSuchAlgorithmException, InterruptedException {
+    Stream<Path> paths = Files.walk(Paths.get(batchFolder));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
-    List<List<PrioDataSharePacket>> forkedDataShares = new ArrayList<>();
-    for (String forkedSharesPrefix : forkedSharesPrefixes) {
-      for (Path path : pathList) {
-        if (path.toString().startsWith(forkedSharesPrefix)
-            && path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
-          forkedDataShares.add(
-              PrioSerializationHelper.deserializeRecords(
-                  PrioDataSharePacket.class, path.toString()));
-        }
+    int verifiedBatchesCount = 0;
+    for (Path path : pathList) {
+      if (!path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
+        continue;
       }
-    }
-    Map<String, Set<String>> uuidToKeyIds = new HashMap<>();
-    Map<String, Set<String>> uuidToPayloads = new HashMap<>();
-
-    // Key: UUID, Value: data share packet. This map is initialized with a single fork's packets and
-    // used to ensure
-    // that corresponding fields in other forks' packets are equivalent where expected.
-    Map<String, PrioDataSharePacket> packetsToCompare = new HashMap<>();
-    if (!forkedDataShares.isEmpty()) {
-      for (PrioDataSharePacket packet : forkedDataShares.get(0)) {
-        String uuid = packet.getUuid().toString();
-        packetsToCompare.put(uuid, packet);
-        Set<String> uuidKeys = new HashSet<>(Arrays.asList(packet.getEncryptionKeyId().toString()));
-        uuidToKeyIds.put(uuid, uuidKeys);
-        Set<String> uuidPayloads =
-            new HashSet<>(Arrays.asList(packet.getEncryptedPayload().toString()));
-        uuidToPayloads.put(uuid, uuidPayloads);
-      }
-    }
-
-    for (int i = 1; i < forkedDataShares.size(); i++) {
-      List<PrioDataSharePacket> packets = forkedDataShares.get(i);
+      // Step 1: Verify the path format.
+      String invalidPathMessage =
+          "Expected file path to end in: "
+              + "{2-letter state abbreviation}/google/{metricName}/YYYY/mm/dd/HH/MM/{batchId}{.batch, .batch.sig, or .batch.avro}"
+              + "\nActual path: "
+              + path.toString();
+      Assert.assertTrue(
+          invalidPathMessage,
+          path.toString()
+              .matches(
+                  ".*/google/[a-z0-9_\\-]+(/\\d{4}/)(\\d{2}/){4}[a-zA-Z0-9\\-]+\\.batch($|.sig$|.avro$)"));
+      String batchUuid =
+          path.getFileName().toString().replace(BatchWriterFn.DATASHARE_PACKET_SUFFIX, "");
       Assert.assertEquals(
-          "Number of data shares is not equal in each fork.",
-          packetsToCompare.size(),
-          packets.size());
-      for (PrioDataSharePacket packet : packets) {
-        String uuid = packet.getUuid().toString();
-        Assert.assertTrue(
-            "UUID '" + uuid + "' does not appear in each fork.",
-            packetsToCompare.containsKey(uuid));
+          "Invalid length of batchId.\n" + invalidPathMessage, 36, batchUuid.length());
 
-        PrioDataSharePacket comparePacket = packetsToCompare.get(uuid);
-        Assert.assertEquals(comparePacket.getRPit(), packet.getRPit());
-        Assert.assertEquals(
-            comparePacket.getVersionConfiguration(), packet.getVersionConfiguration());
-        Assert.assertEquals(comparePacket.getDeviceNonce(), packet.getDeviceNonce());
+      // Step 2: Verify the header file associated with this data share batch.
+      byte[] packetBatchBytes = Files.readAllBytes(path);
+      MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+      byte[] packetBatchHash = sha256.digest(packetBatchBytes);
+      Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetBatchHash)).build();
+      Pattern r = Pattern.compile("/google/(.*)/\\d{4}");
+      Matcher m = r.matcher(path.toString());
+      String metricName = "";
+      if (m.find()) {
+        metricName = m.group(0);
+      } else {
+        Assert.fail(invalidPathMessage);
+      }
+      PrioIngestionHeader expectedHeader =
+          PrioSerializationHelper.createHeader(
+              DataShareMetadata.builder()
+                  .setBins(DEFAULT_BINS.intValue())
+                  .setEpsilon(DEFAULT_EPSILON)
+                  .setPrime(DEFAULT_PRIME.longValue())
+                  .setNumberOfServers(DEFAULT_NUM_SERVERS.intValue())
+                  .setHammingWeight(DEFAULT_HAMMING_WEIGHT.intValue())
+                  .setMetricName(metricName)
+                  .build(),
+              digest,
+              UUID.fromString(batchUuid),
+              CREATION_TIME,
+              DURATION);
+      String expectedHeaderFilename =
+          path.getParent().toString() + "/" + batchUuid + BatchWriterFn.INGESTION_HEADER_SUFFIX;
+      Assert.assertTrue(
+          "Missing header file associated witch batch id " + batchUuid,
+          new File(expectedHeaderFilename).isFile());
+      PrioIngestionHeader actualHeader =
+          PrioSerializationHelper.deserializeRecords(
+                  PrioIngestionHeader.class, expectedHeaderFilename)
+              .get(0);
+      Assert.assertEquals(expectedHeader.getBins(), actualHeader.getBins());
+      Assert.assertEquals(expectedHeader.getName(), actualHeader.getName());
+      Assert.assertEquals(expectedHeader.getBatchUuid(), actualHeader.getBatchUuid());
+      Assert.assertEquals(expectedHeader.getEpsilon(), actualHeader.getEpsilon(), .00001);
+      Assert.assertEquals(expectedHeader.getPrime(), actualHeader.getPrime());
+      Assert.assertEquals(expectedHeader.getNumberOfServers(), actualHeader.getNumberOfServers());
+      Assert.assertEquals(expectedHeader.getHammingWeight(), actualHeader.getHammingWeight());
+      Assert.assertEquals(expectedHeader.getBatchStartTime(), actualHeader.getBatchStartTime());
+      Assert.assertEquals(expectedHeader.getBatchEndTime(), actualHeader.getBatchEndTime());
+      Assert.assertEquals(expectedHeader.getPacketFileDigest(), actualHeader.getPacketFileDigest());
 
-        Set<String> uuidKeyIds = uuidToKeyIds.get(uuid);
-        uuidKeyIds.add(packet.getEncryptionKeyId().toString());
-        uuidToKeyIds.put(uuid, uuidKeyIds);
-        Set<String> uuidPayloads = uuidToPayloads.get(uuid);
-        uuidPayloads.add(packet.getEncryptionKeyId().toString());
-        uuidToPayloads.put(uuid, uuidPayloads);
+      // Step 3: Verify the signature file associated with this data share batch.
+      String expectedSignatureFilename =
+          path.getParent().toString() + "/" + batchUuid + BatchWriterFn.HEADER_SIGNATURE_SUFFIX;
+      Assert.assertTrue(
+          "Missing signature file associated witch batch id " + batchUuid,
+          new File(expectedSignatureFilename).isFile());
+      PrioBatchSignature actualSignature =
+          PrioSerializationHelper.deserializeRecords(
+                  PrioBatchSignature.class, expectedSignatureFilename)
+              .get(0);
+      Assert.assertEquals(KEY_RESOURCE_NAME, actualSignature.getKeyIdentifier().toString());
+
+      verifiedBatchesCount += 1;
+    }
+
+    Assert.assertTrue("No valid batch output found in this folder.", verifiedBatchesCount > 0);
+  }
+
+  private List<PrioDataSharePacket> getSharesInFolder(String folder)
+      throws IOException, IllegalAccessException, InstantiationException {
+    Stream<Path> paths = Files.walk(Paths.get(folder));
+    List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+    List<PrioDataSharePacket> allDataSharesInFolder = new ArrayList<>();
+    for (Path path : pathList) {
+      if (path.toString().endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX)) {
+        allDataSharesInFolder.addAll(
+            PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString()));
       }
     }
+    return allDataSharesInFolder;
   }
 }

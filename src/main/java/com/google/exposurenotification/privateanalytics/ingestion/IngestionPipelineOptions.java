@@ -30,15 +30,23 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setFirebaseProjectId(String value);
 
-  /** File prefix for output files for PHA */
-  @Description("File prefix for output files for PHA.")
+  /**
+   * Directory to place output files for PHA. If the directory does not exist, then it will
+   * automatically be created.
+   */
+  @Description(
+      "Directory to place output files for PHA (Should end in 2-letter state abbreviation).")
   @Required
   String getPHAOutput();
 
   void setPHAOutput(String value);
 
-  /** File prefix for output files for Facilitator */
-  @Description("File prefix for output files for Facilitator.")
+  /**
+   * Directory to place output files for Facilitator. If the directory does not exist, then it will
+   * automatically be created.
+   */
+  @Description(
+      "Directory to place output files for Facilitator. (Should end in 2-letter state abbreviation)")
   @Required
   String getFacilitatorOutput();
 
@@ -59,7 +67,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * on the "Creation" field.
    */
   @Description("Duration of window in seconds")
-  @Default.Long(1728000000)
+  @Default.Long(10800)
   Long getDuration();
 
   void setDuration(ValueProvider<Long> value);

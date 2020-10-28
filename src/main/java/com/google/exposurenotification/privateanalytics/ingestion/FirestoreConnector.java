@@ -292,7 +292,7 @@ public class FirestoreConnector {
     return FirestoreClient.create(settings);
   }
 
-  private static void shutdownFirestoreClient(FirestoreClient client) {
+  public static void shutdownFirestoreClient(FirestoreClient client) {
     client.shutdown();
     LOG.info("Waiting for FirestoreClient to shutdown.");
     try {

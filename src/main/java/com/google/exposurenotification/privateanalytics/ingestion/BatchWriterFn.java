@@ -28,6 +28,9 @@ import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -70,6 +73,9 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   private static final Counter batchesFailingMinParticipant =
       Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
+
+  private static final DateTimeFormatter formatter =
+      DateTimeFormatter.ofPattern("/yyyy/MM/dd/HH/mm/");
 
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
@@ -127,9 +133,15 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
             .collect(Collectors.toList());
 
     UUID batchId = UUID.randomUUID();
-    String phaFilePath = phaPrefix + "-" + metadata.getMetricName() + "-" + batchId.toString();
+    String date = LocalDateTime.now(ZoneOffset.UTC).format(formatter);
+    String aggregateId = "google/" + metadata.getMetricName() + date;
+    String phaFilePath =
+        phaPrefix + ((phaPrefix.endsWith("/")) ? "" : "/") + aggregateId + batchId.toString();
     String facilitatorPath =
-        facilitatorPrefix + "-" + metadata.getMetricName() + "-" + batchId.toString();
+        facilitatorPrefix
+            + ((facilitatorPrefix.endsWith("/")) ? "" : "/")
+            + aggregateId
+            + batchId.toString();
 
     try {
       writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);

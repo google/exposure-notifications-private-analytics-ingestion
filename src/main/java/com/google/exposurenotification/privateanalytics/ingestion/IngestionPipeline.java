@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
-
   /**
    * A DoFn that filters documents in particular time window
    */

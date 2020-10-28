@@ -35,6 +35,7 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.avro.util.Utf8;
 
 /**
  * Helpers for serializing and deserializing Prio data shares into (or from) the Apache Avro file
@@ -76,8 +77,8 @@ public class PrioSerializationHelper {
   public static PrioIngestionHeader createHeader(
       DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
     return PrioIngestionHeader.newBuilder()
-        .setBatchUuid(uuid.toString())
-        .setName("BatchUuid=" + uuid.toString())
+        .setBatchUuid(new Utf8(uuid.toString()))
+        .setName(new Utf8("BatchUuid=" + uuid.toString()))
         .setBatchStartTime(startTime)
         .setBatchEndTime(startTime + duration)
         .setNumberOfServers(metadata.getNumberOfServers())
