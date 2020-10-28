@@ -67,6 +67,12 @@ public class FirestoreConnector {
 
   private static final Logger LOG = LoggerFactory.getLogger(FirestoreConnector.class);
 
+  private static final long SECONDS_IN_HOUR = Duration.of(1, ChronoUnit.HOURS).getSeconds();
+
+  // Order must be name ascending. Right now, this is the only ordering that the
+  // Firestore SDK supports.
+  private static final String NAME_FIELD = "__name__";
+
   private static final Duration FIRESTORE_WAIT_TIME = Duration.ofSeconds(30);
 
   private static final Counter queriesGenerated =
@@ -100,11 +106,15 @@ public class FirestoreConnector {
 
     @Override
     public PCollection<DataShare> expand(PBegin input) {
+      IngestionPipelineOptions options =
+          (IngestionPipelineOptions) input.getPipeline().getOptions();
+      long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
+      long forwardWindow =
+          (options.getDuration() + options.getGracePeriodForwards()) / SECONDS_IN_HOUR;
       return input
-          // TODO(larryjacobs): eliminate hack to kick off a DoFn where input doesn't matter (PBegin
-          // was giving errors)
-          .apply("Begin", Create.of(""))
-          .apply("GenerateQueries", ParDo.of(new GenerateQueriesFn()))
+          .apply(
+              "Begin",
+              Create.of(generateQueries(options.getStartTime(), backwardWindow, forwardWindow)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           .apply("Read", ParDo.of(new ReadFn()))
           // In case workers retried on some shards and duplicates got emitted, ensure distinctness
@@ -119,53 +129,36 @@ public class FirestoreConnector {
                   }));
     }
 
-    /**
-     * Generate a query for each hour within the given time window, specified by the Duration
-     * pipeline option.
-     */
-    static class GenerateQueriesFn extends DoFn<String, StructuredQuery> {
-
-      private static final long SECONDS_IN_HOUR = Duration.of(1, ChronoUnit.HOURS).getSeconds();
-      // Order must be name ascending. Right now, this is the only ordering that the
-      // Firestore SDK supports.
-      private static final String NAME_FIELD = "__name__";
-
-      @ProcessElement
-      public void processElement(ProcessContext context) {
-        IngestionPipelineOptions options =
-            context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        long startTime = options.getStartTime();
-        long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
-        long forwardWindow =
-            (options.getDuration() + options.getGracePeriodForwards()) / SECONDS_IN_HOUR;
-
-        // Each datashare in Firestore is stored under a Date collection with the format:
-        // yyyy-MM-dd-HH.
-        // To query all documents uploaded around startTime within the specified window, construct
-        // a query for each hour within the window: [startTime - backwardWindow, startTime +
-        // forwardWindow].
-        for (long i = (-1 * backwardWindow); i <= forwardWindow; i++) {
-          long timeToQuery = startTime + i * SECONDS_IN_HOUR;
-          // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
-          String formattedDateTime = formatDateTime(timeToQuery);
-          // Construct and output query.
-          StructuredQuery query =
-              StructuredQuery.newBuilder()
-                  .addFrom(
-                      CollectionSelector.newBuilder()
-                          .setCollectionId(formattedDateTime)
-                          .setAllDescendants(true)
-                          .build())
-                  .addOrderBy(
-                      Order.newBuilder()
-                          .setField(FieldReference.newBuilder().setFieldPath(NAME_FIELD).build())
-                          .setDirection(Direction.ASCENDING)
-                          .build())
-                  .build();
-          context.output(query);
-          queriesGenerated.inc();
-        }
+    private Iterable<StructuredQuery> generateQueries(
+        long startTime, long backwardWindow, long forwardWindow) {
+      List<StructuredQuery> structuredQueries = new ArrayList<>();
+      // Each datashare in Firestore is stored under a Date collection with the format:
+      // yyyy-MM-dd-HH.
+      // To query all documents uploaded around startTime within the specified window, construct
+      // a query for each hour within the window: [startTime - backwardWindow, startTime +
+      // forwardWindow].
+      for (long i = (-1 * backwardWindow); i <= forwardWindow; i++) {
+        long timeToQuery = startTime + i * SECONDS_IN_HOUR;
+        // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
+        String formattedDateTime = formatDateTime(timeToQuery);
+        // Construct and output query.
+        StructuredQuery query =
+            StructuredQuery.newBuilder()
+                .addFrom(
+                    CollectionSelector.newBuilder()
+                        .setCollectionId(formattedDateTime)
+                        .setAllDescendants(true)
+                        .build())
+                .addOrderBy(
+                    Order.newBuilder()
+                        .setField(FieldReference.newBuilder().setFieldPath(NAME_FIELD).build())
+                        .setDirection(Direction.ASCENDING)
+                        .build())
+                .build();
+        structuredQueries.add(query);
+        queriesGenerated.inc();
       }
+      return structuredQueries;
     }
 
     static class PartitionQueryFn
