@@ -2,7 +2,7 @@ on:
   pull_request_target:
     types: [opened, synchronize]
     branches:
-    - master
+    - main
 name: format
 jobs:
   format-code:
