@@ -23,6 +23,12 @@ the channel over which the packets travel need not be trusted.
 
 ## Before you begin
 
+This repository uses git submodules. You will need to initialize the git submodules 
+before being able to compile.
+```sh
+git submodule update --init
+```
+
 Follow the
 [Getting started with Google Cloud Dataflow](https://github.com/GoogleCloudPlatform/java-docs-samples/blob/master/dataflow/README.md)
 page, and make sure you have a Google Cloud project with billing enabled
