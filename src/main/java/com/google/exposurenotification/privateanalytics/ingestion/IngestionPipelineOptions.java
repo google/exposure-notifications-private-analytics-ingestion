@@ -143,6 +143,23 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setKeyResourceName(String value);
 
+  /** Package name to be verified in the key attestation certificate. */
+  @Description("Package name of the Android application.")
+  @Default.String("")
+  String getPackageName();
+
+  void setPackageName(String value);
+
+  /**
+   * Package digest (HEX(SHA256)) of the Android application, to be verified in the key attestation
+   * certificate.
+   */
+  @Description("Package signature digest of the Android application.")
+  @Default.String("")
+  String getPackageSignatureDigest();
+
+  void setPackageSignatureDigest(String value);
+
   static String displayString(IngestionPipelineOptions options) {
     return "IngestionPipelineOptions:"
         + "\nfirebaseProjectId="
@@ -160,6 +177,10 @@ public interface IngestionPipelineOptions extends PipelineOptions {
         + "\nphaOutput="
         + options.getPHAOutput()
         + "\nfacilitatorOutput="
-        + options.getFacilitatorOutput();
+        + options.getFacilitatorOutput()
+        + "\npackageName="
+        + options.getPackageName()
+        + "\npackageSignatureDigest="
+        + options.getPackageSignatureDigest();
   }
 }

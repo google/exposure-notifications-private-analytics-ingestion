@@ -79,6 +79,8 @@ public abstract class DataShare implements Serializable {
 
   public abstract @Nullable Long getCreated();
 
+  public abstract @Nullable Long getCreatedMs();
+
   public abstract @Nullable String getUuid();
 
   public abstract @Nullable String getException();
@@ -106,6 +108,9 @@ public abstract class DataShare implements Serializable {
     checkValuePresent(CREATED, payload, PAYLOAD, ValueTypeCase.TIMESTAMP_VALUE);
     checkValuePresent(UUID, payload, PAYLOAD, ValueTypeCase.STRING_VALUE);
     builder.setCreated(payload.get(CREATED).getTimestampValue().getSeconds());
+    builder.setCreatedMs(
+        payload.get(CREATED).getTimestampValue().getSeconds() * 1000
+            + payload.get(CREATED).getTimestampValue().getNanos() / 1000000);
     builder.setUuid(payload.get(UUID).getStringValue());
 
     // Check against the latest schema version.
@@ -252,6 +257,8 @@ public abstract class DataShare implements Serializable {
     abstract Builder setPath(@Nullable String value);
 
     abstract Builder setCreated(@Nullable Long value);
+
+    abstract Builder setCreatedMs(@Nullable Long value);
 
     abstract Builder setUuid(@Nullable String value);
 

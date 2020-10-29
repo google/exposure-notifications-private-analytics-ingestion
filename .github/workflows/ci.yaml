@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - uses: textbook/git-checkout-submodule-action@master
     - uses: actions/setup-java@v1
       with:
         java-version: 11
@@ -20,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - uses: textbook/git-checkout-submodule-action@master
     - uses: actions/setup-java@v1
       with:
         java-version: 11
@@ -29,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - uses: textbook/git-checkout-submodule-action@master
     - uses: actions/setup-java@v1
       with:
         java-version: 11
