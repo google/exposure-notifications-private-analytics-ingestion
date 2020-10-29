@@ -27,6 +27,7 @@ import com.google.firestore.v1.Document;
 import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.Value;
 import com.google.firestore.v1.Value.ValueTypeCase;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -46,7 +47,6 @@ public class DataShareTest {
   public static final String PATH_ID = "uuid/path/id";
   public static final String METRIC_NAME = "id";
   public static final String UUID = "uniqueuserid";
-  public static final long PRIME = 4293918721L;
   public static final String SIGNATURE = "signature";
   public static final Integer BINS = 2;
   public static final Integer HAMMING_WEIGHT = 1;
@@ -75,7 +75,13 @@ public class DataShareTest {
 
     assertThat(dataShare.getPath()).isEqualTo(PATH_ID);
     assertThat(dataShare.getUuid()).isEqualTo(UUID);
-    assertTrue(dataShare.getRPit() >= 0L && dataShare.getRPit() < metadata.getPrime());
+
+    assertTrue(dataShare.getRPit() > 0L && dataShare.getRPit() < metadata.getPrime());
+    // r_PIT cannot be equal to any of the n-th root of unity where n = next_power_two(#bins + 1).
+    long n = DataShare.nextPowerTwo(metadata.getBins() + 1);
+    BigInteger N = BigInteger.valueOf(n);
+    BigInteger P = BigInteger.valueOf(metadata.getPrime());
+    assertThat(BigInteger.valueOf(dataShare.getRPit()).modPow(N, P)).isNotEqualTo(BigInteger.ONE);
 
     assertThat(dataShare.getSignature())
         .isEqualTo(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()));
@@ -221,7 +227,7 @@ public class DataShareTest {
     Document.Builder docBuilder = Document.newBuilder();
     Map<String, Value> prioParams = createPrioParams();
     // Remove prime from Prio params
-    prioParams.remove(DataShare.PRIME);
+    prioParams.remove(DataShare.PRIME_FIELD);
     // Construct payload
     List<Value> encryptedDataShares = createEncryptedDataShares();
     Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
@@ -256,7 +262,7 @@ public class DataShareTest {
         .hasMessageThat()
         .contains(
             "Missing required field: '"
-                + DataShare.PRIME
+                + DataShare.PRIME_FIELD
                 + "' from '"
                 + DataShare.PRIO_PARAMS
                 + "'");
@@ -391,6 +397,23 @@ public class DataShareTest {
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.SCHEMA_VERSION);
   }
 
+  /** Test with missing schema version. */
+  @Test
+  public void testNextPowerTwo() {
+    assertThat(DataShare.nextPowerTwo(0)).isEqualTo(1L);
+    assertThat(DataShare.nextPowerTwo(1)).isEqualTo(1L);
+    assertThat(DataShare.nextPowerTwo(2)).isEqualTo(2L);
+    for (int i = 2; i < 31; i++) {
+      assertThat(DataShare.nextPowerTwo(1 << i)).isEqualTo(1L << i);
+      assertThat(DataShare.nextPowerTwo((1 << i) - 1)).isEqualTo(1L << i);
+      assertThat(DataShare.nextPowerTwo((1 << i) + 1)).isEqualTo(1L << (i + 1));
+    }
+
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> DataShare.nextPowerTwo(-1));
+    assertThat(e).hasMessageThat().contains("cannot be < 0");
+  }
+
   /** Static functions to create the objects used in the tests above. */
   public static DataShare createValidDataShare(Integer timestamp, String path) {
     Document.Builder docBuilder = Document.newBuilder();
@@ -424,7 +447,8 @@ public class DataShareTest {
 
   public static Map<String, Value> createPrioParams() {
     Map<String, Value> samplePrioParams = new HashMap<>();
-    samplePrioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(PRIME).build());
+    samplePrioParams.put(
+        DataShare.PRIME_FIELD, Value.newBuilder().setIntegerValue(DataShare.PRIME).build());
     samplePrioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(BINS).build());
     samplePrioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(EPSILON).build());
     samplePrioParams.put(
@@ -497,7 +521,7 @@ public class DataShareTest {
         .setHammingWeight(HAMMING_WEIGHT)
         .setMetricName(METRIC_NAME)
         .setNumberOfServers(DataShare.NUMBER_OF_SERVERS)
-        .setPrime(PRIME)
+        .setPrime(DataShare.PRIME)
         .build();
   }
 

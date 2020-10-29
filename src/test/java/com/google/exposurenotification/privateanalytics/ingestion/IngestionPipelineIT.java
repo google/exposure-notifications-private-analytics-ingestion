@@ -98,10 +98,8 @@ public class IngestionPipelineIT {
           + "cryptoKeyVersions/1";
 
   // Default ingestion header fields
-  static final Long DEFAULT_PRIME = 4293918721L;
   static final Long DEFAULT_BINS = 2L;
   static final Double DEFAULT_EPSILON = 5.2933D;
-  static final Long DEFAULT_NUM_SERVERS = 2L;
   static final Long DEFAULT_HAMMING_WEIGHT = 1L;
 
   static final String STATE_ABBR = "NY";
@@ -362,12 +360,13 @@ public class IngestionPipelineIT {
     Map<String, Value> samplePayload = new HashMap<>();
 
     Map<String, Value> prioParams = new HashMap<>();
-    prioParams.put(DataShare.PRIME, Value.newBuilder().setIntegerValue(DEFAULT_PRIME).build());
+    prioParams.put(
+        DataShare.PRIME_FIELD, Value.newBuilder().setIntegerValue(DataShare.PRIME).build());
     prioParams.put(DataShare.BINS, Value.newBuilder().setIntegerValue(DEFAULT_BINS).build());
     prioParams.put(DataShare.EPSILON, Value.newBuilder().setDoubleValue(DEFAULT_EPSILON).build());
     prioParams.put(
         DataShare.NUMBER_OF_SERVERS_FIELD,
-        Value.newBuilder().setIntegerValue(DEFAULT_NUM_SERVERS).build());
+        Value.newBuilder().setIntegerValue(DataShare.NUMBER_OF_SERVERS).build());
     prioParams.put(
         DataShare.HAMMING_WEIGHT,
         Value.newBuilder().setIntegerValue(DEFAULT_HAMMING_WEIGHT).build());
@@ -474,9 +473,10 @@ public class IngestionPipelineIT {
       }
       // Step 1: Verify the path format.
       String invalidPathMessage =
-          "Expected file path to end in: "
-              + "{2-letter state abbreviation}/google/{metricName}/YYYY/mm/dd/HH/MM/{batchId}{.batch, .batch.sig, or .batch.avro}"
-              + "\nActual path: "
+          "Expected file path to end in: {2-letter state"
+              + " abbreviation}/google/{metricName}/YYYY/mm/dd/HH/MM/{batchId}{.batch, .batch.sig,"
+              + " or .batch.avro}\n"
+              + "Actual path: "
               + path.toString();
       Assert.assertTrue(
           invalidPathMessage,
@@ -506,8 +506,8 @@ public class IngestionPipelineIT {
               DataShareMetadata.builder()
                   .setBins(DEFAULT_BINS.intValue())
                   .setEpsilon(DEFAULT_EPSILON)
-                  .setPrime(DEFAULT_PRIME.longValue())
-                  .setNumberOfServers(DEFAULT_NUM_SERVERS.intValue())
+                  .setPrime(DataShare.PRIME)
+                  .setNumberOfServers(DataShare.NUMBER_OF_SERVERS)
                   .setHammingWeight(DEFAULT_HAMMING_WEIGHT.intValue())
                   .setMetricName(metricName)
                   .build(),

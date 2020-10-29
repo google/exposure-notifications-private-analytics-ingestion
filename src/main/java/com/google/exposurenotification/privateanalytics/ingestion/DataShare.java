@@ -20,6 +20,7 @@ import com.google.firestore.v1.Document;
 import com.google.firestore.v1.Value;
 import com.google.firestore.v1.Value.ValueTypeCase;
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -34,7 +35,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
-  public static final int NUMBER_OF_SERVERS = 2;
   public static final int LATEST_SCHEMA_VERSION = 1;
 
   private static final Counter missingRequiredCounter =
@@ -43,6 +43,8 @@ public abstract class DataShare implements Serializable {
       Metrics.counter(DataShare.class, "datashare-castException");
   private static final Counter illegalArgCounter =
       Metrics.counter(DataShare.class, "datashare-illegalArg");
+  private static final Counter failedRPitGenerationCounter =
+      Metrics.counter(DataShare.class, "datashare-failedRPitGeneration");
 
   // Firestore document field names. See
   // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
@@ -64,11 +66,15 @@ public abstract class DataShare implements Serializable {
   public abstract @Nullable List<String> getCertificateChain();
 
   // Prio Parameters field names
-  public static final String PRIME = "prime";
+  public static final String PRIME_FIELD = "prime";
   public static final String BINS = "bins";
   public static final String EPSILON = "epsilon";
   public static final String NUMBER_OF_SERVERS_FIELD = "numberServers";
   public static final String HAMMING_WEIGHT = "hammingWeight";
+
+  // Prio hardcoded parameters
+  public static final long PRIME = 4293918721L;
+  public static final int NUMBER_OF_SERVERS = 2;
 
   // Encrypted Data Share fields
   public static final String ENCRYPTION_KEY_ID = "encryptionKeyId";
@@ -128,17 +134,29 @@ public abstract class DataShare implements Serializable {
     builder.setSchemaVersion(schemaVersion);
 
     // Get the Prio parameters.
+    DataShareMetadata.Builder metadataBuilder = DataShareMetadata.builder();
     checkValuePresent(PRIO_PARAMS, payload, PAYLOAD, ValueTypeCase.MAP_VALUE);
     Map<String, Value> prioParams = payload.get(PRIO_PARAMS).getMapValue().getFieldsMap();
-    checkValuePresent(PRIME, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
-    Long prime = prioParams.get(PRIME).getIntegerValue();
 
-    DataShareMetadata.Builder metadataBuilder = DataShareMetadata.builder();
+    checkValuePresent(PRIME_FIELD, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
+    Long prime = prioParams.get(PRIME_FIELD).getIntegerValue();
+    if (prime != PRIME) {
+      illegalArgCounter.inc();
+      throw new InvalidDataShareException("Invalid prime: " + prime);
+    }
     metadataBuilder.setPrime(prime);
+
     checkValuePresent(EPSILON, prioParams, PRIO_PARAMS, ValueTypeCase.DOUBLE_VALUE);
     metadataBuilder.setEpsilon(prioParams.get(EPSILON).getDoubleValue());
+
     checkValuePresent(BINS, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
-    metadataBuilder.setBins((int) prioParams.get(BINS).getIntegerValue());
+    int bins = (int) prioParams.get(BINS).getIntegerValue();
+    if (bins < 0) {
+      illegalArgCounter.inc();
+      throw new InvalidDataShareException("Invalid number of bins: " + bins);
+    }
+    metadataBuilder.setBins(bins);
+
     checkValuePresent(
         NUMBER_OF_SERVERS_FIELD, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
     int numberOfServers = (int) prioParams.get(NUMBER_OF_SERVERS_FIELD).getIntegerValue();
@@ -147,6 +165,7 @@ public abstract class DataShare implements Serializable {
       throw new InvalidDataShareException("Invalid number of servers: " + numberOfServers);
     }
     metadataBuilder.setNumberOfServers(numberOfServers);
+
     if (prioParams.get(HAMMING_WEIGHT) != null) {
       // This will type-check the hamming weight field.
       checkValuePresent(HAMMING_WEIGHT, prioParams, PRIO_PARAMS, ValueTypeCase.INTEGER_VALUE);
@@ -163,8 +182,21 @@ public abstract class DataShare implements Serializable {
 
     builder.setDataShareMetadata(metadataBuilder.build());
 
-    // Generate a r_PIT randomly for every data share.
-    Long rPit = generateRandom(prime);
+    // Generate a r_PIT randomly for every data share. r_PIT cannot be equal to any of the n-th
+    // root of unity where n = next_power_two(#bins + 1).
+    // Cf. page 18 of https://eprint.iacr.org/2019/188.pdf.
+    Long rPit;
+    try {
+      BigInteger N = BigInteger.valueOf(nextPowerTwo(bins + 1));
+      BigInteger P = BigInteger.valueOf(prime);
+      rPit = generateRandom(prime);
+      while (BigInteger.valueOf(rPit).modPow(N, P) == BigInteger.ONE) {
+        rPit = generateRandom(prime);
+      }
+    } catch (RuntimeException e) {
+      failedRPitGenerationCounter.inc();
+      throw new InvalidDataShareException("Could not generate rPit", e);
+    }
     builder.setRPit(rPit);
 
     // Get the encrypted shares.
@@ -275,6 +307,23 @@ public abstract class DataShare implements Serializable {
     abstract Builder setSignature(@Nullable String value);
 
     abstract Builder setCertificateChain(@Nullable List<String> certChain);
+  }
+
+  // Next power of two of an int.
+  public static long nextPowerTwo(int n) throws IllegalArgumentException {
+    if (n < 0) {
+      throw new InvalidDataShareException("n cannot be < 0.");
+    }
+    int count = 0;
+    // Test if n is a non-zero power of 2.
+    if (n > 0 && (n & (n - 1)) == 0) {
+      return (long) n;
+    }
+    while (n != 0) {
+      n >>= 1;
+      count += 1;
+    }
+    return 1L << count;
   }
 
   // Checks for the presence of the given field in the sourceMap and provides detailed exceptions
