@@ -22,6 +22,8 @@ import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
+import com.google.firestore.v1.BatchWriteRequest;
+import com.google.firestore.v1.BatchWriteResponse;
 import com.google.firestore.v1.Cursor;
 import com.google.firestore.v1.PartitionQueryRequest;
 import com.google.firestore.v1.RunQueryRequest;
@@ -31,6 +33,9 @@ import com.google.firestore.v1.StructuredQuery.CollectionSelector;
 import com.google.firestore.v1.StructuredQuery.Direction;
 import com.google.firestore.v1.StructuredQuery.FieldReference;
 import com.google.firestore.v1.StructuredQuery.Order;
+import com.google.firestore.v1.Write;
+import com.google.rpc.Code;
+import com.google.rpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.time.Duration;
@@ -39,15 +44,20 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.GroupIntoBatches;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.SimpleFunction;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PDone;
@@ -94,6 +104,9 @@ public class FirestoreConnector {
 
   private static final Counter documentsDeleted =
       Metrics.counter(FirestoreConnector.class, "documentsDeleted");
+
+  private static final Counter failedDeletes =
+      Metrics.counter(FirestoreConnector.class, "failedDeletes");
 
   private static final Counter skippedResults =
       Metrics.counter(FirestoreConnector.class, "skippedResults");
@@ -167,7 +180,7 @@ public class FirestoreConnector {
       private FirestoreClient client;
 
       @StartBundle
-      public void startBundle(StartBundleContext context) throws Exception {
+      public void startBundle() throws Exception {
         client = getFirestoreClient();
       }
 
@@ -208,7 +221,7 @@ public class FirestoreConnector {
       private FirestoreClient client;
 
       @StartBundle
-      public void startBundle(StartBundleContext context) throws Exception {
+      public void startBundle() throws Exception {
         client = getFirestoreClient();
       }
 
@@ -230,25 +243,39 @@ public class FirestoreConnector {
     }
   }
 
-  /** Deletes documents from Firestore */
+  // TODO pull Deleter out of FirestoreConnector to be run as its own job.
+  /** Deletes documents from Firestore. */
   public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
 
     @Override
     public PDone expand(PCollection<DataShare> input) {
       // TODO: would it be useful to sort on document paths to get more efficient deletes?
-      input.apply("Delete", ParDo.of(new DeleteFn()));
+      IngestionPipelineOptions options =
+          input.getPipeline().getOptions().as(IngestionPipelineOptions.class);
+      Long deleteBatchSize = options.getDeleteBatchSize();
+      PCollection<KV<Long, Iterable<DataShare>>> dataSharesGroupedIntoBatches =
+          input
+              .apply(
+                  "AddRandomLongAsKey",
+                  MapElements.via(
+                      new SimpleFunction<DataShare, KV<Long, DataShare>>() {
+                        @Override
+                        public KV<Long, DataShare> apply(DataShare input) {
+                          return KV.of(
+                              ThreadLocalRandom.current().nextLong(0L, deleteBatchSize), input);
+                        }
+                      }))
+              .apply("GroupIntoBatches", GroupIntoBatches.ofSize(deleteBatchSize));
+      dataSharesGroupedIntoBatches.apply("BatchDelete", ParDo.of(new DeleteFn()));
       return PDone.in(input.getPipeline());
     }
 
-    // TODO: batch up deletes
-    // https://firebase.google.com/docs/firestore/manage-data/delete-data#collections
-    // https://github.com/googleapis/nodejs-firestore/issues/64
-    static class DeleteFn extends DoFn<DataShare, Void> {
+    static class DeleteFn extends DoFn<KV<Long, Iterable<DataShare>>, Void> {
 
       private FirestoreClient client;
 
       @StartBundle
-      public void startBundle(StartBundleContext context) throws Exception {
+      public void startBundle() throws Exception {
         client = getFirestoreClient();
       }
 
@@ -260,11 +287,30 @@ public class FirestoreConnector {
         // be deleted.
         //  If the date subcollection is the last element in its parent document, that document
         // should also be deleted.
-        if (options.getDelete()
-            && context.element() != null
-            && context.element().getPath() != null) {
-          client.deleteDocument(context.element().getPath());
-          documentsDeleted.inc();
+        if (options.getDelete() && context.element().getValue() != null) {
+          BatchWriteRequest.Builder batchDelete =
+              BatchWriteRequest.newBuilder()
+                  .setDatabase(
+                      "projects/" + options.getFirebaseProjectId() + "/databases/(default)");
+          for (DataShare ds : context.element().getValue()) {
+            if (ds.getPath() == null) {
+              LOG.warn("Attempted to delete DataShare with null Path");
+            }
+            batchDelete.addWrites(Write.newBuilder().setDelete(ds.getPath()).build());
+          }
+          BatchWriteResponse response = client.batchWrite(batchDelete.build());
+          List<Status> deleteResults = response.getStatusList();
+          for (int index = 0; index < deleteResults.size(); index++) {
+            Status status = deleteResults.get(index);
+            if (status.getCode() != Code.OK.getNumber()) {
+              failedDeletes.inc();
+              LOG.warn(
+                  "Failed to delete doc at: %s with Code: %s and Message: %s",
+                  batchDelete.getWrites(index).getDelete(), status.getCode(), status.getMessage());
+            } else {
+              documentsDeleted.inc();
+            }
+          }
         }
       }
 

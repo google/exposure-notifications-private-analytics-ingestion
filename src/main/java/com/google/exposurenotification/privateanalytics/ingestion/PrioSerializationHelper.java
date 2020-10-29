@@ -42,6 +42,7 @@ import org.apache.avro.util.Utf8;
  * format.
  */
 public class PrioSerializationHelper {
+
   public static <T extends SpecificRecordBase> ByteBuffer serializeRecords(
       List<T> records, Class<T> recordClass, Schema schema) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();

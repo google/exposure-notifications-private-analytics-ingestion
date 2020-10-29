@@ -209,7 +209,9 @@
             </goals>
             <configuration>
               <sources>
-                <source>${project.basedir}/third_party/android-key-attestation/server/src/main</source>
+                <source>
+                  ${project.basedir}/third_party/android-key-attestation/server/src/main
+                </source>
               </sources>
             </configuration>
           </execution>

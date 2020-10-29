@@ -42,6 +42,7 @@ import org.mockito.junit.MockitoRule;
 /** Unit tests for {@link DataShare}. */
 @RunWith(JUnit4.class)
 public class DataShareTest {
+
   public static final String PATH_ID = "uuid/path/id";
   public static final String METRIC_NAME = "id";
   public static final String UUID = "uniqueuserid";

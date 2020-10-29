@@ -168,55 +168,6 @@ public class IngestionPipelineIT {
     verifyBatchOutput(facDir);
   }
 
-  //  TODO: Uncomment this test & resolve why the NotFoundException is not being thrown (currently
-  // causing test failure)
-  //  @Test
-  //  @Category(NeedsRunner.class)
-  //  public void testFirestoreDeleter_deletesDocs()
-  //      throws InterruptedException, IOException, ExecutionException, IllegalAccessException,
-  //      InstantiationException {
-  //    String phaDir = tmpFolder.newFolder("testFirestoreDeleter/pha/" +
-  // STATE_ABBR).getAbsolutePath();
-  //    String facDir = tmpFolder.newFolder("testFirestoreDeleter/facilitator/" +
-  // STATE_ABBR).getAbsolutePath();
-  //    IngestionPipelineOptions options =
-  //        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-  //    options.setDelete(true);
-  //    options.setPHAOutput(phaDir);
-  //    options.setFacilitatorOutput(facDir);
-  //    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
-  //    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
-  //    options.setStartTime(CREATION_TIME);
-  //    options.setDuration(DURATION);
-  //    options.setKeyResourceName(KEY_RESOURCE_NAME);
-  //    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
-  //        seedDatabaseAndReturnEntryVal();
-  //
-  //    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
-  //    result.waitUntilFinish();
-  //
-  //    Map<String, List<PrioDataSharePacket>> actualDataSharepackets = readOutputShares(phaDir,
-  // facDir);
-  //    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet())
-  // {
-  //      Assert.assertTrue(
-  //          "Output contains data which is not present in input",
-  //          inputDataSharePackets.containsKey(entry.getKey()));
-  //      comparePrioDataSharePacket(entry.getValue().get(0),
-  //          inputDataSharePackets.get(entry.getKey()).get(0));
-  //      comparePrioDataSharePacket(entry.getValue().get(1),
-  //          inputDataSharePackets.get(entry.getKey()).get(1));
-  //    }
-  ////     Assert that processed documents have been deleted.
-  //    documentList.forEach(doc -> assertThrows(
-  //        NotFoundException.class, () -> fetchDocumentFromFirestore(doc.getName(), client)));
-  //    long documentsDeleted = result.metrics().queryMetrics(MetricsFilter.builder()
-  //        .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
-  //        .build()).getCounters().iterator().next().getCommitted();
-  //    assertThat(documentsDeleted).isEqualTo(2);
-  //    cleanUpParentResources(client);
-  //  }
-
   @Test
   @Category(ValidatesRunner.class)
   public void testFirestoreReader_readsCorrectNumberDocuments() {

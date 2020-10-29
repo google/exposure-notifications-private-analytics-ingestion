@@ -126,6 +126,13 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setBatchSize(Long value);
 
+  /** Batch size of Firestore batch deletes. */
+  @Description("Batch size of Firestore deletes.")
+  @Default.Long(100)
+  Long getDeleteBatchSize();
+
+  void setDeleteBatchSize(Long value);
+
   /** Whether to check device hardware attestations */
   @Description("Verify device attestations")
   @Default.Boolean(true)

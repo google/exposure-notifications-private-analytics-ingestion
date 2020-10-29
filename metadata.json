@@ -1,111 +1,111 @@
 {
-    "name": "ENPA Ingestion Pipeline",
-    "description": "A batch processing pipeline that can be used to ingest private data shares according to the Exposure Notification Private Analytics protocol",
-    "parameters": [
-        {
-            "name": "firebaseProjectId",
-            "label": "Firebase project ID",
-            "helpText": "Firebase Project Id to read from."
-        },
-        {
-            "name": "PHAOutput",
-            "label": "PHA output",
-            "helpText": "File prefix for output files for PHA"
-        },
-        {
-            "name": "facilitatorOutput",
-            "label": "Facilitator output",
-            "helpText": "File prefix for output files for Facilitator."
-        },
-        {
-            "name": "startTime",
-            "label": "Start time",
-            "helpText": "Start time in seconds of documents to process.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "duration",
-            "label": "Duration",
-            "helpText": "Duration of window in seconds.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "gracePeriodBackwards",
-            "label": "Grace period backwards",
-            "helpText": "Seconds to read backwards from startTime.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "gracePeriodForwards",
-            "label": "Grace period forwards",
-            "helpText": "Seconds to read forward from startTime.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "minimumParticipantCount",
-            "label": "Minimum participant count",
-            "helpText": "Minimum count of participants to preserve privacy.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "Delete",
-            "label": "Delete",
-            "helpText": "Delete documents at end of pipeline.",
-            "isOptional": true,
-            "regexes": [
-                "true|false"
-            ]
-        },
-        {
-            "name": "partitionCount",
-            "label": "Partition count",
-            "helpText": "Maximum number of partitions to create for Firestore query.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "batchSize",
-            "label": "Batch size",
-            "helpText": "Batch size of individual files.",
-            "isOptional": true,
-            "regexes": [
-                "[0-9]+"
-            ]
-        },
-        {
-            "name": "deviceAttestation",
-            "label": "Device attestation",
-            "helpText": "Verify device attestations.",
-            "isOptional": true,
-            "regexes": [
-                "true|false"
-            ]
-        },
-        {
-            "name": "keyResourceName",
-            "label": "Key resource name",
-            "helpText": "KMS resource name for signature generation.",
-            "isOptional": true,
-            "regexes": [
-                "projects/[^/]+/locations/[^/]+/keyRings/[^/]+/cryptoKeys/.+"
-            ]
-        }
-    ]
+  "name": "ENPA Ingestion Pipeline",
+  "description": "A batch processing pipeline that can be used to ingest private data shares according to the Exposure Notification Private Analytics protocol",
+  "parameters": [
+    {
+      "name": "firebaseProjectId",
+      "label": "Firebase project ID",
+      "helpText": "Firebase Project Id to read from."
+    },
+    {
+      "name": "PHAOutput",
+      "label": "PHA output",
+      "helpText": "File prefix for output files for PHA"
+    },
+    {
+      "name": "facilitatorOutput",
+      "label": "Facilitator output",
+      "helpText": "File prefix for output files for Facilitator."
+    },
+    {
+      "name": "startTime",
+      "label": "Start time",
+      "helpText": "Start time in seconds of documents to process.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "duration",
+      "label": "Duration",
+      "helpText": "Duration of window in seconds.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "gracePeriodBackwards",
+      "label": "Grace period backwards",
+      "helpText": "Seconds to read backwards from startTime.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "gracePeriodForwards",
+      "label": "Grace period forwards",
+      "helpText": "Seconds to read forward from startTime.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "minimumParticipantCount",
+      "label": "Minimum participant count",
+      "helpText": "Minimum count of participants to preserve privacy.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "Delete",
+      "label": "Delete",
+      "helpText": "Delete documents at end of pipeline.",
+      "isOptional": true,
+      "regexes": [
+        "true|false"
+      ]
+    },
+    {
+      "name": "partitionCount",
+      "label": "Partition count",
+      "helpText": "Maximum number of partitions to create for Firestore query.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "batchSize",
+      "label": "Batch size",
+      "helpText": "Batch size of individual files.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "deviceAttestation",
+      "label": "Device attestation",
+      "helpText": "Verify device attestations.",
+      "isOptional": true,
+      "regexes": [
+        "true|false"
+      ]
+    },
+    {
+      "name": "keyResourceName",
+      "label": "Key resource name",
+      "helpText": "KMS resource name for signature generation.",
+      "isOptional": true,
+      "regexes": [
+        "projects/[^/]+/locations/[^/]+/keyRings/[^/]+/cryptoKeys/.+"
+      ]
+    }
+  ]
 }
