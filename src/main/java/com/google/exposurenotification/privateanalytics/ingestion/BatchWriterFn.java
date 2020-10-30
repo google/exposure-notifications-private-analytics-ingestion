@@ -71,9 +71,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   private static final Counter failedBatches =
       Metrics.counter(BatchWriterFn.class, "failedBatches");
 
-  private static final Counter batchesFailingMinParticipant =
-      Metrics.counter(BatchWriterFn.class, "batchesFailingMinParticipant");
-
   private static final DateTimeFormatter formatter =
       DateTimeFormatter.ofPattern("/yyyy/MM/dd/HH/mm/");
 
@@ -115,12 +112,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     List<List<PrioDataSharePacket>> serializedDatashare = new ArrayList<>();
     for (DataShare dataShare : input.getValue()) {
       serializedDatashare.add(PrioSerializationHelper.splitPackets(dataShare));
-    }
-    if (serializedDatashare.size() < options.getMinimumParticipantCount()) {
-      LOG.warn("skipping batch of datashares for min participation");
-      batchesFailingMinParticipant.inc();
-      input.getValue().forEach(c::output);
-      return;
     }
 
     List<PrioDataSharePacket> phaPackets =

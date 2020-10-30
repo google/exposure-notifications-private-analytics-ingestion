@@ -85,7 +85,6 @@ public class IngestionPipelineIT {
   static final long CREATION_TIME = ThreadLocalRandom.current().nextLong(0L, 1602720000L);
   static final long DURATION = 10800L;
   static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
-  static final int MINIMUM_PARTICIPANT_COUNT = 1;
   // Randomize test collection name to avoid collisions between simultaneously running tests.
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
@@ -136,7 +135,6 @@ public class IngestionPipelineIT {
     options.setPHAOutput(phaDir);
     options.setFacilitatorOutput(facDir);
     options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
-    options.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
     options.setStartTime(CREATION_TIME);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
@@ -172,7 +170,6 @@ public class IngestionPipelineIT {
     // Time at which the test collection with 10k docs was created.
     long startTimeFor10kDocs = 1603137600L;
     testOptions.setFirebaseProjectId(FIREBASE_PROJECT_ID);
-    testOptions.setMinimumParticipantCount(MINIMUM_PARTICIPANT_COUNT);
     testOptions.setStartTime(startTimeFor10kDocs);
     testOptions.setDuration(DURATION);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);

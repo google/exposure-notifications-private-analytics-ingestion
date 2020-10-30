@@ -75,7 +75,6 @@ public class IngestionPipelineTest {
   public void processDataShares_valid() {
     options.setStartTime(2L);
     options.setDuration(1L);
-    options.setMinimumParticipantCount(1);
     options.setDeviceAttestation(false);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
@@ -102,7 +101,6 @@ public class IngestionPipelineTest {
   public void processDataShares_participantCountlessThanMinCount() {
     options.setStartTime(2L);
     options.setDuration(1L);
-    options.setMinimumParticipantCount(2);
     options.setDeviceAttestation(false);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();

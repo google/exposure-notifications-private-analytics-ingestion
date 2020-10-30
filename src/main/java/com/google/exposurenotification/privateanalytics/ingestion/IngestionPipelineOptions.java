@@ -97,14 +97,6 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setGracePeriodForwards(Long value);
 
-  /** Minimum count of participants to preserve privacy(e.g., not allow batch of 1). */
-  @Description("Minimum count of participants to preserve privacy.")
-  @Default.Integer(0)
-  Integer getMinimumParticipantCount();
-
-  @Description("Minimum count of participants to preserve privacy.")
-  void setMinimumParticipantCount(Integer value);
-
   /** Whether to delete documents once they've been processed */
   @Description("Delete documents at end of pipeline")
   @Default.Boolean(false)
@@ -175,8 +167,6 @@ public interface IngestionPipelineOptions extends PipelineOptions {
         + options.getStartTime()
         + "\nduration="
         + options.getDuration()
-        + "\nminParticipant="
-        + options.getMinimumParticipantCount()
         + "\ndelete="
         + options.getDelete()
         + "\nkeyResourceName="
