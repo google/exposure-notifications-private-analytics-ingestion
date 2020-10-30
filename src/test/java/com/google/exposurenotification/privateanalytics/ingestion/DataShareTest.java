@@ -64,7 +64,7 @@ public class DataShareTest {
 
   @Test
   public void testHappyCase() {
-    DataShare dataShare = createValidDataShare(CREATED, PATH_ID);
+    DataShare dataShare = createFakeDataShare(CREATED, PATH_ID);
 
     DataShareMetadata metadata = dataShare.getDataShareMetadata();
     assertThat(metadata).isEqualTo(createDataShareMetadata());
@@ -415,7 +415,7 @@ public class DataShareTest {
   }
 
   /** Static functions to create the objects used in the tests above. */
-  public static DataShare createValidDataShare(Integer timestamp, String path) {
+  public static DataShare createFakeDataShare(Integer timestamp, String path) {
     Document.Builder docBuilder = Document.newBuilder();
     Map<String, Value> prioParams = createPrioParams();
     List<Value> encryptedDataShares = createEncryptedDataShares();
