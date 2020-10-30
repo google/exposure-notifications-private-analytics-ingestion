@@ -79,7 +79,7 @@ public class PrioSerializationHelper {
       DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
     return PrioIngestionHeader.newBuilder()
         .setBatchUuid(new Utf8(uuid.toString()))
-        .setName(new Utf8("BatchUuid=" + uuid.toString()))
+        .setName(new Utf8(metadata.getMetricName()))
         .setBatchStartTime(startTime)
         .setBatchEndTime(startTime + duration)
         .setNumberOfServers(metadata.getNumberOfServers())
