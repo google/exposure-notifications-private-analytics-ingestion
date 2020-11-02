@@ -50,8 +50,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.abetterinternet.prio.v1.PrioBatchSignature;
@@ -490,14 +488,6 @@ public class IngestionPipelineIT {
       MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
       byte[] packetBatchHash = sha256.digest(packetBatchBytes);
       Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetBatchHash)).build();
-      Pattern r = Pattern.compile("/google/(.*)/\\d{4}");
-      Matcher m = r.matcher(path.toString());
-      String metricName = "";
-      if (m.find()) {
-        metricName = m.group(0);
-      } else {
-        Assert.fail(invalidPathMessage);
-      }
       PrioIngestionHeader expectedHeader =
           PrioSerializationHelper.createHeader(
               DataShareMetadata.builder()
@@ -506,7 +496,7 @@ public class IngestionPipelineIT {
                   .setPrime(DataShare.PRIME)
                   .setNumberOfServers(DataShare.NUMBER_OF_SERVERS)
                   .setHammingWeight(DEFAULT_HAMMING_WEIGHT.intValue())
-                  .setMetricName(metricName)
+                  .setMetricName("fakeMetricName")
                   .build(),
               digest,
               UUID.fromString(batchUuid),
@@ -522,7 +512,6 @@ public class IngestionPipelineIT {
                   PrioIngestionHeader.class, expectedHeaderFilename)
               .get(0);
       Assert.assertEquals(expectedHeader.getBins(), actualHeader.getBins());
-      Assert.assertEquals(expectedHeader.getName(), actualHeader.getName());
       Assert.assertEquals(expectedHeader.getBatchUuid(), actualHeader.getBatchUuid());
       Assert.assertEquals(expectedHeader.getEpsilon(), actualHeader.getEpsilon(), .00001);
       Assert.assertEquals(expectedHeader.getPrime(), actualHeader.getPrime());
