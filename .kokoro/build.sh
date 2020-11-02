@@ -53,6 +53,9 @@ test)
 lint)
     ./mvnw com.coveo:fmt-maven-plugin:check
     RETURN_CODE=$?
+    if [[ ${RETURN_CODE} != 0 ]]; then
+      echo "To fix formatting errors, run: mvn com.coveo:fmt-maven-plugin:format"
+    fi
     ;;
 esac
 
