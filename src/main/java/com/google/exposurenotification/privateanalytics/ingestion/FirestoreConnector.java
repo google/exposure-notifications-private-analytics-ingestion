@@ -38,6 +38,7 @@ import com.google.rpc.Code;
 import com.google.rpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -121,13 +122,14 @@ public class FirestoreConnector {
     public PCollection<DataShare> expand(PBegin input) {
       IngestionPipelineOptions options =
           (IngestionPipelineOptions) input.getPipeline().getOptions();
+      long start =
+          IngestionPipeline.calculatePipelineStart(
+              options.getStartTime(), options.getDuration(), Clock.systemUTC());
       long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
       long forwardWindow =
           (options.getDuration() + options.getGracePeriodForwards()) / SECONDS_IN_HOUR;
       return input
-          .apply(
-              "Begin",
-              Create.of(generateQueries(options.getStartTime(), backwardWindow, forwardWindow)))
+          .apply("Begin", Create.of(generateQueries(start, backwardWindow, forwardWindow)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           .apply("Read", ParDo.of(new ReadFn()))
           // In case workers retried on some shards and duplicates got emitted, ensure distinctness

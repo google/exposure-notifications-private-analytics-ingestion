@@ -1,5 +1,6 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.beam.sdk.metrics.Counter;
@@ -31,7 +32,9 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
     }
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    long startTime = options.getStartTime();
+    long startTime =
+        IngestionPipeline.calculatePipelineStart(
+            options.getStartTime(), options.getDuration(), Clock.systemUTC());
     long duration = options.getDuration();
 
     if (c.element().getCreated() >= startTime && c.element().getCreated() < startTime + duration) {

@@ -17,6 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
@@ -52,6 +53,7 @@ import org.slf4j.LoggerFactory;
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+
   /**
    * A DoFn that filters documents in particular time window
    */
@@ -108,29 +110,11 @@ public class IngestionPipeline {
     return dataShares;
   }
 
+  /** Perform the input, processing and output for the full ingestion pipeline. */
   static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
     PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
-    LOG.info("runIngestionPipeline Batch size: {}", options.getBatchSize());
-
-    PCollection<DataShare> processedDataShares = processDataShares(dataShares);
-
-    PCollection<KV<DataShareMetadata, DataShare>> processedDataSharesByMetadata =
-        processedDataShares.apply(
-            "MapMetadata-",
-            MapElements.via(
-                new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
-                  @Override
-                  public KV<DataShareMetadata, DataShare> apply(DataShare input) {
-                    return KV.of(input.getDataShareMetadata(), input);
-                  }
-                }));
-
-    PCollection<KV<DataShareMetadata, Iterable<DataShare>>> datashareGroupedByMetadata =
-        groupIntoBatches(processedDataSharesByMetadata, options.getBatchSize());
-
-    datashareGroupedByMetadata.apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
-
+    processDataShares(dataShares).apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
     return pipeline.run();
   }
 
@@ -149,6 +133,21 @@ public class IngestionPipeline {
     } catch (Exception e) {
       LOG.error("Exception thrown during pipeline run.", e);
     }
+  }
+
+  /**
+   * @return
+   *     <pre>startTime</pre>
+   *     from options/flags if set. Otherwise, rounds current time down to start of previous window
+   *     of length
+   *     <pre>duration</pre>
+   *     option/flag.
+   */
+  public static long calculatePipelineStart(long startOption, long duration, Clock clock) {
+    if (startOption != IngestionPipelineOptions.UNSPECIFIED) {
+      return startOption;
+    }
+    return (clock.instant().getEpochSecond() / duration - 1) * duration;
   }
 
   private static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> groupIntoBatches(

@@ -15,7 +15,12 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -23,7 +28,7 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,39 +47,10 @@ public class IngestionPipelineTest {
 
   @Test
   @Category(ValidatesRunner.class)
-  public void testDateFilter() {
-    DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
-    List<DataShare> dataShares =
-        Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id3").setCreated(3L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
-
-    options.setStartTime(2L);
-    options.setDuration(1L);
-    options.setDeviceAttestation(false);
-
-    PCollection<DataShare> input = pipeline.apply(Create.of(dataShares));
-
-    PCollection<DataShare> output = input.apply(ParDo.of(new DateFilterFn()));
-
-    PAssert.that(output)
-        .containsInAnyOrder(
-            Collections.singletonList(
-                DataShare.builder()
-                    .setPath("id2")
-                    .setCreated(2L)
-                    .setDataShareMetadata(meta)
-                    .build()));
-    pipeline.run().waitUntilFinish();
-  }
-
-  @Test
-  @Category(ValidatesRunner.class)
   public void processDataShares_valid() {
-    options.setStartTime(2L);
-    options.setDuration(1L);
+    options.setStartTime(1L);
+    options.setDuration(2L);
+    options.setBatchSize(1L);
     options.setDeviceAttestation(false);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
@@ -84,34 +60,46 @@ public class IngestionPipelineTest {
             DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
             DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
             DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
-    List<DataShare> expectedOutput =
-        Arrays.asList(
-            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build());
 
-    PCollection<DataShare> actualOutput =
+    PCollection<KV<DataShareMetadata, Iterable<DataShare>>> actualOutput =
         IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
 
+    List<KV<DataShareMetadata, Iterable<DataShare>>> expectedOutput =
+        Arrays.asList(
+            KV.of(
+                meta,
+                Collections.singletonList(
+                    DataShare.builder()
+                        .setPath("id1")
+                        .setCreated(1L)
+                        .setDataShareMetadata(meta)
+                        .build())),
+            KV.of(
+                meta,
+                Collections.singletonList(
+                    DataShare.builder()
+                        .setPath("id2")
+                        .setCreated(2L)
+                        .setDataShareMetadata(meta)
+                        .build())));
     PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
     pipeline.run().waitUntilFinish();
   }
 
-  // TODO needs fixing once check is implemented correctly
-  //  @Test(expected = AssertionError.class)
-  @Category(ValidatesRunner.class)
-  public void processDataShares_participantCountlessThanMinCount() {
-    options.setStartTime(2L);
-    options.setDuration(1L);
-    options.setDeviceAttestation(false);
-
-    DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
-    List<DataShare> inputData =
-        Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
-
-    IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
-    pipeline.run().waitUntilFinish();
+  @Test
+  public void test_calculatePipelineStart() {
+    assertThat(IngestionPipeline.calculatePipelineStart(123, 5, Clock.systemUTC())).isEqualTo(123);
+    assertThat(
+            IngestionPipeline.calculatePipelineStart(
+                IngestionPipelineOptions.UNSPECIFIED,
+                10,
+                Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
+        .isEqualTo(20);
+    assertThat(
+            IngestionPipeline.calculatePipelineStart(
+                IngestionPipelineOptions.UNSPECIFIED,
+                10,
+                Clock.fixed(Instant.ofEpochSecond(20), ZoneId.systemDefault())))
+        .isEqualTo(10);
   }
 }

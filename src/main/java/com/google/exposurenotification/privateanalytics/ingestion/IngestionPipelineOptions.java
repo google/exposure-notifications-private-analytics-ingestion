@@ -23,6 +23,8 @@ import org.apache.beam.sdk.options.Validation.Required;
 /** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends PipelineOptions {
 
+  int UNSPECIFIED = -1;
+
   /** Firebase project to read from. */
   @Description("Firebase Project Id to read from")
   @Required
@@ -54,10 +56,11 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   /**
    * Start time of window to process. Used to filter documents that have been read from Firestore on
-   * the "Creation" field.
+   * the "Creation" field. Defaults to current time rounded down to previous alignment period based
+   * on the duration.
    */
   @Description("Start time in UTC seconds of documents to process")
-  @Default.Long(0)
+  @Default.Long(UNSPECIFIED)
   Long getStartTime();
 
   void setStartTime(Long value);
@@ -67,7 +70,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * on the "Creation" field.
    */
   @Description("Duration of window in seconds")
-  @Default.Long(10800)
+  @Default.Long(3600)
   Long getDuration();
 
   void setDuration(ValueProvider<Long> value);

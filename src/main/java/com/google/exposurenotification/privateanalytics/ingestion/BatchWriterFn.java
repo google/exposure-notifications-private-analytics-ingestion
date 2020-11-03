@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -102,7 +103,9 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     String phaPrefix = options.getPHAOutput();
     String facilitatorPrefix = options.getFacilitatorOutput();
-    long startTime = options.getStartTime();
+    long startTime =
+        IngestionPipeline.calculatePipelineStart(
+            options.getStartTime(), options.getDuration(), Clock.systemUTC());
     long duration = options.getDuration();
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
