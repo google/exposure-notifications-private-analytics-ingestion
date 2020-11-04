@@ -100,7 +100,7 @@ public class IngestionPipelineIT {
   static final Long DEFAULT_HAMMING_WEIGHT = 1L;
 
   static final String STATE_ABBR = "NY";
-  static List<Document> documentList;
+  static List<String> documentList;
   static FirestoreClient client;
 
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
@@ -118,6 +118,7 @@ public class IngestionPipelineIT {
 
   @After
   public void tearDown() {
+    cleanUpDb();
     FirestoreConnector.shutdownFirestoreClient(client);
   }
 
@@ -137,14 +138,12 @@ public class IngestionPipelineIT {
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
     options.setDeviceAttestation(false);
-    Map<String, List<PrioDataSharePacket>> inputDataSharePackets = seedDatabaseAndReturnEntryVal();
+    int numDocs = 2;
+    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
+        seedDatabaseAndReturnEntryVal(numDocs);
 
-    try {
-      PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
-      result.waitUntilFinish();
-    } finally {
-      cleanUpDb();
-    }
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
+    result.waitUntilFinish();
 
     Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
         readOutputShares(phaDir, facDir);
@@ -164,17 +163,18 @@ public class IngestionPipelineIT {
 
   @Test
   @Category(ValidatesRunner.class)
-  public void testFirestoreReader_readsCorrectNumberDocuments() {
-    // Time at which the test collection with 10k docs was created.
-    long startTimeFor10kDocs = 1603137600L;
+  public void testFirestoreReader_partitionsQueryAndReadsCorrectNumberDocuments()
+      throws InterruptedException, ExecutionException, IOException {
     testOptions.setFirebaseProjectId(FIREBASE_PROJECT_ID);
-    testOptions.setStartTime(startTimeFor10kDocs);
+    testOptions.setStartTime(CREATION_TIME);
     testOptions.setDuration(DURATION);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+    int numDocs = 200;
+    seedDatabaseAndReturnEntryVal(numDocs);
 
     PCollection<Long> numShares = testPipeline.apply(new FirestoreReader()).apply(Count.globally());
 
-    PAssert.that(numShares).containsInAnyOrder(10000L);
+    PAssert.that(numShares).containsInAnyOrder((long) numDocs);
     PipelineResult result = testPipeline.run();
     long partitionsCreated =
         result
@@ -197,8 +197,8 @@ public class IngestionPipelineIT {
     return client.getDocument(GetDocumentRequest.newBuilder().setName(path).build());
   }
 
-  private static void cleanUpDb() throws IOException {
-    documentList.forEach(doc -> client.deleteDocument(doc.getName()));
+  private static void cleanUpDb() {
+    documentList.forEach(docPath -> client.deleteDocument(docPath));
     cleanUpParentResources(client);
   }
 
@@ -236,24 +236,17 @@ public class IngestionPipelineIT {
     return result;
   }
 
-  private String getFilePath(String filePath) {
-    if (filePath.contains(":")) {
-      return filePath.replace("\\", "/").split(":", -1)[1];
-    }
-    return filePath;
-  }
-
   /**
    * Creates test-users collection and adds sample documents to test queries. Returns entry value in
    * form of {@link Map<String, PrioDataSharePacket>}.
    */
-  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal()
-      throws ExecutionException, InterruptedException, IOException {
+  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(
+      int numDocsToSeed) throws ExecutionException, InterruptedException, IOException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
 
-    for (int i = 1; i <= 2; i++) {
+    for (int i = 1; i <= numDocsToSeed; i++) {
       ArrayValue certs =
           ArrayValue.newBuilder()
               .addValues(
@@ -312,7 +305,7 @@ public class IngestionPipelineIT {
     }
 
     Map<String, List<PrioDataSharePacket>> dataShareByUuid = new HashMap<>();
-    for (int i = 1; i <= 2; i++) {
+    for (int i = 1; i <= numDocsToSeed; i++) {
       String docName =
           "projects/"
               + FIREBASE_PROJECT_ID
@@ -324,7 +317,7 @@ public class IngestionPipelineIT {
               + formatDateTime(CREATION_TIME)
               + "/metric1";
       Document doc = fetchDocumentFromFirestore(docName, client);
-      documentList.add(doc);
+      documentList.add(doc.getName());
       DataShare dataShare = DataShare.from(doc);
       List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
       List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
@@ -458,7 +451,7 @@ public class IngestionPipelineIT {
 
   private void verifyBatchOutput(String batchFolder)
       throws IOException, IllegalAccessException, InstantiationException,
-          java.security.NoSuchAlgorithmException, InterruptedException {
+          java.security.NoSuchAlgorithmException {
     Stream<Path> paths = Files.walk(Paths.get(batchFolder));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
     int verifiedBatchesCount = 0;

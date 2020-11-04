@@ -245,7 +245,6 @@ public class FirestoreConnector {
     }
   }
 
-  // TODO pull Deleter out of FirestoreConnector to be run as its own job.
   /** Deletes documents from Firestore. */
   public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
 
