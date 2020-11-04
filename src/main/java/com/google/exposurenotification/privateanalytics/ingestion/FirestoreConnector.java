@@ -21,10 +21,10 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
 import com.google.firestore.v1.BatchWriteRequest;
 import com.google.firestore.v1.BatchWriteResponse;
 import com.google.firestore.v1.Cursor;
+import com.google.firestore.v1.Document;
 import com.google.firestore.v1.PartitionQueryRequest;
 import com.google.firestore.v1.RunQueryRequest;
 import com.google.firestore.v1.RunQueryResponse;
@@ -94,9 +94,6 @@ public class FirestoreConnector {
 
   private static final Counter dataShares = Metrics.counter(FirestoreConnector.class, "dataShares");
 
-  private static final Counter invalidDocumentCounter =
-      Metrics.counter(FirestoreConnector.class, "invalidDocuments");
-
   private static final Counter grpcException =
       Metrics.counter(FirestoreConnector.class, "grpcException");
 
@@ -116,10 +113,10 @@ public class FirestoreConnector {
       Metrics.counter(FirestoreConnector.class, "partialProgress");
 
   /** Reads documents from Firestore */
-  public static final class FirestoreReader extends PTransform<PBegin, PCollection<DataShare>> {
+  public static final class FirestoreReader extends PTransform<PBegin, PCollection<Document>> {
 
     @Override
-    public PCollection<DataShare> expand(PBegin input) {
+    public PCollection<Document> expand(PBegin input) {
       IngestionPipelineOptions options =
           (IngestionPipelineOptions) input.getPipeline().getOptions();
       long start =
@@ -134,12 +131,12 @@ public class FirestoreConnector {
           .apply("Read", ParDo.of(new ReadFn()))
           // In case workers retried on some shards and duplicates got emitted, ensure distinctness
           .apply(
-              Distinct.<DataShare, String>withRepresentativeValueFn(
+              Distinct.<Document, String>withRepresentativeValueFn(
                   // Not using a lambda here as Beam has trouble inferring a coder
-                  new SerializableFunction<DataShare, String>() {
+                  new SerializableFunction<Document, String>() {
                     @Override
-                    public String apply(DataShare dataShare) {
-                      return dataShare.getPath();
+                    public String apply(Document document) {
+                      return document.getName();
                     }
                   }));
     }
@@ -218,7 +215,7 @@ public class FirestoreConnector {
       }
     }
 
-    static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, DataShare> {
+    static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, Document> {
 
       private FirestoreClient client;
 
@@ -231,9 +228,9 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        for (DataShare ds :
+        for (Document doc :
             readDocumentsFromFirestore(client, options.getFirebaseProjectId(), context.element())) {
-          context.output(ds);
+          context.output(doc);
           dataShares.inc();
         }
       }
@@ -246,32 +243,37 @@ public class FirestoreConnector {
   }
 
   /** Deletes documents from Firestore. */
-  public static final class FirestoreDeleter extends PTransform<PCollection<DataShare>, PDone> {
+  public static final class FirestoreDeleter extends PTransform<PCollection<Document>, PDone> {
 
     @Override
-    public PDone expand(PCollection<DataShare> input) {
+    public PDone expand(PCollection<Document> input) {
       // TODO: would it be useful to sort on document paths to get more efficient deletes?
       IngestionPipelineOptions options =
           input.getPipeline().getOptions().as(IngestionPipelineOptions.class);
       Long deleteBatchSize = options.getDeleteBatchSize();
-      PCollection<KV<Long, Iterable<DataShare>>> dataSharesGroupedIntoBatches =
+      PCollection<KV<Long, Iterable<Document>>> documentsGroupedIntoBatches =
           input
+              // Mapping each document to a random long key between 0 and deleteBatchSize will help
+              // us asynchronously form batches of documents to delete. Assigning a key randomly to
+              // each document will roughly uniformly distribute documents across the buckets. This
+              // way we can form multiple batches at a time and run multiple batch deletes at a
+              // time.
               .apply(
                   "AddRandomLongAsKey",
                   MapElements.via(
-                      new SimpleFunction<DataShare, KV<Long, DataShare>>() {
+                      new SimpleFunction<Document, KV<Long, Document>>() {
                         @Override
-                        public KV<Long, DataShare> apply(DataShare input) {
+                        public KV<Long, Document> apply(Document input) {
                           return KV.of(
                               ThreadLocalRandom.current().nextLong(0L, deleteBatchSize), input);
                         }
                       }))
               .apply("GroupIntoBatches", GroupIntoBatches.ofSize(deleteBatchSize));
-      dataSharesGroupedIntoBatches.apply("BatchDelete", ParDo.of(new DeleteFn()));
+      documentsGroupedIntoBatches.apply("BatchDelete", ParDo.of(new DeleteFn()));
       return PDone.in(input.getPipeline());
     }
 
-    static class DeleteFn extends DoFn<KV<Long, Iterable<DataShare>>, Void> {
+    static class DeleteFn extends DoFn<KV<Long, Iterable<Document>>, Void> {
 
       private FirestoreClient client;
 
@@ -284,20 +286,17 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        // TODO: if this is the last document in the date subcollection, the date subcollection will
-        // be deleted.
-        //  If the date subcollection is the last element in its parent document, that document
-        // should also be deleted.
-        if (options.getDelete() && context.element().getValue() != null) {
+        if (context.element().getValue() != null) {
           BatchWriteRequest.Builder batchDelete =
               BatchWriteRequest.newBuilder()
                   .setDatabase(
                       "projects/" + options.getFirebaseProjectId() + "/databases/(default)");
-          for (DataShare ds : context.element().getValue()) {
-            if (ds.getPath() == null) {
-              LOG.warn("Attempted to delete DataShare with null Path");
+          for (Document doc : context.element().getValue()) {
+            if (doc.getName() == null) {
+              LOG.warn("Attempted to delete Document with null Path");
+              continue;
             }
-            batchDelete.addWrites(Write.newBuilder().setDelete(ds.getPath()).build());
+            batchDelete.addWrites(Write.newBuilder().setDelete(doc.getName()).build());
           }
           BatchWriteResponse response = client.batchWrite(batchDelete.build());
           List<Status> deleteResults = response.getStatusList();
@@ -316,7 +315,7 @@ public class FirestoreConnector {
       }
 
       @FinishBundle
-      public void finishBundle() throws InterruptedException {
+      public void finishBundle() {
         shutdownFirestoreClient(client);
       }
     }
@@ -355,8 +354,8 @@ public class FirestoreConnector {
     return formatter.format(dateTimeToQuery);
   }
 
-  // Returns a list of DataShares for documents captured within the given query Cursor pair.
-  private static List<DataShare> readDocumentsFromFirestore(
+  // Returns a list of Documents captured within the given query Cursor pair.
+  private static List<Document> readDocumentsFromFirestore(
       FirestoreClient firestoreClient,
       String projectId,
       ImmutableTriple<Cursor, Cursor, StructuredQuery> cursors) {
@@ -367,7 +366,7 @@ public class FirestoreConnector {
     if (cursors.getMiddle() != null) {
       queryBuilder.setEndAt(cursors.getMiddle());
     }
-    List<DataShare> docs = new ArrayList<>();
+    List<Document> docs = new ArrayList<>();
     try {
       ServerStream<RunQueryResponse> responseIterator =
           firestoreClient
@@ -382,14 +381,9 @@ public class FirestoreConnector {
             skippedResults.inc(res.getSkippedResults());
             // Streaming grpc may return partial results
             if (res.hasDocument()) {
+              docs.add(res.getDocument());
               LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
               documentsRead.inc();
-              try {
-                docs.add(DataShare.from(res.getDocument()));
-              } catch (InvalidDataShareException e) {
-                LOG.warn("Invalid data share", e);
-                invalidDocumentCounter.inc();
-              }
             } else {
               partialProgress.inc();
             }

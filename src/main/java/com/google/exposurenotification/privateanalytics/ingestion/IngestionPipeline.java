@@ -15,6 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import java.time.Clock;
@@ -113,7 +114,8 @@ public class IngestionPipeline {
   /** Perform the input, processing and output for the full ingestion pipeline. */
   static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
-    PCollection<DataShare> dataShares = pipeline.apply(new FirestoreReader());
+    PCollection<DataShare> dataShares =
+        pipeline.apply(new FirestoreReader()).apply(ParDo.of(new ConstructDataSharesFn()));
     processDataShares(dataShares).apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
     return pipeline.run();
   }

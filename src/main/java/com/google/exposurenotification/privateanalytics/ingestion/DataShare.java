@@ -28,11 +28,16 @@ import java.util.List;
 import java.util.Map;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Pipeline view of Firestore documents corresponding to Prio data share pairs. */
 @AutoValue
 public abstract class DataShare implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
 
   private static final long serialVersionUID = 1L;
   public static final int LATEST_SCHEMA_VERSION = 1;
@@ -45,6 +50,8 @@ public abstract class DataShare implements Serializable {
       Metrics.counter(DataShare.class, "datashare-illegalArg");
   private static final Counter failedRPitGenerationCounter =
       Metrics.counter(DataShare.class, "datashare-failedRPitGeneration");
+  private static final Counter invalidDocumentCounter =
+      Metrics.counter(DataShare.class, "datashare-invalidDocument");
 
   // Firestore document field names. See
   // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
@@ -307,6 +314,20 @@ public abstract class DataShare implements Serializable {
     abstract Builder setSignature(@Nullable String value);
 
     abstract Builder setCertificateChain(@Nullable List<String> certChain);
+  }
+
+  // A transform that constructs and outputs a DataShare for a Document.
+  static class ConstructDataSharesFn extends DoFn<Document, DataShare> {
+
+    @ProcessElement
+    public void processElement(ProcessContext context) {
+      try {
+        context.output(DataShare.from(context.element()));
+      } catch (InvalidDataShareException e) {
+        LOG.warn("Invalid data share", e);
+        invalidDocumentCounter.inc();
+      }
+    }
   }
 
   // Next power of two of an int.
