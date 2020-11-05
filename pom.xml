@@ -103,7 +103,7 @@
               <goal>schema</goal>
             </goals>
             <configuration>
-              <sourceDirectory>${project.basedir}/src/avro/</sourceDirectory>
+              <sourceDirectory>${project.basedir}/third_party/prio-server/avro-schema/</sourceDirectory>
               <outputDirectory>${project.build.directory}/generated-sources/</outputDirectory>
             </configuration>
           </execution>

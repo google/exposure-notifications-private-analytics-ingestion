@@ -101,6 +101,8 @@ public class PrioSerializationHelper {
               .setEncryptedPayload(ByteBuffer.wrap(encryptedShare.getEncryptedPayload()))
               .setRPit(dataShare.getRPit())
               .setUuid(dataShare.getUuid())
+              .setVersionConfiguration(null)
+              .setDeviceNonce(null)
               .build());
     }
     return splitDataShares;

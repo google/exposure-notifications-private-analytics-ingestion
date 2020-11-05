@@ -327,6 +327,8 @@ public class IngestionPipelineIT {
                 .setEncryptionKeyId(entry.getEncryptionKeyId())
                 .setEncryptedPayload(ByteBuffer.wrap(entry.getEncryptedPayload()))
                 .setRPit(dataShare.getRPit())
+                .setVersionConfiguration(null)
+                .setDeviceNonce(null)
                 .setUuid(dataShare.getUuid())
                 .build());
       }
