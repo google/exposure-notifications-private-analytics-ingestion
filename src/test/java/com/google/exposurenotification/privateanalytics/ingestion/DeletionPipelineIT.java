@@ -77,7 +77,6 @@ public class DeletionPipelineIT {
   public void testFirestoreDeleter_deletesDocs() throws InterruptedException {
     IngestionPipelineOptions options =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-    options.setDelete(true);
     options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
     options.setStartTime(CREATION_TIME);
     options.setDuration(DURATION);

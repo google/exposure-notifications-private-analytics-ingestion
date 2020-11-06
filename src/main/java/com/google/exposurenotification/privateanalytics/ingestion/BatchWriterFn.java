@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
@@ -62,8 +61,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   public static final String HEADER_SIGNATURE_SUFFIX = ".batch.sig.avro";
 
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
-  private static final int PHA_INDEX = 0;
-  private static final int FACILITATOR_INDEX = 1;
   private static final Duration KMS_WAIT_TIME = Duration.ofSeconds(30);
 
   private static final Counter successfulBatches =
@@ -77,13 +74,23 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
+  private DataProcessorManifest manifestPha = null;
+  private DataProcessorManifest manifestFacilitator = null;
 
+  // Uses pipeline options, otherwise could've lived in @Setup
   @StartBundle
   public void startBundle(StartBundleContext context) throws IOException {
     client = KeyManagementServiceClient.create();
     IngestionPipelineOptions options =
         context.getPipelineOptions().as(IngestionPipelineOptions.class);
     keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName());
+
+    if (!"".equals(options.getPHAManifestURL())) {
+      manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
+    }
+    if (!"".equals(options.getFacilitatorManifestURL())) {
+      manifestFacilitator = new DataProcessorManifest(options.getFacilitatorManifestURL());
+    }
   }
 
   @FinishBundle
@@ -101,30 +108,30 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   public void processElement(ProcessContext c) {
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    String phaPrefix = options.getPHAOutput();
-    String facilitatorPrefix = options.getFacilitatorOutput();
+    String phaPrefix = getOutputPrefix(options.getPHAOutput(), manifestPha);
+    String facilitatorPrefix = getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator);
     long startTime =
-        IngestionPipeline.calculatePipelineStart(
+        IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), Clock.systemUTC());
     long duration = options.getDuration();
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
     LOG.info("Processing batch: " + metadata.toString());
-    // batch size explicitly chosen so that this list fits in memory on a single worker
-    List<List<PrioDataSharePacket>> serializedDatashare = new ArrayList<>();
+    // batch size explicitly chosen so that these lists fit in memory on a single worker
+    List<PrioDataSharePacket> phaPackets = new ArrayList<>();
+    List<PrioDataSharePacket> facilitatorPackets = new ArrayList<>();
     for (DataShare dataShare : input.getValue()) {
-      serializedDatashare.add(PrioSerializationHelper.splitPackets(dataShare));
+      List<PrioDataSharePacket> split =
+          PrioSerializationHelper.splitPackets(dataShare, manifestPha, manifestFacilitator);
+      if (split.size() != DataShare.NUMBER_OF_SERVERS) {
+        throw new IllegalArgumentException(
+            "Share split into more than hardcoded number of servers");
+      }
+      // First packet always goes to PHA
+      phaPackets.add(split.get(0));
+      facilitatorPackets.add(split.get(1));
     }
-
-    List<PrioDataSharePacket> phaPackets =
-        serializedDatashare.stream()
-            .map(listPacket -> listPacket.get(PHA_INDEX))
-            .collect(Collectors.toList());
-    List<PrioDataSharePacket> facilitatorPackets =
-        serializedDatashare.stream()
-            .map(listPacket -> listPacket.get(FACILITATOR_INDEX))
-            .collect(Collectors.toList());
 
     UUID batchId = UUID.randomUUID();
     String date = LocalDateTime.now(ZoneOffset.UTC).format(formatter);
@@ -146,6 +153,17 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       failedBatches.inc();
       input.getValue().forEach(c::output);
     }
+  }
+
+  // Override manifest bucket (if present) with explicitly specified output path flag
+  private String getOutputPrefix(String outputOption, DataProcessorManifest manifest) {
+    if (!"".equals(outputOption)) {
+      return outputOption;
+    }
+    if (manifest == null) {
+      throw new IllegalArgumentException("Must specify either output option or manifest url");
+    }
+    return manifest.getIngestionBucket();
   }
 
   /** Writes the triplet of files defined per batch of data shares (packet file, header, and sig) */

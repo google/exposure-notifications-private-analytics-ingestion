@@ -88,15 +88,16 @@ public class IngestionPipelineTest {
 
   @Test
   public void test_calculatePipelineStart() {
-    assertThat(IngestionPipeline.calculatePipelineStart(123, 5, Clock.systemUTC())).isEqualTo(123);
+    assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, Clock.systemUTC()))
+        .isEqualTo(123);
     assertThat(
-            IngestionPipeline.calculatePipelineStart(
+            IngestionPipelineOptions.calculatePipelineStart(
                 IngestionPipelineOptions.UNSPECIFIED,
                 10,
                 Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
         .isEqualTo(20);
     assertThat(
-            IngestionPipeline.calculatePipelineStart(
+            IngestionPipelineOptions.calculatePipelineStart(
                 IngestionPipelineOptions.UNSPECIFIED,
                 10,
                 Clock.fixed(Instant.ofEpochSecond(20), ZoneId.systemDefault())))

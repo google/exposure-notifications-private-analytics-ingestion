@@ -15,10 +15,13 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 
+import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,5 +118,60 @@ public class PrioSerializationHelperTest {
         PrioSerializationHelper.deserializeRecords(
             PrioDataSharePacket.class, serializedDataShares.getAbsolutePath());
     assertEquals(dataSharePackets, deserializedHeaders);
+  }
+
+  @Test
+  public void testSplitPackets_no_manifests() {
+    DataShare share =
+        DataShare.builder()
+            .setEncryptedDataShares(
+                List.of(
+                    EncryptedShare.builder()
+                        .setEncryptedPayload("pha".getBytes())
+                        .setEncryptionKeyId("pha-key-id")
+                        .build(),
+                    EncryptedShare.builder()
+                        .setEncryptedPayload("facilitator".getBytes())
+                        .setEncryptionKeyId("facilitator-key-id")
+                        .build()))
+            .setRPit(2L)
+            .setUuid("someuuid")
+            .build();
+
+    List<PrioDataSharePacket> packets = PrioSerializationHelper.splitPackets(share, null, null);
+    assertThat(packets).hasSize(2);
+    assertThat(packets.get(0).getEncryptionKeyId()).isEqualTo("pha-key-id");
+    assertThat(packets.get(1).getEncryptionKeyId()).isEqualTo("facilitator-key-id");
+  }
+
+  @Test
+  public void testSplitPackets_pha_manifest() {
+    DataShare share =
+        DataShare.builder()
+            .setEncryptedDataShares(
+                List.of(
+                    EncryptedShare.builder()
+                        .setEncryptedPayload("pha".getBytes())
+                        .setEncryptionKeyId("55NdHuhCjyR3PtTL0A7WRiaIgURhTmlkNw5dbFsKL70=")
+                        .build(),
+                    EncryptedShare.builder()
+                        .setEncryptedPayload("facilitator".getBytes())
+                        .setEncryptionKeyId("facilitator-key-id")
+                        .build()))
+            .setRPit(2L)
+            .setUuid("someuuid")
+            .build();
+    URL manifestUrl =
+        getClass()
+            .getResource(
+                "/java/com/google/exposurenotification/privateanalytics/ingestion/test-manifest.json");
+    DataProcessorManifest phaManifest = new DataProcessorManifest(manifestUrl.toString());
+
+    List<PrioDataSharePacket> packets =
+        PrioSerializationHelper.splitPackets(share, phaManifest, null);
+    assertThat(packets).hasSize(2);
+    assertThat(packets.get(0).getEncryptionKeyId())
+        .isEqualTo("demo-gcp-test-pha-1-ingestion-packet-decryption-key");
+    assertThat(packets.get(1).getEncryptionKeyId()).isEqualTo("facilitator-key-id");
   }
 }

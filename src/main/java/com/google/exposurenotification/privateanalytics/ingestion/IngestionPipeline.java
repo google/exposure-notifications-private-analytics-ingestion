@@ -18,7 +18,6 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
@@ -135,21 +134,6 @@ public class IngestionPipeline {
     } catch (Exception e) {
       LOG.error("Exception thrown during pipeline run.", e);
     }
-  }
-
-  /**
-   * @return
-   *     <pre>startTime</pre>
-   *     from options/flags if set. Otherwise, rounds current time down to start of previous window
-   *     of length
-   *     <pre>duration</pre>
-   *     option/flag.
-   */
-  public static long calculatePipelineStart(long startOption, long duration, Clock clock) {
-    if (startOption != IngestionPipelineOptions.UNSPECIFIED) {
-      return startOption;
-    }
-    return (clock.instant().getEpochSecond() / duration - 1) * duration;
   }
 
   private static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> groupIntoBatches(

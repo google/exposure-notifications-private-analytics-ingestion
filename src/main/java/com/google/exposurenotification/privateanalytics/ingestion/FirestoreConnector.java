@@ -119,8 +119,9 @@ public class FirestoreConnector {
     public PCollection<Document> expand(PBegin input) {
       IngestionPipelineOptions options =
           (IngestionPipelineOptions) input.getPipeline().getOptions();
+      LOG.info("IngestionPipelineOptions: " + IngestionPipelineOptions.displayString(options));
       long start =
-          IngestionPipeline.calculatePipelineStart(
+          IngestionPipelineOptions.calculatePipelineStart(
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
       long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
       long forwardWindow =

@@ -15,10 +15,12 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import java.time.Clock;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.Validation.Required;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 /** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends PipelineOptions {
@@ -32,13 +34,29 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setFirebaseProjectId(String value);
 
+  /** PHA Manifest file URL. */
+  @Description("PHA Manifest file URL")
+  @Default.String("")
+  String getPHAManifestURL();
+
+  void setPHAManifestURL(String value);
+
+  /** Facilitator Manifest file URL. */
+  @Description("Facilitator Manifest file URL")
+  @Default.String("")
+  String getFacilitatorManifestURL();
+
+  void setFacilitatorManifestURL(String value);
+
   /**
    * Directory to place output files for PHA. If the directory does not exist, then it will
    * automatically be created.
+   *
+   * <p>If set, this flag overrides an output location set in the PHA manifest file.
    */
   @Description(
       "Directory to place output files for PHA (Should end in 2-letter state abbreviation).")
-  @Required
+  @Default.String("")
   String getPHAOutput();
 
   void setPHAOutput(String value);
@@ -46,10 +64,12 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   /**
    * Directory to place output files for Facilitator. If the directory does not exist, then it will
    * automatically be created.
+   *
+   * <p>If set, this flag overrides an output location set in the Facilitator manifest file.
    */
   @Description(
       "Directory to place output files for Facilitator. (Should end in 2-letter state abbreviation)")
-  @Required
+  @Default.String("")
   String getFacilitatorOutput();
 
   void setFacilitatorOutput(String value);
@@ -100,13 +120,6 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setGracePeriodForwards(Long value);
 
-  /** Whether to delete documents once they've been processed */
-  @Description("Delete documents at end of pipeline")
-  @Default.Boolean(false)
-  Boolean getDelete();
-
-  void setDelete(Boolean value);
-
   /** Maximum number of query partitions to create for running Firestore read. */
   @Description("Maximum number of partitions to create for Firestore query.")
   @Default.Long(20)
@@ -128,13 +141,6 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setDeleteBatchSize(Long value);
 
-  /** Whether to check device hardware attestations */
-  @Description("Verify device attestations")
-  @Default.Boolean(true)
-  Boolean getDeviceAttestation();
-
-  void setDeviceAttestation(Boolean value);
-
   /**
    * Signing key resource name. See https://cloud.google.com/kms/docs/resource-hierarchy E.g.,
    * projects/$PROJECT_NAME/locations/global/keyRings/$RING/cryptoKeys/$KEY/cryptoKeyVersions/$VERSION
@@ -144,6 +150,13 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   String getKeyResourceName();
 
   void setKeyResourceName(String value);
+
+  /** Whether to check device hardware attestations */
+  @Description("Verify device attestations")
+  @Default.Boolean(true)
+  Boolean getDeviceAttestation();
+
+  void setDeviceAttestation(Boolean value);
 
   /** Package name to be verified in the key attestation certificate. */
   @Description("Package name of the Android application.")
@@ -162,25 +175,22 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
   void setPackageSignatureDigest(String value);
 
+  /**
+   * @return {@code startTime} from options/flags if set. Otherwise, rounds current time down to
+   *     start of previous window of length {@code duration} option/flag.
+   */
+  static long calculatePipelineStart(long startOption, long duration, Clock clock) {
+    if (startOption != UNSPECIFIED) {
+      return startOption;
+    }
+    return (clock.instant().getEpochSecond() / duration - 1) * duration;
+  }
+
+  /**
+   * @param options IngestionPipelineOptions object
+   * @return Loggable string of all options
+   */
   static String displayString(IngestionPipelineOptions options) {
-    return "IngestionPipelineOptions:"
-        + "\nfirebaseProjectId="
-        + options.getFirebaseProjectId()
-        + "\nstart="
-        + options.getStartTime()
-        + "\nduration="
-        + options.getDuration()
-        + "\ndelete="
-        + options.getDelete()
-        + "\nkeyResourceName="
-        + options.getKeyResourceName()
-        + "\nphaOutput="
-        + options.getPHAOutput()
-        + "\nfacilitatorOutput="
-        + options.getFacilitatorOutput()
-        + "\npackageName="
-        + options.getPackageName()
-        + "\npackageSignatureDigest="
-        + options.getPackageSignatureDigest();
+    return ReflectionToStringBuilder.toString(options);
   }
 }
