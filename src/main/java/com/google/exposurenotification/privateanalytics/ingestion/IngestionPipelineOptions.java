@@ -101,24 +101,24 @@ public interface IngestionPipelineOptions extends PipelineOptions {
    * path for Firestore reads.
    */
   @Description(
-      "Seconds to read backwards from startTime. Used to construct document path for Firestore"
+      "Hours to read backwards from startTime. Used to construct document path for Firestore"
           + " reads.")
-  @Default.Long(3600)
-  Long getGracePeriodBackwards();
+  @Default.Long(1)
+  Long getGraceHoursBackwards();
 
-  void setGracePeriodBackwards(Long value);
+  void setGraceHoursBackwards(Long value);
 
   /**
    * Seconds to look before startTime when querying Firestore. Used to construct document path for
    * Firestore reads.
    */
   @Description(
-      "Seconds to read forward from startTime. Used to construct document path for Firestore"
+      "Hours to read forward from startTime. Used to construct document path for Firestore"
           + " reads.")
-  @Default.Long(3600)
-  Long getGracePeriodForwards();
+  @Default.Long(1)
+  Long getGraceHoursForwards();
 
-  void setGracePeriodForwards(Long value);
+  void setGraceHoursForwards(Long value);
 
   /** Maximum number of query partitions to create for running Firestore read. */
   @Description("Maximum number of partitions to create for Firestore query.")

@@ -123,11 +123,12 @@ public class FirestoreConnector {
       long start =
           IngestionPipelineOptions.calculatePipelineStart(
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
-      long backwardWindow = options.getGracePeriodBackwards() / SECONDS_IN_HOUR;
-      long forwardWindow =
-          (options.getDuration() + options.getGracePeriodForwards()) / SECONDS_IN_HOUR;
+      long backwardHours = options.getGraceHoursBackwards() / SECONDS_IN_HOUR;
+      long forwardHours =
+          options.getGraceHoursForwards()
+              + (options.getDuration() + (SECONDS_IN_HOUR - 1)) / SECONDS_IN_HOUR;
       return input
-          .apply("Begin", Create.of(generateQueries(start, backwardWindow, forwardWindow)))
+          .apply("Begin", Create.of(generateQueries(start, backwardHours, forwardHours)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
           .apply("Read", ParDo.of(new ReadFn()))
           // In case workers retried on some shards and duplicates got emitted, ensure distinctness
@@ -143,14 +144,14 @@ public class FirestoreConnector {
     }
 
     private Iterable<StructuredQuery> generateQueries(
-        long startTime, long backwardWindow, long forwardWindow) {
+        long startTime, long backwardHours, long forwardHours) {
       List<StructuredQuery> structuredQueries = new ArrayList<>();
       // Each datashare in Firestore is stored under a Date collection with the format:
       // yyyy-MM-dd-HH.
       // To query all documents uploaded around startTime within the specified window, construct
-      // a query for each hour within the window: [startTime - backwardWindow, startTime +
-      // forwardWindow].
-      for (long i = (-1 * backwardWindow); i <= forwardWindow; i++) {
+      // a query for each hour within the window: [startTime - backwardHours, startTime +
+      // forwardHours].
+      for (long i = (-1 * backwardHours); i <= forwardHours; i++) {
         long timeToQuery = startTime + i * SECONDS_IN_HOUR;
         // Reformat the date to mirror the format of documents in Firestore: yyyy-MM-dd-HH.
         String formattedDateTime = formatDateTime(timeToQuery);
