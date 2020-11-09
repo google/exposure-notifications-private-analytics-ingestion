@@ -249,7 +249,6 @@ public class FirestoreConnector {
 
     @Override
     public PDone expand(PCollection<Document> input) {
-      // TODO: would it be useful to sort on document paths to get more efficient deletes?
       IngestionPipelineOptions options =
           input.getPipeline().getOptions().as(IngestionPipelineOptions.class);
       Long deleteBatchSize = options.getDeleteBatchSize();
