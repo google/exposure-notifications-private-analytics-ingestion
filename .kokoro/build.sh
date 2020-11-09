@@ -27,23 +27,10 @@ source ${scriptDir}/common.sh
 java -version
 echo ${JOB_TYPE}
 
-# attempt to install 3 times with exponential backoff (starting with 10 seconds)
-retry_with_backoff 3 10 \
-  ./mvnw install -B -V \
-    -DskipTests=true \
-    -Dclirr.skip=true \
-    -Denforcer.skip=true \
-    -Dmaven.javadoc.skip=true \
-    -Dgcloud.download.skip=true \
-    -T 1C
-
-# if GOOGLE_APPLICATION_CREDIENTIALS is specified as a relative path prepend Kokoro root directory onto it
-if [[ ! -z "${GOOGLE_APPLICATION_CREDENTIALS}" && "${GOOGLE_APPLICATION_CREDENTIALS}" != /* ]]; then
-    export GOOGLE_APPLICATION_CREDENTIALS=$(realpath ${KOKORO_GFILE_DIR}/${GOOGLE_APPLICATION_CREDENTIALS})
-fi
-
 RETURN_CODE=0
 set +e
+
+git submodule update --init
 
 case ${JOB_TYPE} in
 test)
@@ -57,6 +44,13 @@ lint)
       echo "To fix formatting errors, run: mvn com.coveo:fmt-maven-plugin:format"
     fi
     ;;
+integration)
+  # Setup required env variables: FIREBASE_PROJECT_ID, KEY_RESOURCE_NAME
+  source ${KOKORO_GFILE_DIR}/secret_manager/enpa-it-testing
+  echo "********** Successfully Set All Environment Variables **********"
+  ./mvnw verify
+  RETURN_CODE=$?
+  ;;
 esac
 
 echo "exiting with ${RETURN_CODE}"
