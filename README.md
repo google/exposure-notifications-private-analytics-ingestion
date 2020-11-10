@@ -181,3 +181,15 @@ gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S
     --service-account-email "$SERVICE_ACCOUNT_EMAIL" \
     --region "us-central1"
 ```
+
+## Contributing
+
+Contributions to this repository are always welcome and highly encouraged.
+
+See [CONTRIBUTING](docs/contributing.md) for more information on how to get started.
+
+## License
+
+Apache 2.0 - See [LICENSE](LICENSE) for more information.
+
+*This is not an official Google product*
