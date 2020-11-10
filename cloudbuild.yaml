@@ -18,10 +18,10 @@ steps:
   waitFor: ["-"]
   entrypoint: bash
   args:
-  - "-e"
-  - "./ci/integration.sh"
   - "-c"
   - "gcloud secrets versions access latest --secret=enpa-integration-testing-secrets --format='get(payload.data)' | tr '_-' '/+' | base64 -d > decrypted-data.txt"
+  - "-e"
+  - "./ci/integration.sh"
   env:
   - 'FIREBASE_PROJECT_ID=enpa-integration-testing' #TODO(stephwang): remove when #77 is merged
   - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
