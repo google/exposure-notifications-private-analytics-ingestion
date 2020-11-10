@@ -1,0 +1,7 @@
+# Checks if license header exists and if the year is correct
+# for files modified by a pull request
+# For more information:
+# https://github.com/googleapis/repo-automation-bots/tree/master/packages/header-checker-lint#header-checker-lint
+allowedCopyrightHolders: ["Google LLC"]
+allowedLicenses: ["Apache-2.0"]
+sourceFileExtensions: ["java"]
