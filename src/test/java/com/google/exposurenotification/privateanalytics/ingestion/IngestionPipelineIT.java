@@ -86,13 +86,7 @@ public class IngestionPipelineIT {
   // Randomize test collection name to avoid collisions between simultaneously running tests.
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
-  // TODO(amanraj): figure out way to not check this in
-  static final String KEY_RESOURCE_NAME =
-      "projects/appa-ingestion/"
-          + "locations/global/"
-          + "keyRings/appa-signature-key-ring/"
-          + "cryptoKeys/appa-signature-key/"
-          + "cryptoKeyVersions/1";
+  static final String KEY_RESOURCE_NAME = System.getenv("KEY_RESOURCE_NAME");
 
   // Default ingestion header fields
   static final Long DEFAULT_BINS = 2L;

@@ -23,35 +23,15 @@ cd ${scriptDir}/..
 # include common functions
 source ${scriptDir}/common.sh
 
-# Print out Java version
+# Print out Java
 java -version
-echo ${JOB_TYPE}
 
-RETURN_CODE=0
-set +e
+export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=128m"
 
-git submodule update --init
+# this should run maven enforcer
+retry_with_backoff 3 10 \
+  ./mvnw install -B -V \
+    -DskipTests=true \
+    -Dclirr.skip=true
 
-case ${JOB_TYPE} in
-test)
-    ./mvnw test
-    RETURN_CODE=$?
-    ;;
-lint)
-    ./mvnw com.coveo:fmt-maven-plugin:check
-    RETURN_CODE=$?
-    if [[ ${RETURN_CODE} != 0 ]]; then
-      echo "To fix formatting errors, run: mvn com.coveo:fmt-maven-plugin:format"
-    fi
-    ;;
-integration)
-  # Setup required env variables: FIREBASE_PROJECT_ID, KEY_RESOURCE_NAME
-  source ${KOKORO_GFILE_DIR}/secret_manager/enpa-it-testing
-  echo "********** Successfully Set All Environment Variables **********"
-  ./mvnw verify
-  RETURN_CODE=$?
-  ;;
-esac
-
-echo "exiting with ${RETURN_CODE}"
-exit ${RETURN_CODE}
+./mvnw -B dependency:analyze

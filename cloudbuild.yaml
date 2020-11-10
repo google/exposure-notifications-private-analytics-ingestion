@@ -1,5 +1,4 @@
-#!/bin/bash
-# Copyright 2020 Google Inc.
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-set -eo pipefail
-# Always run the cleanup script, regardless of the success of bouncing into
-# the container.
-function cleanup() {
-    chmod +x ${KOKORO_GFILE_DIR}/trampoline_cleanup.sh
-    ${KOKORO_GFILE_DIR}/trampoline_cleanup.sh
-    echo "cleanup";
-}
-trap cleanup EXIT
 
-$(dirname $0)/populate-secrets.sh # Secret Manager secrets.
-python3 "${KOKORO_GFILE_DIR}/trampoline_v1.py"
+steps:
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: "build"
+  waitFor: ["-"]
+  entrypoint: bash
+  args:
+  - "-e"
+  - "./ci/integration.sh"
+  env:
+  - 'FIREBASE_PROJECT_ID=enpa-integration-testing' #TODO(stephwang): remove when #77 is merged
+  - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'

@@ -25,14 +25,11 @@ source ${scriptDir}/common.sh
 
 # Print out Java
 java -version
-echo $JOB_TYPE
 
-export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=128m"
+RETURN_CODE=0
+set +e
 
-# this should run maven enforcer
+git submodule update --init
+
 retry_with_backoff 3 10 \
-  ./mvnw install -B -V \
-    -DskipTests=true \
-    -Dclirr.skip=true
-
-./mvnw -B dependency:analyze
+  ./mvnw clean verify

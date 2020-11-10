@@ -14,7 +14,7 @@ jobs:
       with:
         java-version: 11
     - run: java -version
-    - run: .kokoro/build.sh
+    - run: ci/build.sh
       env:
         JOB_TYPE: test
   dependencies:
@@ -26,7 +26,7 @@ jobs:
       with:
         java-version: 11
     - run: java -version
-    - run: .kokoro/dependencies.sh
+    - run: ci/dependencies.sh
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -36,6 +36,6 @@ jobs:
       with:
         java-version: 11
     - run: java -version
-    - run: .kokoro/build.sh
+    - run: ci/build.sh
       env:
         JOB_TYPE: lint
