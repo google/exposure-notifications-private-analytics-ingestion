@@ -358,6 +358,89 @@ public class DataShareTest {
     assertThat(e).hasMessageThat().contains("Invalid schema version: " + invalidSchemaVersion);
   }
 
+  /** Test with smaller schema version. */
+  @Test
+  public void testSmallerSchemaVersion() {
+    Integer validSchemaVersion = DataShare.LATEST_SCHEMA_VERSION - 1; // will be >= 1
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct the payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
+    samplePayload.replace(
+        DataShare.SCHEMA_VERSION,
+        Value.newBuilder().setIntegerValue(DataShare.LATEST_SCHEMA_VERSION).build(),
+        Value.newBuilder().setIntegerValue(validSchemaVersion).build());
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("cert1").build())
+                    .addValues(Value.newBuilder().setStringValue("cert2").build())
+                    .build())
+            .build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
+    fields.put(
+        DataShare.PAYLOAD,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
+            .build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
+
+    DataShare.from(document);
+  }
+
+  /** Test with schema version = 0. */
+  @Test
+  public void testZeroSchemaVersion() {
+    Integer zeroSchemaVersion = 0; // will be >= 1
+    Document.Builder docBuilder = Document.newBuilder();
+    // Construct the payload
+    Map<String, Value> prioParams = createPrioParams();
+    List<Value> encryptedDataShares = createEncryptedDataShares();
+    Map<String, Value> samplePayload = createPayload(CREATED, prioParams, encryptedDataShares);
+    samplePayload.replace(
+        DataShare.SCHEMA_VERSION,
+        Value.newBuilder().setIntegerValue(DataShare.LATEST_SCHEMA_VERSION).build(),
+        Value.newBuilder().setIntegerValue(zeroSchemaVersion).build());
+    Map<String, Value> fields = new HashMap<>();
+    fields.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("cert1").build())
+                    .addValues(Value.newBuilder().setStringValue("cert2").build())
+                    .build())
+            .build());
+    fields.put(
+        DataShare.SIGNATURE,
+        Value.newBuilder()
+            .setStringValue(Base64.getEncoder().encodeToString(SIGNATURE.getBytes()))
+            .build());
+    fields.put(
+        DataShare.PAYLOAD,
+        Value.newBuilder()
+            .setMapValue(MapValue.newBuilder().putAllFields(samplePayload).build())
+            .build());
+    docBuilder.setName(PATH_ID);
+    docBuilder.putAllFields(fields);
+    document = docBuilder.build();
+
+    InvalidDataShareException e =
+        assertThrows(InvalidDataShareException.class, () -> DataShare.from(document));
+
+    assertThat(e).hasMessageThat().contains("Invalid schema version: " + zeroSchemaVersion);
+  }
+
   /** Test with missing schema version. */
   @Test
   public void testMissingSchemaVersion() {
@@ -397,7 +480,7 @@ public class DataShareTest {
     assertThat(e).hasMessageThat().contains("Missing required field: " + DataShare.SCHEMA_VERSION);
   }
 
-  /** Test with missing schema version. */
+  /** Test for NextPower2 function. */
   @Test
   public void testNextPowerTwo() {
     assertThat(DataShare.nextPowerTwo(0)).isEqualTo(1L);

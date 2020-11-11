@@ -40,7 +40,7 @@ public abstract class DataShare implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(DataShare.class);
 
   private static final long serialVersionUID = 1L;
-  public static final int LATEST_SCHEMA_VERSION = 1;
+  public static final int LATEST_SCHEMA_VERSION = 2;
 
   private static final Counter missingRequiredCounter =
       Metrics.counter(DataShare.class, "datashare-missingRequired");
@@ -134,7 +134,7 @@ public abstract class DataShare implements Serializable {
       throw new InvalidDataShareException("Missing required field: " + SCHEMA_VERSION);
     }
     Integer schemaVersion = (int) payload.get(SCHEMA_VERSION).getIntegerValue();
-    if (schemaVersion != LATEST_SCHEMA_VERSION) {
+    if (schemaVersion > LATEST_SCHEMA_VERSION || schemaVersion <= 0) {
       illegalArgCounter.inc();
       throw new InvalidDataShareException("Invalid schema version: " + schemaVersion);
     }
