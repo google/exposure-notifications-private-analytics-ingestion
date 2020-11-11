@@ -322,7 +322,12 @@ public abstract class DataShare implements Serializable {
     @ProcessElement
     public void processElement(ProcessContext context) {
       try {
-        context.output(DataShare.from(context.element()));
+        DataShare dataShare = DataShare.from(context.element());
+        Metrics.counter(DataShare.class, "dataShares").inc();
+        Metrics.counter(
+                DataShare.class, "dataShares-" + dataShare.getDataShareMetadata().getMetricName())
+            .inc();
+        context.output(dataShare);
       } catch (InvalidDataShareException e) {
         LOG.warn("Invalid data share", e);
         invalidDocumentCounter.inc();

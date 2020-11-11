@@ -31,25 +31,33 @@ git submodule update --init
 
 Follow the
 [Getting started with Google Cloud Dataflow](https://github.com/GoogleCloudPlatform/java-docs-samples/blob/master/dataflow/README.md)
-page, and make sure you have a Google Cloud project with billing enabled
-and a *service account JSON key* set up in your `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
-Additionally, you also need the following:
+page. You will need the following:
 
 1. Set up a
     [Google Cloud project](https://console.cloud.google.com/projectcreate) or use an existing one.
     Then [import the Google Cloud project into Firebase](https://cloud.google.com/firestore/docs/client/get-firebase).
 
-    ```sh
-    export GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
-    export FIREBASE_PROJECT_ID="$GCP_PROJECT_ID"
-    ```
-
 1. [Enable APIs](https://console.cloud.google.com/flows/enableapi?apiid=containerregistry.googleapis.com,cloudbuild.googleapis.com):
-    Container Registry, Cloud Build
+    Container Registry, Cloud Build, Cloud Datastore and Dataflow.
 
 1. [Create an asymmetric key ring](https://cloud.google.com/kms/docs/creating-asymmetric-keys)
 
-<!-- TODO: set the roles needed for the service account -->
+1. Create a service account with permissions for [Firestore](https://cloud.google.com/datastore/docs/access/iam#iam_roles),
+    [reading the KMS key](https://cloud.google.com/kms/docs/reference/permissions-and-roles),
+    and [Dataflow](https://cloud.google.com/dataflow/docs/concepts/access-control#roles).
+
+## Environment Variables
+
+Setting the following environment variables can be handy when working in the
+project.
+
+```sh
+export PROJECT="my-google-cloud-ingestion-project-id"
+export GOOGLE_APPLICATION_CREDENTIALS="your-service-account-key.json"
+export PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
+export FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
+export KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
+```
 
 ## Testing
 
@@ -67,44 +75,22 @@ Integration tests go against an actual test project and so need an environment
 variable:
 
 ```shell script
-export PROJECT="my-gcp-project-id"
-
 ./mvnw verify
 ```
 
-## Deploying / Building DataFlow template
+## Running
 
-We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
-that takes all pipeline options as runtime parameters.
+There are two pipelines. One reads Prio data shares from Firestore and
+generates the outputs which the PHA and facilitator data processors will use.
+The other deletes expired or already processed documents from Firestore. 
 
-Setting the following environment variables is useful for the commands below.
-
-```sh
-export PROJECT="my-google-cloud-ingestion-project-id"
-export PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
-export FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
-export KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
-```
-
-```sh
-export TEMPLATE_LOCATION="gs://my-google-cloud-bucket/templates/local-build-`date +'%Y-%m-%d-%H-%M'`"
-export STAGING_LOCATION="gs://my-cloud-storage-bucket/staging"
-
-export BEAM_ARGS=(
-    "--runner=DataflowRunner"
-    "--project=$GCP_PROJECT_ID"
-    "--stagingLocation=$STAGING_LOCATION"
-    "--region=us-central1"
-    "--templateLocation=$TEMPLATE_LOCATION"
-)
-./mvnw -Pdataflow-runner compile exec:java \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
-    -Dexec.args="$BEAM_ARGS"
-```
-
-## Running the pipeline
+They both take as options the window of time to cover, in the form of a start
+time and duration. When not supplied, start time is calculated based on current
+time rounding back to previous window of length `duration`.
 
 ### Locally
+
+To run the ingestion pipeline:
 
 ```sh
 export BEAM_ARGS=(
@@ -116,6 +102,18 @@ export BEAM_ARGS=(
 ./mvnw -Pdirect-runner compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
+```
+
+To run the deletion pipeline:
+
+```sh
+export BEAM_ARGS=(
+    "--project=$PROJECT"
+)
+./mvnw -Pdirect-runner compile exec:java \
+    -Djava.util.logging.config.file=logging.properties \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 
@@ -127,11 +125,11 @@ export BEAM_ARGS=(
 export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 export BEAM_ARGS=(
+    "--project=$PROJECT"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
     "--runner=DataflowRunner"
-    "--project=$GCP_PROJECT_ID"
     "--region=us-central1"
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
@@ -140,41 +138,28 @@ export BEAM_ARGS=(
     -Dexec.args="$BEAM_ARGS"
 ```
 
-## Running the Document Deletion Pipeline
+#### From Flex Template
 
-### Locally
-Set --startTime and --duration to delete documents uploaded between
-startTime and startTime + duration. You can use --graceHoursBackward and
---graceHoursForward to further expand this window, as necessary.
+See below on how to generate the flex template.
 
 ```sh
-export BEAM_ARGS=(
-    "--project=$PROJECT"
-)
-./mvnw -Pdirect-runner compile exec:java \
-    -Djava.util.logging.config.file=logging.properties \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
-    -Dexec.args="$BEAM_ARGS"
+export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
+
+gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S`" \
+    --template-file-gcs-location "$TEMPLATE_PATH" \
+    --parameters project="$PROJECT" \
+    --parameters keyResourceName="$KEY_RESOURCE_NAME" \
+    --parameters PHAOutput="$PHA_OUTPUT" \
+    --parameters facilitatorOutput="$FACILITATOR_OUTPUT" \
+    --service-account-email "$SERVICE_ACCOUNT_EMAIL" \
+    --region "us-central1"
 ```
 
-## Running the Document Deletion Pipeline
+## Building
 
-### Locally
-Set --startTime and --duration to delete documents uploaded between
-startTime and startTime + duration. You can use --graceHoursBackward and
---graceHoursForward to further expand this window, as necessary.
-
-```sh
-export BEAM_ARGS=(
-    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
-)
-./mvnw -Pdirect-runner compile exec:java \
-    -Djava.util.logging.config.file=logging.properties \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
-    -Dexec.args="$BEAM_ARGS"
-```
-
-## Using templates
+We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
+that takes all pipeline options as runtime parameters.
+>>>>>>> 4c0068b (various enhancements)
 
 ### Creating a Flex Template
 
@@ -188,7 +173,7 @@ Build the Flex Template.
 
 ```sh
 export TEMPLATE_PATH="gs://my-google-cloud-bucket/templates/ingestion-pipeline.json"
-export TEMPLATE_IMAGE="gcr.io/$GCP_PROJECT_ID/ingestion-pipeline:latest"
+export TEMPLATE_IMAGE="gcr.io/$PROJECT/ingestion-pipeline:latest"
 
 gcloud dataflow flex-template build $TEMPLATE_PATH \
     --image-gcr-path "$TEMPLATE_IMAGE" \
@@ -197,21 +182,6 @@ gcloud dataflow flex-template build $TEMPLATE_PATH \
     --metadata-file "metadata.json" \
     --jar "target/enpa-ingestion-bundled-0.1.jar" \
     --env FLEX_TEMPLATE_JAVA_MAIN_CLASS="com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline"
-```
-
-### Running the Flex Template
-
-```sh
-export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
-
-gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S`" \
-    --template-file-gcs-location "$TEMPLATE_PATH" \
-    --parameters project="$PROJECT" \
-    --parameters keyResourceName="$KEY_RESOURCE_NAME" \
-    --parameters PHAOutput="$PHA_OUTPUT" \
-    --parameters facilitatorOutput="$FACILITATOR_OUTPUT" \
-    --service-account-email "$SERVICE_ACCOUNT_EMAIL" \
-    --region "us-central1"
 ```
 
 ## Contributing

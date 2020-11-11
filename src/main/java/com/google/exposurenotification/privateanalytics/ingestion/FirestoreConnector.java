@@ -92,8 +92,6 @@ public class FirestoreConnector {
   private static final Counter partitionCursors =
       Metrics.counter(FirestoreConnector.class, "partitionCursors");
 
-  private static final Counter dataShares = Metrics.counter(FirestoreConnector.class, "dataShares");
-
   private static final Counter grpcException =
       Metrics.counter(FirestoreConnector.class, "grpcException");
 
@@ -144,7 +142,7 @@ public class FirestoreConnector {
     private Iterable<StructuredQuery> generateQueries(
         long startTime, long backwardHours, long forwardHours) {
       List<StructuredQuery> structuredQueries = new ArrayList<>();
-      // Each datashare in Firestore is stored under a Date collection with the format:
+      // Each document in Firestore is stored under a Date collection with the format:
       // yyyy-MM-dd-HH.
       // To query all documents uploaded around startTime within the specified window, construct
       // a query for each hour within the window: [startTime - backwardHours, startTime +
@@ -231,7 +229,6 @@ public class FirestoreConnector {
         for (Document doc :
             readDocumentsFromFirestore(client, options.getProject(), context.element())) {
           context.output(doc);
-          dataShares.inc();
         }
       }
 

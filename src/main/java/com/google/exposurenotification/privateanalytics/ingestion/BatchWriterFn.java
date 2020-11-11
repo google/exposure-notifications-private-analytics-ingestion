@@ -29,7 +29,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -62,15 +62,14 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
   private static final Duration KMS_WAIT_TIME = Duration.ofSeconds(30);
+  private static final DateTimeFormatter DATE_TIME_FORMATTER =
+      DateTimeFormatter.ofPattern("/yyyy/MM/dd/HH/mm/");
 
   private static final Counter successfulBatches =
       Metrics.counter(BatchWriterFn.class, "successfulBatches");
 
   private static final Counter failedBatches =
       Metrics.counter(BatchWriterFn.class, "failedBatches");
-
-  private static final DateTimeFormatter formatter =
-      DateTimeFormatter.ofPattern("/yyyy/MM/dd/HH/mm/");
 
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
@@ -132,9 +131,12 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       facilitatorPackets.add(split.get(1));
     }
 
-    UUID batchId = UUID.randomUUID();
-    String date = LocalDateTime.now(ZoneOffset.UTC).format(formatter);
+    String date =
+        Instant.ofEpochSecond(startTime).atOffset(ZoneOffset.UTC).format(DATE_TIME_FORMATTER);
     String aggregateId = "google/" + metadata.getMetricName() + date;
+    // In case of dataflow runner retries, its useful to make the batch UUID deterministic so
+    // that files that may already have been written are overwritten, instead of new files created.
+    UUID batchId = UUID.nameUUIDFromBytes(aggregateId.getBytes());
     String phaFilePath =
         phaPrefix + ((phaPrefix.endsWith("/")) ? "" : "/") + aggregateId + batchId.toString();
     String facilitatorPath =
