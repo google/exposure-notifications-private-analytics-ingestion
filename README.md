@@ -142,6 +142,23 @@ export BEAM_ARGS=(
     -Dexec.args="$BEAM_ARGS"
 ```
 
+## Running the Document Deletion Pipeline
+
+### Locally
+Set --startTime and --duration to delete documents uploaded between
+startTime and startTime + duration. You can use --graceHoursBackward and
+--graceHoursForward to further expand this window, as necessary.
+
+```sh
+export BEAM_ARGS=(
+    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
+)
+./mvnw -Pdirect-runner compile exec:java \
+    -Djava.util.logging.config.file=logging.properties \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
+    -Dexec.args="$BEAM_ARGS"
+```
+
 ## Using templates
 
 ### Creating a Flex Template

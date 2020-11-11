@@ -97,7 +97,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
 
 
   /**
-   * Seconds to look before startTime when querying Firestore collection. Used to construct document
+   * Hours to look before startTime when querying Firestore collection. Used to construct document
    * path for Firestore reads.
    */
   @Description(
@@ -109,7 +109,7 @@ public interface IngestionPipelineOptions extends PipelineOptions {
   void setGraceHoursBackwards(Long value);
 
   /**
-   * Seconds to look before startTime when querying Firestore. Used to construct document path for
+   * Hours to look before startTime when querying Firestore. Used to construct document path for
    * Firestore reads.
    */
   @Description(

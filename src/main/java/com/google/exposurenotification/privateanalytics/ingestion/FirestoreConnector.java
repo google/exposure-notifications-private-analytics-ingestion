@@ -123,10 +123,8 @@ public class FirestoreConnector {
       long start =
           IngestionPipelineOptions.calculatePipelineStart(
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
-      long backwardHours = options.getGraceHoursBackwards() / SECONDS_IN_HOUR;
-      long forwardHours =
-          options.getGraceHoursForwards()
-              + (options.getDuration() + (SECONDS_IN_HOUR - 1)) / SECONDS_IN_HOUR;
+      long backwardHours = options.getGraceHoursBackwards();
+      long forwardHours = options.getGraceHoursForwards() + options.getDuration() / SECONDS_IN_HOUR;
       return input
           .apply("Begin", Create.of(generateQueries(start, backwardHours, forwardHours)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
