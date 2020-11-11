@@ -190,7 +190,7 @@ public class FirestoreConnector {
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount())
-                .setParent(getParentPath(options.getFirebaseProjectId()))
+                .setParent(getParentPath(options.getProject()))
                 .setStructuredQuery(context.element())
                 .build();
         PartitionQueryPagedResponse response = client.partitionQuery(request);
@@ -229,7 +229,7 @@ public class FirestoreConnector {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         for (Document doc :
-            readDocumentsFromFirestore(client, options.getFirebaseProjectId(), context.element())) {
+            readDocumentsFromFirestore(client, options.getProject(), context.element())) {
           context.output(doc);
           dataShares.inc();
         }
@@ -288,8 +288,7 @@ public class FirestoreConnector {
         if (context.element().getValue() != null) {
           BatchWriteRequest.Builder batchDelete =
               BatchWriteRequest.newBuilder()
-                  .setDatabase(
-                      "projects/" + options.getFirebaseProjectId() + "/databases/(default)");
+                  .setDatabase("projects/" + options.getProject() + "/databases/(default)");
           for (Document doc : context.element().getValue()) {
             if (doc.getName() == null) {
               LOG.warn("Attempted to delete Document with null Path");

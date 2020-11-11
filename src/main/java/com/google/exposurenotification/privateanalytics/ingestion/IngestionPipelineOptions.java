@@ -16,23 +16,15 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import java.time.Clock;
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
-import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 /** Specific options for the pipeline. */
-public interface IngestionPipelineOptions extends PipelineOptions {
+public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   int UNSPECIFIED = -1;
-
-  /** Firebase project to read from. */
-  @Description("Firebase Project Id to read from")
-  @Required
-  String getFirebaseProjectId();
-
-  void setFirebaseProjectId(String value);
 
   /** PHA Manifest file URL. */
   @Description("PHA Manifest file URL")

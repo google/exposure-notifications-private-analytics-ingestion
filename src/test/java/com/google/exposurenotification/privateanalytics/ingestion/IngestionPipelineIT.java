@@ -82,7 +82,7 @@ public class IngestionPipelineIT {
   // FirestoreReader will query all documents with created times within one hour of this time.
   static final long CREATION_TIME = ThreadLocalRandom.current().nextLong(0L, 1602720000L);
   static final long DURATION = 10800L;
-  static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
+  static final String PROJECT = System.getenv("PROJECT");
   // Randomize test collection name to avoid collisions between simultaneously running tests.
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
@@ -127,8 +127,8 @@ public class IngestionPipelineIT {
         tmpFolder.newFolder("testIngestionPipeline/facilitator/" + STATE_ABBR).getAbsolutePath();
     options.setPHAOutput(phaDir);
     options.setFacilitatorOutput(facDir);
-    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
     options.setStartTime(CREATION_TIME);
+    options.setProject(PROJECT);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
     options.setDeviceAttestation(false);
@@ -159,9 +159,9 @@ public class IngestionPipelineIT {
   @Category(ValidatesRunner.class)
   public void testFirestoreReader_partitionsQueryAndReadsCorrectNumberDocuments()
       throws InterruptedException, ExecutionException, IOException {
-    testOptions.setFirebaseProjectId(FIREBASE_PROJECT_ID);
     testOptions.setStartTime(CREATION_TIME);
     testOptions.setDuration(DURATION);
+    testOptions.setProject(PROJECT);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
     int numDocs = 200;
     seedDatabaseAndReturnEntryVal(numDocs);
@@ -200,7 +200,7 @@ public class IngestionPipelineIT {
     ListDocumentsPagedResponse documents =
         client.listDocuments(
             ListDocumentsRequest.newBuilder()
-                .setParent("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents")
+                .setParent("projects/" + PROJECT + "/databases/(default)/documents")
                 .setCollectionId(TEST_COLLECTION_NAME)
                 .build());
     documents.iterateAll().forEach(document -> client.deleteDocument(document.getName()));
@@ -281,7 +281,7 @@ public class IngestionPipelineIT {
           CreateDocumentRequest.newBuilder()
               .setCollectionId(TEST_COLLECTION_NAME)
               .setDocumentId("testDoc" + i)
-              .setParent("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents")
+              .setParent("projects/" + PROJECT + "/databases/(default)/documents")
               .build());
       client.createDocument(
           CreateDocumentRequest.newBuilder()
@@ -290,7 +290,7 @@ public class IngestionPipelineIT {
               .setDocument(doc)
               .setParent(
                   "projects/"
-                      + FIREBASE_PROJECT_ID
+                      + PROJECT
                       + "/databases/(default)/documents/"
                       + TEST_COLLECTION_NAME
                       + "/testDoc"
@@ -302,7 +302,7 @@ public class IngestionPipelineIT {
     for (int i = 1; i <= numDocsToSeed; i++) {
       String docName =
           "projects/"
-              + FIREBASE_PROJECT_ID
+              + PROJECT
               + "/databases/(default)/documents/"
               + TEST_COLLECTION_NAME
               + "/testDoc"

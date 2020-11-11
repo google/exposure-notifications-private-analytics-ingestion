@@ -55,7 +55,7 @@ public class DeletionPipelineIT {
   // FirestoreReader will query all documents with created times within one hour of this time.
   static final long CREATION_TIME = ThreadLocalRandom.current().nextLong(0L, 1500000000L);
   static final long DURATION = 10800L;
-  static final String FIREBASE_PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID");
+  static final String PROJECT = System.getenv("PROJECT");
   // Randomize test collection name to avoid collisions between simultaneously running tests.
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
@@ -85,8 +85,8 @@ public class DeletionPipelineIT {
   public void testFirestoreDeleter_deletesDocs() throws InterruptedException {
     IngestionPipelineOptions options =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-    options.setFirebaseProjectId(FIREBASE_PROJECT_ID);
     options.setStartTime(CREATION_TIME);
+    options.setProject(PROJECT);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
     int numDocs = 50;
@@ -139,7 +139,7 @@ public class DeletionPipelineIT {
     ListDocumentsPagedResponse documents =
         client.listDocuments(
             ListDocumentsRequest.newBuilder()
-                .setParent("projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents")
+                .setParent("projects/" + PROJECT + "/databases/(default)/documents")
                 .setCollectionId(TEST_COLLECTION_NAME)
                 .build());
     documents.iterateAll().forEach(document -> client.deleteDocument(document.getName()));
@@ -164,7 +164,7 @@ public class DeletionPipelineIT {
                   .setDocument(doc)
                   .setParent(
                       "projects/"
-                          + FIREBASE_PROJECT_ID
+                          + PROJECT
                           + "/databases/(default)/documents/"
                           + TEST_COLLECTION_NAME
                           + "/testDoc"

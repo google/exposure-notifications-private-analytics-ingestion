@@ -67,7 +67,7 @@ Integration tests go against an actual test project and so need an environment
 variable:
 
 ```shell script
-export FIREBASE_PROJECT_ID="my-firebase-project-id"
+export PROJECT="my-gcp-project-id"
 
 ./mvnw verify
 ```
@@ -80,8 +80,7 @@ that takes all pipeline options as runtime parameters.
 Setting the following environment variables is useful for the commands below.
 
 ```sh
-export FIREBASE_PROJECT_ID="my-firebase-project-id"
-export GCP_PROJECT_ID="my-google-cloud-ingestion-project-id"
+export PROJECT="my-google-cloud-ingestion-project-id"
 export PHA_OUTPUT="gs://my-cloud-storage-bucket/output/folder/pha"
 export FACILITATOR_OUTPUT="gs://my-cloud-storage-bucket/output/folder/faciliator"
 export KEY_RESOURCE_NAME="projects/some-ingestion-project/locations/global/keyRings/some-signature-key-ring/cryptoKeys/some-signature-key/cryptoKeyVersions/1"
@@ -109,7 +108,7 @@ export BEAM_ARGS=(
 
 ```sh
 export BEAM_ARGS=(
-    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
+    "--project=$PROJECT"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
@@ -128,7 +127,6 @@ export BEAM_ARGS=(
 export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 export BEAM_ARGS=(
-    "--firebaseProjectId=$FIREBASE_PROJECT_ID"
     "--keyResourceName=$KEY_RESOURCE_NAME"
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
@@ -139,6 +137,23 @@ export BEAM_ARGS=(
 )
 ./mvnw -Pdataflow-runner compile exec:java \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.args="$BEAM_ARGS"
+```
+
+## Running the Document Deletion Pipeline
+
+### Locally
+Set --startTime and --duration to delete documents uploaded between
+startTime and startTime + duration. You can use --graceHoursBackward and
+--graceHoursForward to further expand this window, as necessary.
+
+```sh
+export BEAM_ARGS=(
+    "--project=$PROJECT"
+)
+./mvnw -Pdirect-runner compile exec:java \
+    -Djava.util.logging.config.file=logging.properties \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 
@@ -191,7 +206,7 @@ export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com'
 
 gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S`" \
     --template-file-gcs-location "$TEMPLATE_PATH" \
-    --parameters firebaseProjectId="$FIREBASE_PROJECT_ID" \
+    --parameters project="$PROJECT" \
     --parameters keyResourceName="$KEY_RESOURCE_NAME" \
     --parameters PHAOutput="$PHA_OUTPUT" \
     --parameters facilitatorOutput="$FACILITATOR_OUTPUT" \
