@@ -122,8 +122,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     List<PrioDataSharePacket> phaPackets = new ArrayList<>();
     List<PrioDataSharePacket> facilitatorPackets = new ArrayList<>();
     for (DataShare dataShare : input.getValue()) {
-      List<PrioDataSharePacket> split =
-          PrioSerializationHelper.splitPackets(dataShare, manifestPha, manifestFacilitator);
+      List<PrioDataSharePacket> split = PrioSerializationHelper.splitPackets(dataShare);
       if (split.size() != DataShare.NUMBER_OF_SERVERS) {
         throw new IllegalArgumentException(
             "Share split into more than hardcoded number of servers");

@@ -36,17 +36,12 @@ import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.avro.util.Utf8;
-import org.apache.beam.sdk.metrics.Counter;
-import org.apache.beam.sdk.metrics.Metrics;
 
 /**
  * Helpers for serializing and deserializing Prio data shares into (or from) the Apache Avro file
  * format.
  */
 public class PrioSerializationHelper {
-
-  private static final Counter unmappedKeyIdCounter =
-      Metrics.counter(PrioSerializationHelper.class, "unmapped-client-encryption-key-id");
 
   public static <T extends SpecificRecordBase> ByteBuffer serializeRecords(
       List<T> records, Class<T> recordClass, Schema schema) throws IOException {
@@ -96,36 +91,14 @@ public class PrioSerializationHelper {
         .build();
   }
 
-  public static List<PrioDataSharePacket> splitPackets(
-      DataShare dataShare,
-      DataProcessorManifest manifestPha,
-      DataProcessorManifest manifestFacilitator) {
+  public static List<PrioDataSharePacket> splitPackets(DataShare dataShare) {
     List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
     List<PrioDataSharePacket> splitDataShares = new ArrayList<>();
     for (EncryptedShare encryptedShare : encryptedDataShares) {
-      String encryptionKeyId = encryptedShare.getEncryptionKeyId();
-      if (manifestPha != null && manifestPha.mapEncryptionKeyId(encryptionKeyId) != null) {
-        encryptionKeyId = manifestPha.mapEncryptionKeyId(encryptionKeyId);
-      } else if (manifestFacilitator != null
-          && manifestFacilitator.mapEncryptionKeyId(encryptionKeyId) != null) {
-        /*
-         * Strictly speaking we should only check the first encrypted share against the PHA
-         * manifest map and the second only against the facilitator manifest map. However, if
-         * there's a clash, that means facilitator and PHA were using the same encryption key
-         * and we've got bigger problems than this bit of code.
-         *
-         * The code in general walks a fuzzy line between pretending it can support more than two
-         * downstream data processing servers and hardcoding to two in various places. We might
-         * do better off hardcoding across the board to avoid situations like this.
-         */
-        encryptionKeyId = manifestFacilitator.mapEncryptionKeyId(encryptionKeyId);
-      } else {
-        unmappedKeyIdCounter.inc();
-      }
       splitDataShares.add(
           PrioDataSharePacket.newBuilder()
-              .setEncryptionKeyId(encryptionKeyId)
               .setEncryptedPayload(ByteBuffer.wrap(encryptedShare.getEncryptedPayload()))
+              .setEncryptionKeyId(null)
               .setRPit(dataShare.getRPit())
               .setUuid(dataShare.getUuid())
               .setVersionConfiguration(null)

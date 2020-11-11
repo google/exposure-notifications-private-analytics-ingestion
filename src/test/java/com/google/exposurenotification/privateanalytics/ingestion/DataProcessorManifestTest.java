@@ -34,7 +34,5 @@ public class DataProcessorManifestTest {
     DataProcessorManifest manifest = new DataProcessorManifest(manifestUrl.toString());
     assertThat(manifest.getIngestionBucket())
         .isEqualTo("s3://us-west-1/prio-demo-gcp-test-pha-1-ingestor-1-ingestion");
-    assertThat(manifest.mapEncryptionKeyId("55NdHuhCjyR3PtTL0A7WRiaIgURhTmlkNw5dbFsKL70="))
-        .isEqualTo("demo-gcp-test-pha-1-ingestion-packet-decryption-key");
   }
 }

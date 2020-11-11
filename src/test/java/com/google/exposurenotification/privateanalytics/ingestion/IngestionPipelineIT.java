@@ -318,8 +318,8 @@ public class IngestionPipelineIT {
       for (EncryptedShare entry : encryptedDataShares) {
         splitDataShares.add(
             PrioDataSharePacket.newBuilder()
-                .setEncryptionKeyId(entry.getEncryptionKeyId())
                 .setEncryptedPayload(ByteBuffer.wrap(entry.getEncryptedPayload()))
+                .setEncryptionKeyId(null)
                 .setRPit(dataShare.getRPit())
                 .setVersionConfiguration(null)
                 .setDeviceNonce(null)
@@ -336,8 +336,6 @@ public class IngestionPipelineIT {
     Assert.assertEquals(first.getUuid().toString(), second.getUuid().toString());
     Assert.assertEquals(
         first.getEncryptedPayload().toString(), second.getEncryptedPayload().toString());
-    Assert.assertEquals(
-        first.getEncryptionKeyId().toString(), second.getEncryptionKeyId().toString());
   }
 
   private static Map<String, Value> getSamplePayload(String uuid, long timestampSeconds) {
@@ -437,11 +435,6 @@ public class IngestionPipelineIT {
       Assert.assertEquals(phaPacket.getRPit(), facPacket.getRPit());
       Assert.assertEquals(phaPacket.getVersionConfiguration(), facPacket.getVersionConfiguration());
       Assert.assertEquals(phaPacket.getDeviceNonce(), facPacket.getDeviceNonce());
-      Assert.assertFalse(
-          phaPacket
-              .getEncryptionKeyId()
-              .toString()
-              .equals(facPacket.getEncryptionKeyId().toString()));
     }
   }
 

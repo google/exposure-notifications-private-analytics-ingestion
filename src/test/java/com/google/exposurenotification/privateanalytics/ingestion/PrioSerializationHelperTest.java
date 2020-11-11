@@ -121,33 +121,10 @@ public class PrioSerializationHelperTest {
   }
 
   @Test
-  public void testSplitPackets_no_manifests() {
+  public void testSplitPackets() {
     DataShare share =
         DataShare.builder()
-            .setEncryptedDataShares(
-                List.of(
-                    EncryptedShare.builder()
-                        .setEncryptedPayload("pha".getBytes())
-                        .setEncryptionKeyId("pha-key-id")
-                        .build(),
-                    EncryptedShare.builder()
-                        .setEncryptedPayload("facilitator".getBytes())
-                        .setEncryptionKeyId("facilitator-key-id")
-                        .build()))
-            .setRPit(2L)
-            .setUuid("someuuid")
-            .build();
-
-    List<PrioDataSharePacket> packets = PrioSerializationHelper.splitPackets(share, null, null);
-    assertThat(packets).hasSize(2);
-    assertThat(packets.get(0).getEncryptionKeyId()).isEqualTo("pha-key-id");
-    assertThat(packets.get(1).getEncryptionKeyId()).isEqualTo("facilitator-key-id");
-  }
-
-  @Test
-  public void testSplitPackets_pha_manifest() {
-    DataShare share =
-        DataShare.builder()
+            .setSchemaVersion(2)
             .setEncryptedDataShares(
                 List.of(
                     EncryptedShare.builder()
@@ -167,11 +144,9 @@ public class PrioSerializationHelperTest {
                 "/java/com/google/exposurenotification/privateanalytics/ingestion/test-manifest.json");
     DataProcessorManifest phaManifest = new DataProcessorManifest(manifestUrl.toString());
 
-    List<PrioDataSharePacket> packets =
-        PrioSerializationHelper.splitPackets(share, phaManifest, null);
+    List<PrioDataSharePacket> packets = PrioSerializationHelper.splitPackets(share);
     assertThat(packets).hasSize(2);
-    assertThat(packets.get(0).getEncryptionKeyId())
-        .isEqualTo("demo-gcp-test-pha-1-ingestion-packet-decryption-key");
-    assertThat(packets.get(1).getEncryptionKeyId()).isEqualTo("facilitator-key-id");
+    assertThat(packets.get(0).getEncryptionKeyId()).isNull();
+    assertThat(packets.get(1).getEncryptionKeyId()).isNull();
   }
 }
