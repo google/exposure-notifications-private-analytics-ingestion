@@ -1,0 +1,56 @@
+{
+  "name": "ENPA Deletion Pipeline",
+  "description": "A pipeline that can be used to delete data in Firestore",
+  "parameters": [
+    {
+      "name": "project",
+      "label": "GCP project ID",
+      "helpText": "Google Cloud Project Id where Firestore instance and Dataflow job lives."
+    },
+    {
+      "name": "startTime",
+      "label": "Start time",
+      "helpText": "Start time in seconds of documents to process.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "duration",
+      "label": "Duration",
+      "helpText": "Duration of window in seconds.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "graceHoursBackwards",
+      "label": "Grace period backwards",
+      "helpText": "Hours to read backwards from startTime.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "graceHoursForwards",
+      "label": "Grace period forwards",
+      "helpText": "Hours to read forward from startTime.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+    {
+      "name": "deleteBatchSize",
+      "label": "Delete batch size",
+      "helpText": "Batch size of Firestore batch deletes.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
+    },
+  ]
+}
