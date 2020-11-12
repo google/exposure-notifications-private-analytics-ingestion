@@ -129,6 +129,21 @@ public class IngestionPipeline {
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
+
+    DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
+    options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
+    options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
+    options.setPhaAwsBucketRole(manifestPha.getAwsRole());
+    options.setPHAOutput(getOutputPrefix(options.getPHAOutput(), manifestPha));
+
+    DataProcessorManifest manifestFacilitator =
+        new DataProcessorManifest(options.getFacilitatorManifestURL());
+    options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
+    options.setFacilitatorAwsBucketName(manifestFacilitator.getAwsBucketName());
+    options.setFacilitatorAwsBucketRole(manifestFacilitator.getAwsRole());
+    options.setFacilitatorOutput(
+        getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator));
+
     try {
       PipelineResult result = runIngestionPipeline(options);
       result.waitUntilFinish();
@@ -195,5 +210,16 @@ public class IngestionPipeline {
                     c.output(KV.of(updatedMetadataBuilder.build(), packets));
                   }
                 }));
+  }
+
+  // Override manifest bucket (if present) with explicitly specified output path flag
+  private static String getOutputPrefix(String outputOption, DataProcessorManifest manifest) {
+    if (!"".equals(outputOption)) {
+      return outputOption;
+    }
+    if (manifest == null) {
+      throw new IllegalArgumentException("Must specify either output option or manifest url");
+    }
+    return manifest.getIngestionBucket();
   }
 }

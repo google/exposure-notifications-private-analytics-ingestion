@@ -28,30 +28,60 @@ import java.net.URL;
  * https://docs.google.com/document/d/1MdfM3QT63ISU70l63bwzTrxr93Z7Tv7EDjLfammzo6Q/edit#bookmark=id.8skgn5yx33ae
  */
 public class DataProcessorManifest {
+  private static String AWS_BUCKET_PREFIX = "s3://";
+  private static String GCP_BUCKET_PREFIX = "gs://";
 
   private final String manifestUrl;
 
   private String bucket;
 
-  private boolean initialized = false;
+  private String awsBucketRegion;
+
+  private String awsBucketName;
+
+  private String awsRole;
 
   public DataProcessorManifest(String manifestUrl) {
     this.manifestUrl = manifestUrl;
+    init();
   }
 
   public String getIngestionBucket() {
-    init();
     return bucket;
   }
 
+  public String getAwsBucketRegion() {
+    return awsBucketRegion;
+  }
+
+  public String getAwsBucketName() {
+    return awsBucketName;
+  }
+
+  public String getAwsRole() {
+    return awsRole;
+  }
+
   private synchronized void init() {
-    if (initialized) {
-      return;
-    }
     try {
       JsonObject manifestJson = fetchAndParseJson();
       bucket = manifestJson.get("ingestion-bucket").getAsString();
-      initialized = true;
+
+      String bucketInfo = bucket;
+      if (bucket.startsWith(AWS_BUCKET_PREFIX)) {
+        bucketInfo = bucket.substring(AWS_BUCKET_PREFIX.length());
+      } else if (bucket.startsWith(GCP_BUCKET_PREFIX)) {
+        bucketInfo = bucket.substring(GCP_BUCKET_PREFIX.length());
+      }
+
+      String[] regionName = bucketInfo.split("/");
+      if (regionName.length != 2) {
+        throw new RuntimeException("Ingestion bucket not in correct format of {AWS region}/{name}");
+      }
+
+      awsBucketRegion = regionName[0];
+      awsBucketName = regionName[1];
+      awsRole = manifestJson.get("ingestion-identity").getAsString();
     } catch (IOException e) {
       throw new RuntimeException("Unable to fetch and parse manifest", e);
     }

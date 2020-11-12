@@ -1,6 +1,7 @@
 {
   "format": 0,
   "ingestion-bucket": "s3://us-west-1/prio-demo-gcp-test-pha-1-ingestor-1-ingestion",
+  "ingestion-identity": "arn:aws:iam::12345678:role/AWSRoleAssumedByGCPSvcAcc",
   "peer-validation-bucket": "gs://prio-demo-gcp-test-pha-1-ingestor-1-peer-validation",
   "batch-signing-public-keys": {
     "demo-gcp-test-pha-1-ingestor-1-batch-signing-key": {

@@ -34,5 +34,10 @@ public class DataProcessorManifestTest {
     DataProcessorManifest manifest = new DataProcessorManifest(manifestUrl.toString());
     assertThat(manifest.getIngestionBucket())
         .isEqualTo("s3://us-west-1/prio-demo-gcp-test-pha-1-ingestor-1-ingestion");
+    assertThat(manifest.getAwsBucketRegion()).isEqualTo("us-west-1");
+    assertThat(manifest.getAwsBucketName())
+        .isEqualTo("prio-demo-gcp-test-pha-1-ingestor-1-ingestion");
+    assertThat(manifest.getAwsRole())
+        .isEqualTo("arn:aws:iam::12345678:role/AWSRoleAssumedByGCPSvcAcc");
   }
 }

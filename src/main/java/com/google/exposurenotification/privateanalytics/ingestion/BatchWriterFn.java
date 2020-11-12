@@ -73,8 +73,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   private KeyManagementServiceClient client;
   private CryptoKeyVersionName keyVersionName;
-  private DataProcessorManifest manifestPha = null;
-  private DataProcessorManifest manifestFacilitator = null;
 
   // Uses pipeline options, otherwise could've lived in @Setup
   @StartBundle
@@ -83,13 +81,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     IngestionPipelineOptions options =
         context.getPipelineOptions().as(IngestionPipelineOptions.class);
     keyVersionName = CryptoKeyVersionName.parse(options.getKeyResourceName());
-
-    if (!"".equals(options.getPHAManifestURL())) {
-      manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
-    }
-    if (!"".equals(options.getFacilitatorManifestURL())) {
-      manifestFacilitator = new DataProcessorManifest(options.getFacilitatorManifestURL());
-    }
   }
 
   @FinishBundle
@@ -107,8 +98,8 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   public void processElement(ProcessContext c) {
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    String phaPrefix = getOutputPrefix(options.getPHAOutput(), manifestPha);
-    String facilitatorPrefix = getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator);
+    String phaPrefix = options.getPHAOutput();
+    String facilitatorPrefix = options.getFacilitatorOutput();
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), Clock.systemUTC());
@@ -155,17 +146,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       failedBatches.inc();
       input.getValue().forEach(c::output);
     }
-  }
-
-  // Override manifest bucket (if present) with explicitly specified output path flag
-  private String getOutputPrefix(String outputOption, DataProcessorManifest manifest) {
-    if (!"".equals(outputOption)) {
-      return outputOption;
-    }
-    if (manifest == null) {
-      throw new IllegalArgumentException("Must specify either output option or manifest url");
-    }
-    return manifest.getIngestionBucket();
   }
 
   /** Writes the triplet of files defined per batch of data shares (packet file, header, and sig) */

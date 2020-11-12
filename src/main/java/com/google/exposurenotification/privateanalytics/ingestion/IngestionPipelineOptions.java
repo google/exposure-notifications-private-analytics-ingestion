@@ -33,12 +33,26 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   void setPHAManifestURL(String value);
 
-  /** Facilitator Manifest file URL. */
-  @Description("Facilitator Manifest file URL")
+  /** PHA AWS bucket region. */
+  @Description("PHA AWS bucket region")
   @Default.String("")
-  String getFacilitatorManifestURL();
+  String getPhaAwsBucketRegion();
 
-  void setFacilitatorManifestURL(String value);
+  void setPhaAwsBucketRegion(String value);
+
+  /** PHA AWS bucket name. */
+  @Description("PHA AWS bucket name")
+  @Default.String("")
+  String getPhaAwsBucketName();
+
+  void setPhaAwsBucketName(String value);
+
+  /** PHA AWS bucket role. */
+  @Description("PHA AWS bucket role")
+  @Default.String("")
+  String getPhaAwsBucketRole();
+
+  void setPhaAwsBucketRole(String value);
 
   /**
    * Directory to place output files for PHA. If the directory does not exist, then it will
@@ -52,6 +66,34 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
   String getPHAOutput();
 
   void setPHAOutput(String value);
+
+  /** Facilitator Manifest file URL. */
+  @Description("Facilitator Manifest file URL")
+  @Default.String("")
+  String getFacilitatorManifestURL();
+
+  void setFacilitatorManifestURL(String value);
+
+  /** Facilitator AWS bucket region. */
+  @Description("Facilitator AWS bucket region")
+  @Default.String("")
+  String getFacilitatorAwsBucketRegion();
+
+  void setFacilitatorAwsBucketRegion(String value);
+
+  /** Facilitator AWS bucket name. */
+  @Description("Facilitator AWS bucket name")
+  @Default.String("")
+  String getFacilitatorAwsBucketName();
+
+  void setFacilitatorAwsBucketName(String value);
+
+  /** Facilitator AWS bucket role. */
+  @Description("Facilitator AWS bucket role")
+  @Default.String("")
+  String getFacilitatorAwsBucketRole();
+
+  void setFacilitatorAwsBucketRole(String value);
 
   /**
    * Directory to place output files for Facilitator. If the directory does not exist, then it will
