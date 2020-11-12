@@ -22,8 +22,14 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.state.StateSpec;
+import org.apache.beam.sdk.state.StateSpecs;
+import org.apache.beam.sdk.state.ValueState;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.DoFn.StateId;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -139,9 +145,8 @@ public class IngestionPipeline {
   private static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> groupIntoBatches(
       PCollection<KV<DataShareMetadata, DataShare>> serializedDataShares, long batchSize) {
     return serializedDataShares
-        // TODO fix the issue with default coder and replace.
         .apply(
-            "AddMetadataStringAsKey",
+            "KeyOnMetadata",
             MapElements.via(
                 new SimpleFunction<
                     KV<DataShareMetadata, DataShare>,
@@ -154,21 +159,40 @@ public class IngestionPipeline {
                 }))
         .apply("GroupIntoBatches", GroupIntoBatches.ofSize(batchSize))
         .apply(
-            "RemoveStringFromKey",
-            MapElements.via(
-                new SimpleFunction<
+            "FlattenAndNumberBatches",
+            ParDo.of(
+                new DoFn<
                     KV<String, Iterable<KV<DataShareMetadata, DataShare>>>,
                     KV<DataShareMetadata, Iterable<DataShare>>>() {
-                  @Override
-                  public KV<DataShareMetadata, Iterable<DataShare>> apply(
-                      KV<String, Iterable<KV<DataShareMetadata, DataShare>>> input) {
+
+                  // A state cell holding latest used batch number
+                  @StateId("batchNumber")
+                  private final StateSpec<ValueState<Integer>> batchNumberSpec =
+                      StateSpecs.value(VarIntCoder.of());
+
+                  @ProcessElement
+                  public void processElement(
+                      ProcessContext c, @StateId("batchNumber") ValueState<Integer> batchNumber) {
                     List<DataShare> packets = new ArrayList<>();
-                    DataShareMetadata metadata = DataShareMetadata.builder().build();
-                    for (KV<DataShareMetadata, DataShare> entry : input.getValue()) {
-                      metadata = entry.getKey();
+                    DataShareMetadata metadata = null;
+                    for (KV<DataShareMetadata, DataShare> entry : c.element().getValue()) {
+                      if (metadata == null) {
+                        metadata = entry.getKey();
+                      }
                       packets.add(entry.getValue());
                     }
-                    return KV.of(metadata, packets);
+                    // create output metadata with incremented batch number
+                    DataShareMetadata.Builder updatedMetadataBuilder = metadata.toBuilder();
+                    Integer updatedBatchNum = batchNumber.read();
+                    if (batchNumber.read() == null) {
+                      // first access
+                      updatedBatchNum = 1;
+                    } else {
+                      updatedBatchNum = updatedBatchNum + 1;
+                    }
+                    batchNumber.write(updatedBatchNum);
+                    updatedMetadataBuilder.setBatchNumber(updatedBatchNum);
+                    c.output(KV.of(updatedMetadataBuilder.build(), packets));
                   }
                 }));
   }

@@ -404,6 +404,10 @@ public abstract class DataShare implements Serializable {
 
     public abstract @Nullable String getMetricName();
 
+    public abstract @Nullable Integer getBatchNumber();
+
+    public abstract DataShareMetadata.Builder toBuilder();
+
     static DataShareMetadata.Builder builder() {
       return new AutoValue_DataShare_DataShareMetadata.Builder();
     }
@@ -424,6 +428,8 @@ public abstract class DataShare implements Serializable {
       abstract Builder setHammingWeight(@Nullable Integer value);
 
       abstract Builder setMetricName(@Nullable String value);
+
+      abstract Builder setBatchNumber(@Nullable Integer value);
     }
   }
 

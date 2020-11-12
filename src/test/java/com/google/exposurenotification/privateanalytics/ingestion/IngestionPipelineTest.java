@@ -28,6 +28,8 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.Keys;
+import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
@@ -64,25 +66,26 @@ public class IngestionPipelineTest {
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> actualOutput =
         IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
 
-    List<KV<DataShareMetadata, Iterable<DataShare>>> expectedOutput =
+    // Check keys and values separately since we don't know which share will end up in which batch
+    List<DataShareMetadata> expectedKeys =
         Arrays.asList(
-            KV.of(
-                meta,
-                Collections.singletonList(
-                    DataShare.builder()
-                        .setPath("id1")
-                        .setCreated(1L)
-                        .setDataShareMetadata(meta)
-                        .build())),
-            KV.of(
-                meta,
-                Collections.singletonList(
-                    DataShare.builder()
-                        .setPath("id2")
-                        .setCreated(2L)
-                        .setDataShareMetadata(meta)
-                        .build())));
-    PAssert.that(actualOutput).containsInAnyOrder(expectedOutput);
+            meta.toBuilder().setBatchNumber(1).build(), meta.toBuilder().setBatchNumber(2).build());
+    List<Iterable<DataShare>> expectedValues =
+        Arrays.asList(
+            Collections.singletonList(
+                DataShare.builder()
+                    .setPath("id1")
+                    .setCreated(1L)
+                    .setDataShareMetadata(meta)
+                    .build()),
+            Collections.singletonList(
+                DataShare.builder()
+                    .setPath("id2")
+                    .setCreated(2L)
+                    .setDataShareMetadata(meta)
+                    .build()));
+    PAssert.that(actualOutput.apply(Keys.create())).containsInAnyOrder(expectedKeys);
+    PAssert.that(actualOutput.apply(Values.create())).containsInAnyOrder(expectedValues);
     pipeline.run().waitUntilFinish();
   }
 

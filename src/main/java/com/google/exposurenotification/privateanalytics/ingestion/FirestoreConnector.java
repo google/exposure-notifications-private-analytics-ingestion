@@ -121,6 +121,7 @@ public class FirestoreConnector {
       long start =
           IngestionPipelineOptions.calculatePipelineStart(
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
+      LOG.info("calculated start time in seconds as: {}", start);
       long backwardHours = options.getGraceHoursBackwards();
       long forwardHours = options.getGraceHoursForwards() + options.getDuration() / SECONDS_IN_HOUR;
       return input

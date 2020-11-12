@@ -131,6 +131,7 @@ public class IngestionPipelineIT {
     options.setProject(PROJECT);
     options.setDuration(DURATION);
     options.setKeyResourceName(KEY_RESOURCE_NAME);
+    options.setBatchSize(1L);
     options.setDeviceAttestation(false);
     int numDocs = 2;
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
