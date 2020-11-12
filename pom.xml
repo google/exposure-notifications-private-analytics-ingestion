@@ -26,7 +26,7 @@
   <packaging>jar</packaging>
 
   <properties>
-    <beam.version>2.24.0</beam.version>
+    <beam.version>2.25.0</beam.version>
 
     <hamcrest.version>2.1</hamcrest.version>
     <jackson.version>2.10.2</jackson.version>
@@ -239,37 +239,6 @@
     </pluginManagement>
   </build>
 
-  <profiles>
-    <profile>
-      <id>direct-runner</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <!-- Makes the DirectRunner available when running a pipeline. -->
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.beam</groupId>
-          <artifactId>beam-runners-direct-java</artifactId>
-          <version>${beam.version}</version>
-          <scope>runtime</scope>
-        </dependency>
-      </dependencies>
-    </profile>
-
-    <profile>
-      <id>dataflow-runner</id>
-      <!-- Makes the DataflowRunner available when running a pipeline. -->
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.beam</groupId>
-          <artifactId>beam-runners-google-cloud-dataflow-java</artifactId>
-          <version>${beam.version}</version>
-          <scope>runtime</scope>
-        </dependency>
-      </dependencies>
-    </profile>
-  </profiles>
-
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -286,7 +255,7 @@
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-google-cloud-dataflow-java</artifactId>
-      <version>2.25.0</version>
+      <version>${beam.version}</version>
     </dependency>
 
     <dependency>

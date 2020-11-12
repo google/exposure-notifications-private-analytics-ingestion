@@ -28,8 +28,8 @@ import java.net.URL;
  * https://docs.google.com/document/d/1MdfM3QT63ISU70l63bwzTrxr93Z7Tv7EDjLfammzo6Q/edit#bookmark=id.8skgn5yx33ae
  */
 public class DataProcessorManifest {
-  private static String AWS_BUCKET_PREFIX = "s3://";
-  private static String GCP_BUCKET_PREFIX = "gs://";
+  private static final String AWS_BUCKET_PREFIX = "s3://";
+  private static final String GCP_BUCKET_PREFIX = "gs://";
 
   private final String manifestUrl;
 
@@ -43,7 +43,9 @@ public class DataProcessorManifest {
 
   public DataProcessorManifest(String manifestUrl) {
     this.manifestUrl = manifestUrl;
-    init();
+    if (!"".equals(manifestUrl)) {
+      init();
+    }
   }
 
   public String getIngestionBucket() {
@@ -62,7 +64,7 @@ public class DataProcessorManifest {
     return awsRole;
   }
 
-  private synchronized void init() {
+  private void init() {
     try {
       JsonObject manifestJson = fetchAndParseJson();
       bucket = manifestJson.get("ingestion-bucket").getAsString();

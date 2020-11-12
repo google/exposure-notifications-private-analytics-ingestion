@@ -99,7 +99,7 @@ export BEAM_ARGS=(
     "--PHAOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
 )
-./mvnw -Pdirect-runner compile exec:java \
+./mvnw compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
@@ -111,7 +111,7 @@ To run the deletion pipeline:
 export BEAM_ARGS=(
     "--project=$PROJECT"
 )
-./mvnw -Pdirect-runner compile exec:java \
+./mvnw compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
     -Dexec.args="$BEAM_ARGS"
@@ -133,7 +133,7 @@ export BEAM_ARGS=(
     "--region=us-central1"
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
-./mvnw -Pdataflow-runner compile exec:java \
+./mvnw compile exec:java \
     -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
