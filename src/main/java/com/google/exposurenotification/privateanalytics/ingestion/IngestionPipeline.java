@@ -29,7 +29,6 @@ import org.apache.beam.sdk.state.StateSpec;
 import org.apache.beam.sdk.state.StateSpecs;
 import org.apache.beam.sdk.state.ValueState;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.DoFn.StateId;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -130,19 +129,7 @@ public class IngestionPipeline {
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 
-    DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
-    options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
-    options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
-    options.setPhaAwsBucketRole(manifestPha.getAwsRole());
-    options.setPHAOutput(getOutputPrefix(options.getPHAOutput(), manifestPha));
-
-    DataProcessorManifest manifestFacilitator =
-        new DataProcessorManifest(options.getFacilitatorManifestURL());
-    options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
-    options.setFacilitatorAwsBucketName(manifestFacilitator.getAwsBucketName());
-    options.setFacilitatorAwsBucketRole(manifestFacilitator.getAwsRole());
-    options.setFacilitatorOutput(
-        getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator));
+    readOptionsFromManifests(options);
 
     try {
       PipelineResult result = runIngestionPipeline(options);
@@ -154,6 +141,26 @@ public class IngestionPipeline {
       // https://issues.apache.org/jira/browse/BEAM-9337
     } catch (Exception e) {
       LOG.error("Exception thrown during pipeline run.", e);
+    }
+  }
+
+  private static void readOptionsFromManifests(IngestionPipelineOptions options) {
+    if (options.getPHAManifestURL() != "") {
+      DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
+      options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
+      options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
+      options.setPhaAwsBucketRole(manifestPha.getAwsRole());
+      options.setPHAOutput(getOutputPrefix(options.getPHAOutput(), manifestPha));
+    }
+
+    if (options.getFacilitatorManifestURL() != "") {
+      DataProcessorManifest manifestFacilitator =
+          new DataProcessorManifest(options.getFacilitatorManifestURL());
+      options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
+      options.setFacilitatorAwsBucketName(manifestFacilitator.getAwsBucketName());
+      options.setFacilitatorAwsBucketRole(manifestFacilitator.getAwsRole());
+      options.setFacilitatorOutput(
+          getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator));
     }
   }
 

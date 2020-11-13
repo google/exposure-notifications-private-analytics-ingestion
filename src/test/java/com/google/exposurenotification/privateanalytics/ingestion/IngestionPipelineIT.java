@@ -73,10 +73,14 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Integration tests for {@link IngestionPipeline}. */
 @RunWith(JUnit4.class)
 public class IngestionPipelineIT {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipelineIT.class);
 
   // Randomize document creation time to avoid collisions between simultaneously running tests.
   // FirestoreReader will query all documents with created times within one hour of this time.
@@ -119,25 +123,25 @@ public class IngestionPipelineIT {
   @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipeline() throws Exception {
-    IngestionPipelineOptions options =
-        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
     String phaDir =
         tmpFolder.newFolder("testIngestionPipeline/pha/" + STATE_ABBR).getAbsolutePath();
     String facDir =
         tmpFolder.newFolder("testIngestionPipeline/facilitator/" + STATE_ABBR).getAbsolutePath();
-    options.setPHAOutput(phaDir);
-    options.setFacilitatorOutput(facDir);
-    options.setStartTime(CREATION_TIME);
-    options.setProject(PROJECT);
-    options.setDuration(DURATION);
-    options.setKeyResourceName(KEY_RESOURCE_NAME);
-    options.setBatchSize(1L);
-    options.setDeviceAttestation(false);
+
+    testOptions.setPHAOutput(phaDir);
+    testOptions.setFacilitatorOutput(facDir);
+    testOptions.setStartTime(CREATION_TIME);
+    testOptions.setProject(PROJECT);
+    testOptions.setDuration(DURATION);
+    testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+    testOptions.setBatchSize(1L);
+    testOptions.setDeviceAttestation(false);
+
     int numDocs = 2;
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal(numDocs);
 
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(options);
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
     result.waitUntilFinish();
 
     Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
@@ -154,6 +158,54 @@ public class IngestionPipelineIT {
     checkSuccessfulFork(phaDir, facDir);
     verifyBatchOutput(phaDir);
     verifyBatchOutput(facDir);
+  }
+
+  //  @Test
+  @Category(NeedsRunner.class)
+  public void testIngestionPipelineAWS() throws Exception {
+    testOptions.setStartTime(CREATION_TIME);
+    testOptions.setProject(PROJECT);
+    testOptions.setDuration(DURATION);
+    testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+    testOptions.setDeviceAttestation(false);
+    LOG.info("Project: " + testOptions.getProject());
+    LOG.info("AWS Region: " + testOptions.getAwsRegion());
+    int numDocs = 2;
+    Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
+        seedDatabaseAndReturnEntryVal(numDocs);
+
+    String phaDir = "s3://federation-pha/pha/" + STATE_ABBR;
+    String facDir = "s3://federation-test2/fac/" + STATE_ABBR;
+    testOptions.setPHAOutput(phaDir);
+    testOptions.setPhaAwsBucketName("federation-pha");
+    testOptions.setPhaAwsBucketRegion("us-east-2");
+    testOptions.setPhaAwsBucketRole("arn:aws:iam::543928124548:role/AssumeRolePHA");
+
+    testOptions.setFacilitatorOutput(facDir);
+    testOptions.setFacilitatorAwsBucketName("federation-test2");
+    testOptions.setFacilitatorAwsBucketRegion("us-east-2");
+    testOptions.setFacilitatorAwsBucketRole(
+        "arn:aws:iam::543928124548:role/AWSRoleAssumedByGCPSvcAcc");
+
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
+    result.waitUntilFinish();
+
+    // TODO add validation code that files were actually written
+    //    Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
+    //            readOutputShares(phaDir, facDir);
+    //    for (Map.Entry<String, List<PrioDataSharePacket>> entry :
+    // actualDataSharepackets.entrySet()) {
+    //      Assert.assertTrue(
+    //              "Output contains data which is not present in input",
+    //              inputDataSharePackets.containsKey(entry.getKey()));
+    //      comparePrioDataSharePacket(
+    //              entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
+    //      comparePrioDataSharePacket(
+    //              entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
+    //    }
+    //    checkSuccessfulFork(phaDir, facDir);
+    //    verifyBatchOutput(phaDir);
+    //    verifyBatchOutput(facDir);
   }
 
   @Test

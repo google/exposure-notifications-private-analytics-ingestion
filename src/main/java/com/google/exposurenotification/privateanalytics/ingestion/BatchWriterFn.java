@@ -100,6 +100,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     String phaPrefix = options.getPHAOutput();
     String facilitatorPrefix = options.getFacilitatorOutput();
+
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), Clock.systemUTC());
@@ -137,9 +138,34 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
             + aggregateId
             + batchId.toString();
 
+    LOG.info("PHA Output: " + options.getPHAOutput());
+
     try {
-      writeBatch(startTime, duration, metadata, batchId, phaFilePath, phaPackets);
-      writeBatch(startTime, duration, metadata, batchId, facilitatorPath, facilitatorPackets);
+      // Write to PHA Output Destination
+      writeBatch(
+          options,
+          startTime,
+          duration,
+          metadata,
+          batchId,
+          phaFilePath,
+          phaPackets,
+          options.getPhaAwsBucketRole(),
+          options.getPhaAwsBucketRegion(),
+          options.getPhaAwsBucketName());
+
+      // Write to Facilitator Output Destination
+      writeBatch(
+          options,
+          startTime,
+          duration,
+          metadata,
+          batchId,
+          facilitatorPath,
+          facilitatorPackets,
+          options.getFacilitatorAwsBucketRole(),
+          options.getFacilitatorAwsBucketRegion(),
+          options.getFacilitatorAwsBucketName());
       successfulBatches.inc();
     } catch (IOException | NoSuchAlgorithmException e) {
       LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
@@ -150,14 +176,21 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   /** Writes the triplet of files defined per batch of data shares (packet file, header, and sig) */
   private void writeBatch(
+      IngestionPipelineOptions options,
       long startTime,
       long duration,
       DataShareMetadata metadata,
       UUID uuid,
       String filenamePrefix,
-      List<PrioDataSharePacket> packets)
+      List<PrioDataSharePacket> packets,
+      String awsBucketRole,
+      String awsBucketRegion,
+      String awsBucketName)
       throws IOException, NoSuchAlgorithmException {
 
+    if (filenamePrefix.startsWith("s3://")) {
+      AWSFederatedAuthHelper.setupAWSAuth(options, awsBucketRole, awsBucketRegion, awsBucketName);
+    }
     // write PrioDataSharePackets in this batch to file
     ByteBuffer packetsByteBuffer =
         PrioSerializationHelper.serializeRecords(

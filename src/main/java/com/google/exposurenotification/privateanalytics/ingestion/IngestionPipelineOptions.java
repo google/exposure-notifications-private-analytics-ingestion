@@ -17,12 +17,13 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import java.time.Clock;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
+import org.apache.beam.sdk.io.aws.options.AwsOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 /** Specific options for the pipeline. */
-public interface IngestionPipelineOptions extends DataflowPipelineOptions {
+public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOptions {
 
   int UNSPECIFIED = -1;
 
