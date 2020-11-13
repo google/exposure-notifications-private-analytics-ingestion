@@ -163,7 +163,7 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   /** Batch size of individual files. */
   @Description("Batch size of individual files.")
-  @Default.Long(1000)
+  @Default.Long(200000)
   Long getBatchSize();
 
   void setBatchSize(Long value);
