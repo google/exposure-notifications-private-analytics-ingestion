@@ -3,19 +3,39 @@
   "description": "A batch processing pipeline that can be used to ingest private data shares according to the Exposure Notification Private Analytics protocol",
   "parameters": [
     {
-      "name": "project",
-      "label": "GCP project ID",
-      "helpText": "Google Cloud Project Id where Firestore instance and Dataflow job lives."
+      "name": "awsRegion",
+      "label": "AWS Region",
+      "helpText": "AWS Region"
     },
     {
-      "name": "PHAOutput",
+      "name": "firestoreProject",
+      "label": "Firestore project ID",
+      "isOptional": true,
+      "helpText": "Google Cloud Project Id where Firestore instance lives."
+    },
+    {
+      "name": "phaOutput",
       "label": "PHA output",
-      "helpText": "File prefix for output files for PHA"
+      "helpText": "File prefix for output files for PHA",
+      "isOptional": true
+    },
+    {
+      "name": "phaManifestURL",
+      "label": "PHA Manifest URL",
+      "helpText": "Location of PHA Manifest file",
+      "isOptional": true
     },
     {
       "name": "facilitatorOutput",
       "label": "Facilitator output",
-      "helpText": "File prefix for output files for Facilitator."
+      "helpText": "File prefix for output files for Facilitator.",
+      "isOptional": true
+    },
+    {
+      "name": "facilitatorManifestURL",
+      "label": "Facilitator Manifest URL",
+      "helpText": "Location of Facilitator Manifest file",
+      "isOptional": true
     },
     {
       "name": "startTime",

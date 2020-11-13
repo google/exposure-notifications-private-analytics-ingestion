@@ -27,12 +27,19 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
 
   int UNSPECIFIED = -1;
 
+  /** Firestore Project */
+  @Description("Firestore Project")
+  @Default.String("")
+  String getFirestoreProject();
+
+  void setFirestoreProject(String value);
+
   /** PHA Manifest file URL. */
   @Description("PHA Manifest file URL")
   @Default.String("")
-  String getPHAManifestURL();
+  String getPhaManifestURL();
 
-  void setPHAManifestURL(String value);
+  void setPhaManifestURL(String value);
 
   /** PHA AWS bucket region. */
   @Description("PHA AWS bucket region")
@@ -64,9 +71,9 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
   @Description(
       "Directory to place output files for PHA (Should end in 2-letter state abbreviation).")
   @Default.String("")
-  String getPHAOutput();
+  String getPhaOutput();
 
-  void setPHAOutput(String value);
+  void setPhaOutput(String value);
 
   /** Facilitator Manifest file URL. */
   @Description("Facilitator Manifest file URL")

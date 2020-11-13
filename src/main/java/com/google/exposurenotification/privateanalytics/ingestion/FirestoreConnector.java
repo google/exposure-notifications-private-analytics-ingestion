@@ -186,10 +186,15 @@ public class FirestoreConnector {
       public void processElement(ProcessContext context) {
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
+        String path =
+            "".equals(options.getFirestoreProject())
+                ? getParentPath(options.getProject())
+                : getParentPath(options.getFirestoreProject());
+        LOG.info("Firestore path: " + path);
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount())
-                .setParent(getParentPath(options.getProject()))
+                .setParent(path)
                 .setStructuredQuery(context.element())
                 .build();
         PartitionQueryPagedResponse response = client.partitionQuery(request);

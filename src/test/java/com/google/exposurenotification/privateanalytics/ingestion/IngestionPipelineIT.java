@@ -128,7 +128,7 @@ public class IngestionPipelineIT {
     String facDir =
         tmpFolder.newFolder("testIngestionPipeline/facilitator/" + STATE_ABBR).getAbsolutePath();
 
-    testOptions.setPHAOutput(phaDir);
+    testOptions.setPhaOutput(phaDir);
     testOptions.setFacilitatorOutput(facDir);
     testOptions.setStartTime(CREATION_TIME);
     testOptions.setProject(PROJECT);
@@ -176,7 +176,7 @@ public class IngestionPipelineIT {
 
     String phaDir = "s3://federation-pha/pha/" + STATE_ABBR;
     String facDir = "s3://federation-test2/fac/" + STATE_ABBR;
-    testOptions.setPHAOutput(phaDir);
+    testOptions.setPhaOutput(phaDir);
     testOptions.setPhaAwsBucketName("federation-pha");
     testOptions.setPhaAwsBucketRegion("us-east-2");
     testOptions.setPhaAwsBucketRole("arn:aws:iam::543928124548:role/AssumeRolePHA");

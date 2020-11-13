@@ -98,7 +98,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   public void processElement(ProcessContext c) {
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
 
-    String phaPrefix = options.getPHAOutput();
+    String phaPrefix = options.getPhaOutput();
     String facilitatorPrefix = options.getFacilitatorOutput();
 
     long startTime =
@@ -138,7 +138,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
             + aggregateId
             + batchId.toString();
 
-    LOG.info("PHA Output: " + options.getPHAOutput());
+    LOG.info("PHA Output: " + options.getPhaOutput());
 
     try {
       // Write to PHA Output Destination

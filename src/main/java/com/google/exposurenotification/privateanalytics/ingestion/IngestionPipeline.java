@@ -145,15 +145,15 @@ public class IngestionPipeline {
   }
 
   private static void readOptionsFromManifests(IngestionPipelineOptions options) {
-    if (options.getPHAManifestURL() != "") {
-      DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPHAManifestURL());
+    if (!"".equals(options.getPhaManifestURL())) {
+      DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPhaManifestURL());
       options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
       options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
       options.setPhaAwsBucketRole(manifestPha.getAwsRole());
-      options.setPHAOutput(getOutputPrefix(options.getPHAOutput(), manifestPha));
+      options.setPhaOutput(getOutputPrefix(options.getPhaOutput(), manifestPha));
     }
 
-    if (options.getFacilitatorManifestURL() != "") {
+    if (!"".equals(options.getFacilitatorManifestURL())) {
       DataProcessorManifest manifestFacilitator =
           new DataProcessorManifest(options.getFacilitatorManifestURL());
       options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
@@ -220,12 +220,15 @@ public class IngestionPipeline {
   }
 
   // Override manifest bucket (if present) with explicitly specified output path flag
-  private static String getOutputPrefix(String outputOption, DataProcessorManifest manifest) {
-    if (!"".equals(outputOption)) {
-      return outputOption;
+  private static String getOutputPrefix(String outputValue, DataProcessorManifest manifest) {
+    if (!"".equals(outputValue)) {
+      return outputValue;
     }
     if (manifest == null) {
       throw new IllegalArgumentException("Must specify either output option or manifest url");
+    }
+    if (!"".equals(manifest.getAwsBucketName())) {
+      return "s3://" + manifest.getAwsBucketName();
     }
     return manifest.getIngestionBucket();
   }
