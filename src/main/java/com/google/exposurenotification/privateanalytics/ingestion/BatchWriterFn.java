@@ -196,12 +196,12 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     writeToFile(filenamePrefix + DATASHARE_PACKET_SUFFIX, packetsByteBuffer);
 
     MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-    byte[] packetsBytesHash = sha256.digest(packetsByteBuffer.array());
-    Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetsBytesHash)).build();
-
+    byte[] packetsBytesHashDigest = sha256.digest(packetsByteBuffer.array());
     // create Header and write to file
     PrioIngestionHeader header =
-        PrioSerializationHelper.createHeader(metadata, digest, uuid, startTime, duration);
+        PrioSerializationHelper.createHeader(
+            metadata, packetsBytesHashDigest, uuid, startTime, duration);
+
     ByteBuffer headerBytes =
         PrioSerializationHelper.serializeRecords(
             ImmutableList.of(header),

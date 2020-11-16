@@ -23,7 +23,6 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
-import com.google.cloud.kms.v1.Digest;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
@@ -34,7 +33,6 @@ import com.google.firestore.v1.GetDocumentRequest;
 import com.google.firestore.v1.ListDocumentsRequest;
 import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.Value;
-import com.google.protobuf.ByteString;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -507,8 +505,8 @@ public class IngestionPipelineIT {
       // Step 2: Verify the header file associated with this data share batch.
       byte[] packetBatchBytes = Files.readAllBytes(path);
       MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-      byte[] packetBatchHash = sha256.digest(packetBatchBytes);
-      Digest digest = Digest.newBuilder().setSha256(ByteString.copyFrom(packetBatchHash)).build();
+      byte[] packetBatchHashDigest = sha256.digest(packetBatchBytes);
+
       PrioIngestionHeader expectedHeader =
           PrioSerializationHelper.createHeader(
               DataShareMetadata.builder()
@@ -519,7 +517,7 @@ public class IngestionPipelineIT {
                   .setHammingWeight(DEFAULT_HAMMING_WEIGHT.intValue())
                   .setMetricName("fakeMetricName")
                   .build(),
-              digest,
+              packetBatchHashDigest,
               UUID.fromString(batchUuid),
               CREATION_TIME,
               DURATION);

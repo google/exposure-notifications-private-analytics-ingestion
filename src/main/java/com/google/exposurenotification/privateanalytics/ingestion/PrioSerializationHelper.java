@@ -15,7 +15,6 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.google.cloud.kms.v1.Digest;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import java.io.ByteArrayOutputStream;
@@ -42,7 +41,6 @@ import org.apache.avro.util.Utf8;
  * format.
  */
 public class PrioSerializationHelper {
-
   public static <T extends SpecificRecordBase> ByteBuffer serializeRecords(
       List<T> records, Class<T> recordClass, Schema schema) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -76,7 +74,7 @@ public class PrioSerializationHelper {
   }
 
   public static PrioIngestionHeader createHeader(
-      DataShareMetadata metadata, Digest digest, UUID uuid, long startTime, long duration) {
+      DataShareMetadata metadata, byte[] digest, UUID uuid, long startTime, long duration) {
     return PrioIngestionHeader.newBuilder()
         .setBatchUuid(new Utf8(uuid.toString()))
         .setName(new Utf8(metadata.getMetricName()))
@@ -87,7 +85,7 @@ public class PrioSerializationHelper {
         .setHammingWeight(metadata.getHammingWeight())
         .setPrime(metadata.getPrime())
         .setEpsilon(metadata.getEpsilon())
-        .setPacketFileDigest(ByteBuffer.wrap(digest.toByteArray()))
+        .setPacketFileDigest(ByteBuffer.wrap(digest))
         .build();
   }
 
