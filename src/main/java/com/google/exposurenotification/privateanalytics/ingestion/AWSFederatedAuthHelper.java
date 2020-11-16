@@ -1,8 +1,6 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicSessionCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.auth.*;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.amazonaws.services.securitytoken.model.AssumeRoleWithWebIdentityRequest;
@@ -17,8 +15,7 @@ import org.slf4j.LoggerFactory;
 public class AWSFederatedAuthHelper {
   private static final Logger LOG = LoggerFactory.getLogger(AWSFederatedAuthHelper.class);
 
-  public static void setupAWSAuth(
-      IngestionPipelineOptions options, String role, String region, String bucket)
+  public static void setupAWSAuth(IngestionPipelineOptions options, String role, String region)
       throws IOException {
     GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
     if (!(credentials instanceof IdTokenProvider)) {
@@ -27,7 +24,7 @@ public class AWSFederatedAuthHelper {
 
     AWSSecurityTokenService stsClient =
         AWSSecurityTokenServiceClientBuilder.standard()
-            .withCredentials(new ProfileCredentialsProvider())
+            .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
             .withRegion(region)
             .build();
 
@@ -54,7 +51,6 @@ public class AWSFederatedAuthHelper {
             sessionCredentials.getSessionToken());
 
     options.setAwsCredentialsProvider(new AWSStaticCredentialsProvider(awsCredentials));
-    // TODO this currently isn't picked up by the S3FileSystem after pipeline.run()
     options.setAwsRegion(region);
   }
 }

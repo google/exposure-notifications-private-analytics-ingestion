@@ -168,6 +168,7 @@ public class IngestionPipelineIT {
     testOptions.setDuration(DURATION);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
     testOptions.setDeviceAttestation(false);
+    testOptions.setAwsRegion("global");
     LOG.info("Project: " + testOptions.getProject());
     LOG.info("AWS Region: " + testOptions.getAwsRegion());
     int numDocs = 2;
@@ -191,21 +192,6 @@ public class IngestionPipelineIT {
     result.waitUntilFinish();
 
     // TODO add validation code that files were actually written
-    //    Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
-    //            readOutputShares(phaDir, facDir);
-    //    for (Map.Entry<String, List<PrioDataSharePacket>> entry :
-    // actualDataSharepackets.entrySet()) {
-    //      Assert.assertTrue(
-    //              "Output contains data which is not present in input",
-    //              inputDataSharePackets.containsKey(entry.getKey()));
-    //      comparePrioDataSharePacket(
-    //              entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
-    //      comparePrioDataSharePacket(
-    //              entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
-    //    }
-    //    checkSuccessfulFork(phaDir, facDir);
-    //    verifyBatchOutput(phaDir);
-    //    verifyBatchOutput(facDir);
   }
 
   @Test
@@ -504,7 +490,7 @@ public class IngestionPipelineIT {
       // Step 1: Verify the path format.
       String invalidPathMessage =
           "Expected file path to end in: {2-letter state"
-              + " abbreviation}/google/{metricName}/YYYY/mm/dd/HH/MM/{batchId}{.batch, .batch.sig,"
+              + " abbreviation}/{metricName}/YYYY/mm/dd/HH/MM/{batchId}{.batch, .batch.sig,"
               + " or .batch.avro}\n"
               + "Actual path: "
               + path.toString();
@@ -512,7 +498,7 @@ public class IngestionPipelineIT {
           invalidPathMessage,
           path.toString()
               .matches(
-                  ".*/google/[a-z0-9_\\-]+(/\\d{4}/)(\\d{2}/){4}[a-zA-Z0-9\\-]+\\.batch($|.sig$|.avro$)"));
+                  ".*/[a-z0-9_\\-]+(/\\d{4}/)(\\d{2}/){4}[a-zA-Z0-9\\-]+\\.batch($|.sig$|.avro$)"));
       String batchUuid =
           path.getFileName().toString().replace(BatchWriterFn.DATASHARE_PACKET_SUFFIX, "");
       Assert.assertEquals(

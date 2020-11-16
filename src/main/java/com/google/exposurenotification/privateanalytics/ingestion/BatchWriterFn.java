@@ -58,7 +58,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
   public static final String INGESTION_HEADER_SUFFIX = ".batch";
   public static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
-  public static final String HEADER_SIGNATURE_SUFFIX = ".batch.sig.avro";
+  public static final String HEADER_SIGNATURE_SUFFIX = ".batch.sig";
 
   private static final Logger LOG = LoggerFactory.getLogger(BatchWriterFn.class);
   private static final Duration KMS_WAIT_TIME = Duration.ofSeconds(30);
@@ -125,7 +125,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     String date =
         Instant.ofEpochSecond(startTime).atOffset(ZoneOffset.UTC).format(DATE_TIME_FORMATTER);
-    String aggregateId = "google/" + metadata.getMetricName() + date;
+    String aggregateId = metadata.getMetricName() + date;
     // In case of dataflow runner retries, its useful to make the batch UUID deterministic so
     // that files that may already have been written are overwritten, instead of new files created.
     byte[] seed = (aggregateId + metadata.getBatchNumber()).getBytes();
@@ -138,10 +138,9 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
             + aggregateId
             + batchId.toString();
 
-    LOG.info("PHA Output: " + options.getPhaOutput());
-
     try {
       // Write to PHA Output Destination
+      LOG.info("PHA Output: " + phaFilePath);
       writeBatch(
           options,
           startTime,
@@ -151,10 +150,10 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           phaFilePath,
           phaPackets,
           options.getPhaAwsBucketRole(),
-          options.getPhaAwsBucketRegion(),
-          options.getPhaAwsBucketName());
+          options.getPhaAwsBucketRegion());
 
       // Write to Facilitator Output Destination
+      LOG.info("Facilitator Output: " + phaFilePath);
       writeBatch(
           options,
           startTime,
@@ -164,8 +163,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           facilitatorPath,
           facilitatorPackets,
           options.getFacilitatorAwsBucketRole(),
-          options.getFacilitatorAwsBucketRegion(),
-          options.getFacilitatorAwsBucketName());
+          options.getFacilitatorAwsBucketRegion());
       successfulBatches.inc();
     } catch (IOException | NoSuchAlgorithmException e) {
       LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
@@ -184,12 +182,12 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       String filenamePrefix,
       List<PrioDataSharePacket> packets,
       String awsBucketRole,
-      String awsBucketRegion,
-      String awsBucketName)
+      String awsBucketRegion)
       throws IOException, NoSuchAlgorithmException {
 
     if (filenamePrefix.startsWith("s3://")) {
-      AWSFederatedAuthHelper.setupAWSAuth(options, awsBucketRole, awsBucketRegion, awsBucketName);
+      AWSFederatedAuthHelper.setupAWSAuth(options, awsBucketRole, awsBucketRegion);
+      FileSystems.setDefaultPipelineOptions(options);
     }
     // write PrioDataSharePackets in this batch to file
     ByteBuffer packetsByteBuffer =
