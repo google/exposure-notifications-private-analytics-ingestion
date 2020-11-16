@@ -209,7 +209,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
             PrioIngestionHeader.getClassSchema());
     writeToFile(filenamePrefix + INGESTION_HEADER_SUFFIX, headerBytes);
 
-    byte[] hashHeader = sha256.digest(header.toByteBuffer().array());
+    byte[] hashHeader = sha256.digest(headerBytes.array());
     Digest digestHeader = Digest.newBuilder().setSha256(ByteString.copyFrom(hashHeader)).build();
 
     AsymmetricSignResponse result = client.asymmetricSign(keyVersionName, digestHeader);
