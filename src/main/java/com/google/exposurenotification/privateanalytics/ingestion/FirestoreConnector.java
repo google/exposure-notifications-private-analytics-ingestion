@@ -169,6 +169,7 @@ public class FirestoreConnector {
         structuredQueries.add(query);
         queriesGenerated.inc();
       }
+      LOG.info("Generated {} queries", structuredQueries.size());
       return structuredQueries;
     }
 
@@ -184,6 +185,7 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
+        LOG.info("Generating query partitions.");
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         String path =
@@ -215,6 +217,7 @@ public class FirestoreConnector {
 
       @FinishBundle
       public void finishBundle() {
+        LOG.info("Closing Firestore Client for PartitionQueryFn");
         shutdownFirestoreClient(client);
       }
     }
@@ -230,6 +233,10 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
+        LOG.info(
+            "Starting to read documents in new partition: {} : {}.",
+            context.element().left,
+            context.element().middle);
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         for (Document doc :
@@ -240,6 +247,7 @@ public class FirestoreConnector {
 
       @FinishBundle
       public void finishBundle() {
+        LOG.info("Closing Firestore Client for ReadFn");
         shutdownFirestoreClient(client);
       }
     }
