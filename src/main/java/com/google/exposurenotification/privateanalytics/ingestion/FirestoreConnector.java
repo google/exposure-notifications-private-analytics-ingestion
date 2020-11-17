@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.Distinct;
@@ -86,6 +87,9 @@ public class FirestoreConnector {
 
   private static final Duration FIRESTORE_WAIT_TIME = Duration.ofSeconds(30);
 
+  private static final Distribution docsInPartition =
+      Metrics.distribution(FirestoreConnector.class, "numDocsInPartition");
+
   private static final Counter queriesGenerated =
       Metrics.counter(FirestoreConnector.class, "queriesGenerated");
 
@@ -121,9 +125,14 @@ public class FirestoreConnector {
       long start =
           IngestionPipelineOptions.calculatePipelineStart(
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
-      LOG.info("calculated start time in seconds as: {}", start);
+      LOG.info("Calculated start time in seconds as: {}", start);
       long backwardHours = options.getGraceHoursBackwards();
       long forwardHours = options.getGraceHoursForwards() + options.getDuration() / SECONDS_IN_HOUR;
+      LOG.info(
+          "Querying Firestore for documents in date range: {} to {}.",
+          formatDateTime(start - backwardHours * SECONDS_IN_HOUR),
+          formatDateTime(start + forwardHours * SECONDS_IN_HOUR));
+
       return input
           .apply("Begin", Create.of(generateQueries(start, backwardHours, forwardHours)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
@@ -169,7 +178,7 @@ public class FirestoreConnector {
         structuredQueries.add(query);
         queriesGenerated.inc();
       }
-      LOG.info("Generated {} queries", structuredQueries.size());
+      LOG.info("Generated {} Firestore queries.", structuredQueries.size());
       return structuredQueries;
     }
 
@@ -201,6 +210,15 @@ public class FirestoreConnector {
                 .build();
         PartitionQueryPagedResponse response = client.partitionQuery(request);
         Iterator<Cursor> iterator = response.iterateAll().iterator();
+        if (!iterator.hasNext()) {
+          LOG.info(
+              "No query partitions were returned for date: {}",
+              context.element().getFrom(0).getCollectionId());
+        } else {
+          LOG.info(
+              "Query partitions were returned for date: {}",
+              context.element().getFrom(0).getCollectionId());
+        }
 
         // Return a Cursor pair to represent the start and end points within which to run the query.
         Cursor start = null;
@@ -239,8 +257,15 @@ public class FirestoreConnector {
             context.element().middle);
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
-        for (Document doc :
-            readDocumentsFromFirestore(client, options.getProject(), context.element())) {
+        List<Document> docs =
+            readDocumentsFromFirestore(client, options.getProject(), context.element());
+        docsInPartition.update(docs.size());
+        LOG.info(
+            "{} documents read in partition: {} : {}.",
+            docs.size(),
+            context.element().left,
+            context.element().middle);
+        for (Document doc : docs) {
           context.output(doc);
         }
       }

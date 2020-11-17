@@ -135,7 +135,21 @@ public class IngestionPipeline {
       PipelineResult result = runIngestionPipeline(options);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
-      LOG.info("Metrics:\n\n" + metrics.toString());
+      LOG.info("Metrics:\n\n" + metrics.allMetrics().getCounters().toString());
+      metrics
+          .allMetrics()
+          .getDistributions()
+          .forEach(
+              distribution -> {
+                LOG.info(
+                    "Distribution:  {}: DistributionResult{sum={}, count={}, min={}, max={}, mean={}}",
+                    distribution.getName(),
+                    distribution.getCommitted().getSum(),
+                    distribution.getCommitted().getCount(),
+                    distribution.getCommitted().getMin(),
+                    distribution.getCommitted().getMax(),
+                    distribution.getCommitted().getMean());
+              });
     } catch (UnsupportedOperationException ignore) {
       // Known issue that this can throw when generating a template:
       // https://issues.apache.org/jira/browse/BEAM-9337
