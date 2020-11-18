@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -190,6 +191,120 @@ public class IngestionPipelineIT {
     result.waitUntilFinish();
 
     // TODO add validation code that files were actually written
+  }
+
+  // Test the ingestion pipeline with device attestation enabled. This test checks that the device
+  // attestation filters
+  // shares with invalid signatures and/or certificates and allows shares with valid fields to pass
+  // through.
+  @Test
+  @Category(NeedsRunner.class)
+  public void testIngestionPipeline_deviceAttestationEnabled() throws Exception {
+    IngestionPipelineOptions testOptions =
+        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
+    String phaDir =
+        tmpFolder.newFolder("testDeviceAttestation/pha/" + STATE_ABBR).getAbsolutePath();
+    String facDir =
+        tmpFolder.newFolder("testDeviceAttestation/facilitator/" + STATE_ABBR).getAbsolutePath();
+    testOptions.setPhaOutput(phaDir);
+    testOptions.setFacilitatorOutput(facDir);
+    testOptions.setStartTime(1604039801L);
+    testOptions.setProject(PROJECT);
+    testOptions.setDuration(DURATION);
+    testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+    testOptions.setBatchSize(1L);
+    testOptions.setDeviceAttestation(true);
+
+    List<Document> docs = new ArrayList<>();
+    Map<String, Value> validDocFields = DeviceAttestationTest.getValidDocFields();
+    Document validDoc = Document.newBuilder().putAllFields(validDocFields).build();
+    docs.add(validDoc);
+
+    Map<String, Value> fieldsWithInvalidSig = DeviceAttestationTest.getValidDocFields();
+    fieldsWithInvalidSig.replace(
+        DataShare.SIGNATURE, Value.newBuilder().setStringValue("invalidSignature").build());
+    Document docWithInvalidSig = Document.newBuilder().putAllFields(fieldsWithInvalidSig).build();
+    docs.add(docWithInvalidSig);
+
+    Map<String, Value> fieldsWithInvalidCerts = DeviceAttestationTest.getValidDocFields();
+    fieldsWithInvalidSig.replace(
+        DataShare.CERT_CHAIN, Value.newBuilder().setStringValue("invalidSignature").build());
+    fieldsWithInvalidCerts.put(
+        DataShare.CERT_CHAIN,
+        Value.newBuilder()
+            .setArrayValue(
+                ArrayValue.newBuilder()
+                    .addValues(Value.newBuilder().setStringValue("invalidCert1").build())
+                    .addValues(Value.newBuilder().setStringValue("invalidCert2").build())
+                    .addValues(Value.newBuilder().setStringValue("invalidCert3").build())
+                    .addValues(Value.newBuilder().setStringValue("invalidCert4").build())
+                    .build())
+            .build());
+    Document docWithInvalidCerts =
+        Document.newBuilder().putAllFields(fieldsWithInvalidCerts).build();
+    docs.add(docWithInvalidCerts);
+
+    client.createDocument(
+        CreateDocumentRequest.newBuilder()
+            .setCollectionId(TEST_COLLECTION_NAME)
+            .setDocumentId("testDoc")
+            .setParent("projects/" + PROJECT + "/databases/(default)/documents")
+            .build());
+
+    for (int i = 0; i < docs.size(); i++) {
+      client.createDocument(
+          CreateDocumentRequest.newBuilder()
+              .setCollectionId(formatDateTime(1604039801L))
+              .setDocumentId("testDoc" + i)
+              .setDocument(docs.get(i))
+              .setParent(
+                  "projects/"
+                      + PROJECT
+                      + "/databases/(default)/documents/"
+                      + TEST_COLLECTION_NAME
+                      + "/testDoc")
+              .build());
+    }
+
+    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
+    result.waitUntilFinish();
+
+    for (int i = 0; i < docs.size(); i++) {
+      String docName =
+          "projects/"
+              + PROJECT
+              + "/databases/(default)/documents/"
+              + TEST_COLLECTION_NAME
+              + "/testDoc"
+              + "/"
+              + formatDateTime(1604039801L)
+              + "/testDoc"
+              + i;
+      Document doc = fetchDocumentFromFirestore(docName, client);
+      documentList.add(doc.getName());
+    }
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir);
+    // If the docs with invalid signatures/certificates were filteted, we expect only one share.
+    // (from the valid doc)
+    Assert.assertEquals(1, phaShares.size());
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir);
+    Assert.assertEquals(1, facShares.size());
+    PrioDataSharePacket actualPhaShare = phaShares.get(0);
+    PrioDataSharePacket actualFacShare = facShares.get(0);
+
+    ByteBuffer expectedPhaPayload =
+        ByteBuffer.wrap(
+            Base64.getDecoder()
+                .decode(
+                    "BGi3cl2yoxXJsJkzWUMgf8GdcodIlt+0EGrSAkbh5e0KWgepJh4zIxY9Rg9BsaxqH6Qt12hRgvvnwvAEkE14fy05Gh99swkIHuArf4qznU7BTTdXUks3cx9agPFjf3hG9s2UF0zB22puOwjTF4Nvo91nTS/qMltBPDJhL9FkpM4zyBi7QbwfRFGTnOZVXgOdPoguqpOqNb4wD9t1LBh+xE22sJVWKUN+sC1Y70e5iboFVM84jabTo8aySmZp1UAPSMaYeYM="));
+    ByteBuffer expectedFacPayload =
+        ByteBuffer.wrap(
+            Base64.getDecoder()
+                .decode(
+                    "BNWQJlfKoGMzsOSbwCgrg+go0v9GrHMKSIjZ/uLhCQMUTdDsa0VOWy7P1H9ptKRwxaT1UYHcJFc0vNIzf8QEujCh3fmaI4DU7yExsgnvLIv/Fl0clGclLy0UrfAnMIvSnQ17CcNzOt6MvjEwiwMwTQQ="));
+
+    Assert.assertEquals(expectedPhaPayload, actualPhaShare.getEncryptedPayload());
+    Assert.assertEquals(expectedFacPayload, actualFacShare.getEncryptedPayload());
   }
 
   @Test
@@ -524,7 +639,7 @@ public class IngestionPipelineIT {
       String expectedHeaderFilename =
           path.getParent().toString() + "/" + batchUuid + BatchWriterFn.INGESTION_HEADER_SUFFIX;
       Assert.assertTrue(
-          "Missing header file associated witch batch id " + batchUuid,
+          "Missing header file associated with batch id " + batchUuid,
           new File(expectedHeaderFilename).isFile());
       PrioIngestionHeader actualHeader =
           PrioSerializationHelper.deserializeRecords(
@@ -544,7 +659,7 @@ public class IngestionPipelineIT {
       String expectedSignatureFilename =
           path.getParent().toString() + "/" + batchUuid + BatchWriterFn.HEADER_SIGNATURE_SUFFIX;
       Assert.assertTrue(
-          "Missing signature file associated witch batch id " + batchUuid,
+          "Missing signature file associated with batch id " + batchUuid,
           new File(expectedSignatureFilename).isFile());
       PrioBatchSignature actualSignature =
           PrioSerializationHelper.deserializeRecords(
