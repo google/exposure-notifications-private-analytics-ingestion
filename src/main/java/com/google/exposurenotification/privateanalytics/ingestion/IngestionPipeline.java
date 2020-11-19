@@ -32,6 +32,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.Reshuffle;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
@@ -119,7 +120,11 @@ public class IngestionPipeline {
   static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
     PCollection<DataShare> dataShares =
-        pipeline.apply(new FirestoreReader()).apply(ParDo.of(new ConstructDataSharesFn()));
+        pipeline
+            .apply(new FirestoreReader())
+            // Shuffle immediately after our crudely partitioned reader
+            .apply("Rebalance", Reshuffle.viaRandomKey())
+            .apply(ParDo.of(new ConstructDataSharesFn()));
     processDataShares(dataShares).apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
     return pipeline.run();
   }
