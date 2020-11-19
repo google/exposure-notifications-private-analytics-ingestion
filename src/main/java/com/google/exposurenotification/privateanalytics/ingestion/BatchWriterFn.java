@@ -124,7 +124,9 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     }
 
     String date =
-        Instant.ofEpochSecond(startTime).atOffset(ZoneOffset.UTC).format(DATE_TIME_FORMATTER);
+        Instant.ofEpochSecond(startTime + duration)
+            .atOffset(ZoneOffset.UTC)
+            .format(DATE_TIME_FORMATTER);
     String aggregateId = metadata.getMetricName() + date;
     // In case of dataflow runner retries, its useful to make the batch UUID deterministic so
     // that files that may already have been written are overwritten, instead of new files created.
