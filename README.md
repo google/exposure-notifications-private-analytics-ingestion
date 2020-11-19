@@ -159,7 +159,6 @@ gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S
 
 We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
 that takes all pipeline options as runtime parameters.
->>>>>>> 4c0068b (various enhancements)
 
 ### Creating a Flex Template
 
