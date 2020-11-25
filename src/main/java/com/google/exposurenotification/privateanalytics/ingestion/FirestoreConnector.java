@@ -127,7 +127,14 @@ public class FirestoreConnector {
               options.getStartTime(), options.getDuration(), Clock.systemUTC());
       LOG.info("Calculated start time in seconds as: {}", start);
       long backwardHours = options.getGraceHoursBackwards();
-      long forwardHours = options.getGraceHoursForwards() + options.getDuration() / SECONDS_IN_HOUR;
+      // To correctly compute how many hours forward we need to look at, when including the
+      // duration, we need to compute:
+      //    ceil ( forwardHours + durationInSeconds / 3600 )
+      // Because Java division rounds down, we compute it as:
+      //    forwardHours + ( duration + 3599 ) / 3600.
+      long forwardHours =
+          options.getGraceHoursForwards()
+              + (options.getDuration() + (SECONDS_IN_HOUR - 1)) / SECONDS_IN_HOUR;
       LOG.info(
           "Querying Firestore for documents in date range: {} to {}.",
           formatDateTime(start - backwardHours * SECONDS_IN_HOUR),

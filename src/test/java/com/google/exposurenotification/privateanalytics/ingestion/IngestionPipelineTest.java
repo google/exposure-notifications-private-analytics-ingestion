@@ -98,12 +98,12 @@ public class IngestionPipelineTest {
                 IngestionPipelineOptions.UNSPECIFIED,
                 10,
                 Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
-        .isEqualTo(20);
+        .isEqualTo(30); // 32 is in [30, 30 + 10]
     assertThat(
             IngestionPipelineOptions.calculatePipelineStart(
                 IngestionPipelineOptions.UNSPECIFIED,
                 10,
                 Clock.fixed(Instant.ofEpochSecond(20), ZoneId.systemDefault())))
-        .isEqualTo(10);
+        .isEqualTo(20); // 20 is in [20, 20 + 10]
   }
 }

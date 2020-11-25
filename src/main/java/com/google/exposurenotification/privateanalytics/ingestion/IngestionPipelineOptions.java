@@ -225,7 +225,7 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
     if (startOption != UNSPECIFIED) {
       return startOption;
     }
-    return (clock.instant().getEpochSecond() / duration - 1) * duration;
+    return (clock.instant().getEpochSecond() / duration) * duration;
   }
 
   /**
