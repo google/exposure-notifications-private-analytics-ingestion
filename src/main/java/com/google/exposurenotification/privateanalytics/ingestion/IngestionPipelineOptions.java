@@ -110,7 +110,8 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
    * <p>If set, this flag overrides an output location set in the Facilitator manifest file.
    */
   @Description(
-      "Directory to place output files for Facilitator. (Should end in 2-letter state abbreviation)")
+      "Directory to place output files for Facilitator. (Should end in 2-letter state"
+          + " abbreviation)")
   @Default.String("")
   String getFacilitatorOutput();
 
@@ -216,6 +217,13 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
   String getPackageSignatureDigest();
 
   void setPackageSignatureDigest(String value);
+
+  /** Accept device attestation with testing root certificate. Should not be used in production. */
+  @Description("Accept testing root certificate")
+  @Default.Boolean(false)
+  Boolean getTestingRootCertificateAccepted();
+
+  void setTestingRootCertificateAccepted(Boolean value);
 
   /**
    * @return {@code startTime} from options/flags if set. Otherwise, rounds current time down to
