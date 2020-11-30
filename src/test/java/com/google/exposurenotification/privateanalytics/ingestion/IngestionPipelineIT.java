@@ -54,6 +54,7 @@ import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.metrics.DistributionResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
 import org.apache.beam.sdk.testing.NeedsRunner;
@@ -205,11 +206,14 @@ public class IngestionPipelineIT {
         tmpFolder.newFolder("testDeviceAttestation/pha/" + STATE_ABBR).getAbsolutePath();
     String facDir =
         tmpFolder.newFolder("testDeviceAttestation/facilitator/" + STATE_ABBR).getAbsolutePath();
+    long startTime = 1604039801L;
     testOptions.setPhaOutput(phaDir);
     testOptions.setFacilitatorOutput(facDir);
     testOptions.setStartTime(DeviceAttestationTest.CREATED_TIME);
     testOptions.setProject(PROJECT);
-    testOptions.setDuration(DURATION);
+    testOptions.setDuration(3600L);
+    testOptions.setGraceHoursBackwards(0L);
+    testOptions.setGraceHoursForwards(0L);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
     testOptions.setBatchSize(1L);
     testOptions.setDeviceAttestation(true);
@@ -304,6 +308,21 @@ public class IngestionPipelineIT {
 
     Assert.assertEquals(expectedPhaPayload, actualPhaShare.getEncryptedPayload());
     Assert.assertEquals(expectedFacPayload, actualFacShare.getEncryptedPayload());
+    DistributionResult repeatedCertMetric =
+        result
+            .metrics()
+            .queryMetrics(
+                MetricsFilter.builder()
+                    .addNameFilter(MetricNameFilter.named(DeviceAttestation.class, "repeatedCerts"))
+                    .build())
+            .getDistributions()
+            .iterator()
+            .next()
+            .getCommitted();
+    Assert.assertEquals(2, repeatedCertMetric.getCount());
+    Assert.assertEquals(3, repeatedCertMetric.getSum());
+    Assert.assertEquals(2, repeatedCertMetric.getMax());
+    Assert.assertEquals(1, repeatedCertMetric.getMin());
   }
 
   @Test

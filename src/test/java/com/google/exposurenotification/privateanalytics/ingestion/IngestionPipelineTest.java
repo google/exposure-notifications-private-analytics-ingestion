@@ -21,6 +21,7 @@ import com.google.exposurenotification.privateanalytics.ingestion.DataShare.Data
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -56,12 +57,35 @@ public class IngestionPipelineTest {
     options.setDeviceAttestation(false);
 
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
+    List<String> certs = new ArrayList<>();
+    certs.add("cert1");
+    certs.add("cert2");
+    certs.add("cert3");
     List<DataShare> inputData =
         Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id3").setCreated(4L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
+            DataShare.builder()
+                .setCertificateChain(certs)
+                .setPath("id1")
+                .setCreated(1L)
+                .setDataShareMetadata(meta)
+                .build(),
+            DataShare.builder()
+                .setCertificateChain(certs)
+                .setPath("id2")
+                .setCreated(2L)
+                .setDataShareMetadata(meta)
+                .build(),
+            DataShare.builder()
+                .setCertificateChain(certs)
+                .setPath("id3")
+                .setCreated(4L)
+                .setDataShareMetadata(meta)
+                .build(),
+            DataShare.builder()
+                .setCertificateChain(certs)
+                .setPath("missing")
+                .setDataShareMetadata(meta)
+                .build());
 
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> actualOutput =
         IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
@@ -74,12 +98,14 @@ public class IngestionPipelineTest {
         Arrays.asList(
             Collections.singletonList(
                 DataShare.builder()
+                    .setCertificateChain(certs)
                     .setPath("id1")
                     .setCreated(1L)
                     .setDataShareMetadata(meta)
                     .build()),
             Collections.singletonList(
                 DataShare.builder()
+                    .setCertificateChain(certs)
                     .setPath("id2")
                     .setCreated(2L)
                     .setDataShareMetadata(meta)
