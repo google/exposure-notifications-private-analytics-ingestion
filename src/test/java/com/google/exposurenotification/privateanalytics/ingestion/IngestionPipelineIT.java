@@ -46,7 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -208,7 +207,7 @@ public class IngestionPipelineIT {
         tmpFolder.newFolder("testDeviceAttestation/facilitator/" + STATE_ABBR).getAbsolutePath();
     testOptions.setPhaOutput(phaDir);
     testOptions.setFacilitatorOutput(facDir);
-    testOptions.setStartTime(1604039801L);
+    testOptions.setStartTime(DeviceAttestationTest.CREATED_TIME);
     testOptions.setProject(PROJECT);
     testOptions.setDuration(DURATION);
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
@@ -254,7 +253,7 @@ public class IngestionPipelineIT {
     for (int i = 0; i < docs.size(); i++) {
       client.createDocument(
           CreateDocumentRequest.newBuilder()
-              .setCollectionId(formatDateTime(1604039801L))
+              .setCollectionId(formatDateTime(DeviceAttestationTest.CREATED_TIME))
               .setDocumentId("testDoc" + i)
               .setDocument(docs.get(i))
               .setParent(
@@ -277,17 +276,17 @@ public class IngestionPipelineIT {
               + TEST_COLLECTION_NAME
               + "/testDoc"
               + "/"
-              + formatDateTime(1604039801L)
+              + formatDateTime(DeviceAttestationTest.CREATED_TIME)
               + "/testDoc"
               + i;
       Document doc = fetchDocumentFromFirestore(docName, client);
       documentList.add(doc.getName());
     }
-    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir);
-    // If the docs with invalid signatures/certificates were filteted, we expect only one share.
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, DeviceAttestationTest.UUID);
+    // If the docs with invalid signatures/certificates were filtered, we expect only one share.
     // (from the valid doc)
     Assert.assertEquals(1, phaShares.size());
-    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir);
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, DeviceAttestationTest.UUID);
     Assert.assertEquals(1, facShares.size());
     PrioDataSharePacket actualPhaShare = phaShares.get(0);
     PrioDataSharePacket actualFacShare = facShares.get(0);
@@ -310,7 +309,7 @@ public class IngestionPipelineIT {
   @Test
   @Category(ValidatesRunner.class)
   public void testFirestoreReader_partitionsQueryAndReadsCorrectNumberDocuments()
-      throws InterruptedException, ExecutionException, IOException {
+      throws InterruptedException {
     testOptions.setStartTime(CREATION_TIME);
     testOptions.setDuration(DURATION);
     testOptions.setProject(PROJECT);
@@ -371,8 +370,8 @@ public class IngestionPipelineIT {
       throws IOException, IllegalAccessException, InstantiationException {
     Map<String, List<PrioDataSharePacket>> result = new HashMap<>();
     List<PrioDataSharePacket> allPackets = new ArrayList<>();
-    allPackets.addAll(getSharesInFolder(phaDir));
-    allPackets.addAll(getSharesInFolder(facDir));
+    allPackets.addAll(getSharesInFolder(phaDir, TEST_COLLECTION_NAME));
+    allPackets.addAll(getSharesInFolder(facDir, TEST_COLLECTION_NAME));
     for (PrioDataSharePacket packet : allPackets) {
       if (!result.containsKey(packet.getUuid().toString())) {
         result.put(packet.getUuid().toString(), new ArrayList<>());
@@ -387,7 +386,7 @@ public class IngestionPipelineIT {
    * form of {@link Map<String, PrioDataSharePacket>}.
    */
   private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(
-      int numDocsToSeed) throws ExecutionException, InterruptedException, IOException {
+      int numDocsToSeed) throws InterruptedException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
@@ -425,7 +424,8 @@ public class IngestionPipelineIT {
                   Value.newBuilder()
                       .setMapValue(
                           MapValue.newBuilder()
-                              .putAllFields(getSamplePayload("uuid" + i, CREATION_TIME))
+                              .putAllFields(
+                                  getSamplePayload(TEST_COLLECTION_NAME + "-" + i, CREATION_TIME))
                               .build())
                       .build())
               .build();
@@ -463,6 +463,7 @@ public class IngestionPipelineIT {
               + formatDateTime(CREATION_TIME)
               + "/metric1";
       Document doc = fetchDocumentFromFirestore(docName, client);
+      // Add document to documentList so that it is deleted in cleanup phase of test run.
       documentList.add(doc.getName());
       DataShare dataShare = DataShare.from(doc);
       List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
@@ -561,14 +562,14 @@ public class IngestionPipelineIT {
    */
   private void checkSuccessfulFork(String phaDir, String facDir)
       throws IOException, IllegalAccessException, InstantiationException {
-    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir);
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, TEST_COLLECTION_NAME);
     Assert.assertTrue("No shares found in phaFolder", phaShares.size() > 0);
     Map<String, PrioDataSharePacket> phaUuidToPacket = new HashMap<>();
     for (PrioDataSharePacket packet : phaShares) {
       phaUuidToPacket.put(packet.getUuid().toString(), packet);
     }
 
-    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir);
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, TEST_COLLECTION_NAME);
     Assert.assertTrue("No shares found in facilitatorFolder", facShares.size() > 0);
     Assert.assertEquals(
         "Number of data shares in each fork is not equal. \nPHA Shares Count: "
@@ -616,6 +617,14 @@ public class IngestionPipelineIT {
           path.getFileName().toString().replace(BatchWriterFn.DATASHARE_PACKET_SUFFIX, "");
       Assert.assertEquals(
           "Invalid length of batchId.\n" + invalidPathMessage, 36, batchUuid.length());
+
+      // Only consider shares created during this test run.
+      PrioDataSharePacket packet =
+          PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString())
+              .get(0);
+      if (!packet.getUuid().toString().startsWith(TEST_COLLECTION_NAME)) {
+        continue;
+      }
 
       // Step 2: Verify the header file associated with this data share batch.
       byte[] packetBatchBytes = Files.readAllBytes(path);
@@ -673,7 +682,7 @@ public class IngestionPipelineIT {
     Assert.assertTrue("No valid batch output found in this folder.", verifiedBatchesCount > 0);
   }
 
-  private List<PrioDataSharePacket> getSharesInFolder(String folder)
+  private List<PrioDataSharePacket> getSharesInFolder(String folder, String testCollectionUuid)
       throws IOException, IllegalAccessException, InstantiationException {
     Stream<Path> paths = Files.walk(Paths.get(folder));
     List<Path> pathList = paths.filter(Files::isRegularFile).collect(Collectors.toList());
@@ -684,6 +693,8 @@ public class IngestionPipelineIT {
             PrioSerializationHelper.deserializeRecords(PrioDataSharePacket.class, path.toString()));
       }
     }
+    // Don't include shares not generated in this test run.
+    allDataSharesInFolder.removeIf(ds -> !ds.getUuid().toString().startsWith(testCollectionUuid));
     return allDataSharesInFolder;
   }
 }
