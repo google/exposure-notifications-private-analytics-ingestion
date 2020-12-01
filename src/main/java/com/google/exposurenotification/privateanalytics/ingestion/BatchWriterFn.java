@@ -155,7 +155,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           options.getPhaAwsBucketRegion());
 
       // Write to Facilitator Output Destination
-      LOG.info("Facilitator Output: " + phaFilePath);
+      LOG.info("Facilitator Output: " + facilitatorPath);
       writeBatch(
           options,
           startTime,
