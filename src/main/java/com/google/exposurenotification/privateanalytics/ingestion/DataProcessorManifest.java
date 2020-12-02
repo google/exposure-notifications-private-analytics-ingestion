@@ -21,15 +21,18 @@ import java.io.InputStreamReader;
 import java.net.URL;
 
 /**
- * Encapsulation of the specific manifest for a PHA or Facilitator data processor. Will lazily load
- * and parse the manifest json when a value is requested.
+ * Encapsulation of the specific manifest for a PHA or Facilitator data processor.
  *
  * <p>See
  * https://docs.google.com/document/d/1MdfM3QT63ISU70l63bwzTrxr93Z7Tv7EDjLfammzo6Q/edit#bookmark=id.8skgn5yx33ae
+ * https://github.com/abetterinternet/prio-server/blob/main/manifest-updater/manifest/types.go
  */
 public class DataProcessorManifest {
+
   private static final String AWS_BUCKET_PREFIX = "s3://";
-  private static final String GCP_BUCKET_PREFIX = "gs://";
+
+  private static final String INGESTION_BUCKET = "ingestion-bucket";
+  private static final String INGESTION_IDENTITY = "ingestion-identity";
 
   private final String manifestUrl;
 
@@ -67,23 +70,26 @@ public class DataProcessorManifest {
   private void init() {
     try {
       JsonObject manifestJson = fetchAndParseJson();
-      bucket = manifestJson.get("ingestion-bucket").getAsString();
+      bucket = manifestJson.get(INGESTION_BUCKET).getAsString();
 
-      String bucketInfo = bucket;
       if (bucket.startsWith(AWS_BUCKET_PREFIX)) {
-        bucketInfo = bucket.substring(AWS_BUCKET_PREFIX.length());
-      } else if (bucket.startsWith(GCP_BUCKET_PREFIX)) {
-        bucketInfo = bucket.substring(GCP_BUCKET_PREFIX.length());
+        String bucketInfo = bucket.substring(AWS_BUCKET_PREFIX.length());
+        String[] regionName = bucketInfo.split("/");
+        if (regionName.length != 2) {
+          throw new IllegalArgumentException(
+              "Ingestion bucket not in correct format of {AWS region}/{name}");
+        }
+
+        awsBucketRegion = regionName[0];
+        awsBucketName = regionName[1];
+        if (manifestJson.get(INGESTION_IDENTITY) == null) {
+          throw new IllegalArgumentException(
+              "Ingestion identity must be specified with AWS buckets");
+        } else {
+          awsRole = manifestJson.get(INGESTION_IDENTITY).getAsString();
+        }
       }
 
-      String[] regionName = bucketInfo.split("/");
-      if (regionName.length != 2) {
-        throw new RuntimeException("Ingestion bucket not in correct format of {AWS region}/{name}");
-      }
-
-      awsBucketRegion = regionName[0];
-      awsBucketName = regionName[1];
-      awsRole = manifestJson.get("ingestion-identity").getAsString();
     } catch (IOException e) {
       throw new RuntimeException("Unable to fetch and parse manifest", e);
     }
