@@ -18,6 +18,10 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.formatDateTime;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
@@ -143,23 +147,13 @@ public class IngestionPipelineIT {
     PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
     result.waitUntilFinish();
 
-    Map<String, List<PrioDataSharePacket>> actualDataSharepackets =
-        readOutputShares(phaDir, facDir);
-    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharepackets.entrySet()) {
-      Assert.assertTrue(
-          "Output contains data which is not present in input",
-          inputDataSharePackets.containsKey(entry.getKey()));
-      comparePrioDataSharePacket(
-          entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
-      comparePrioDataSharePacket(
-          entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
-    }
+    compareSeededPacketsToActual(inputDataSharePackets, phaDir, facDir);
     checkSuccessfulFork(phaDir, facDir);
     verifyBatchOutput(phaDir);
     verifyBatchOutput(facDir);
   }
 
-  //  @Test
+  @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipelineAWS() throws Exception {
     testOptions.setStartTime(CREATION_TIME);
@@ -173,24 +167,60 @@ public class IngestionPipelineIT {
     int numDocs = 2;
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal(numDocs);
-
-    String phaDir = "s3://federation-pha/pha/" + STATE_ABBR;
-    String facDir = "s3://federation-test2/fac/" + STATE_ABBR;
+    final String TEST_IDENTIFIER = "testIngestionPipelineAWS_" + UUID.randomUUID().toString();
+    String phaDir = "s3://federation-pha/" + TEST_IDENTIFIER + "/pha/" + STATE_ABBR;
+    String facDir = "s3://federation-facilitator/" + TEST_IDENTIFIER + "/fac/" + STATE_ABBR;
     testOptions.setPhaOutput(phaDir);
     testOptions.setPhaAwsBucketName("federation-pha");
     testOptions.setPhaAwsBucketRegion("us-east-2");
     testOptions.setPhaAwsBucketRole("arn:aws:iam::543928124548:role/AssumeRolePHA");
 
     testOptions.setFacilitatorOutput(facDir);
-    testOptions.setFacilitatorAwsBucketName("federation-test2");
+    testOptions.setFacilitatorAwsBucketName("federation-facilitator");
     testOptions.setFacilitatorAwsBucketRegion("us-east-2");
-    testOptions.setFacilitatorAwsBucketRole(
-        "arn:aws:iam::543928124548:role/AWSRoleAssumedByGCPSvcAcc");
-
+    testOptions.setFacilitatorAwsBucketRole("arn:aws:iam::543928124548:role/AssumeRoleFacilitator");
     PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
     result.waitUntilFinish();
 
-    // TODO add validation code that files were actually written
+    AWSFederatedAuthHelper.setupAWSAuth(
+        testOptions, testOptions.getPhaAwsBucketRole(), testOptions.getPhaAwsBucketRegion());
+    AmazonS3 s3ClientPha =
+        AmazonS3ClientBuilder.standard()
+            .withCredentials(testOptions.getAwsCredentialsProvider())
+            .withRegion(testOptions.getPhaAwsBucketRegion())
+            .build();
+
+    List<String> phaObjectKeys =
+        getTestObjKeys(s3ClientPha, testOptions.getPhaAwsBucketName(), TEST_IDENTIFIER);
+    Assert.assertEquals(
+        "Expected 3 object keys (header, signature, packet batch)", 3, phaObjectKeys.size());
+
+    AWSFederatedAuthHelper.setupAWSAuth(
+        testOptions,
+        testOptions.getFacilitatorAwsBucketRole(),
+        testOptions.getFacilitatorAwsBucketRegion());
+    AmazonS3 s3ClientFac =
+        AmazonS3ClientBuilder.standard()
+            .withCredentials(testOptions.getAwsCredentialsProvider())
+            .withRegion(testOptions.getFacilitatorAwsBucketRegion())
+            .build();
+    List<String> facObjectKeys =
+        getTestObjKeys(s3ClientFac, testOptions.getFacilitatorAwsBucketName(), TEST_IDENTIFIER);
+
+    Assert.assertEquals(
+        "Expected 3 object keys (header, signature, packet batch)", 3, facObjectKeys.size());
+    for (int i = 0; i < 3; i++) {
+      String phaObjectKey = phaObjectKeys.get(i);
+      String facObjectKey = facObjectKeys.get(i);
+      Assert.assertTrue(
+          phaObjectKey.endsWith(BatchWriterFn.HEADER_SIGNATURE_SUFFIX)
+              || phaObjectKey.endsWith(BatchWriterFn.INGESTION_HEADER_SUFFIX)
+              || phaObjectKey.endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX));
+      Assert.assertTrue(
+          facObjectKey.endsWith(BatchWriterFn.HEADER_SIGNATURE_SUFFIX)
+              || facObjectKey.endsWith(BatchWriterFn.INGESTION_HEADER_SUFFIX)
+              || facObjectKey.endsWith(BatchWriterFn.DATASHARE_PACKET_SUFFIX));
+    }
   }
 
   // Test the ingestion pipeline with device attestation enabled. This test checks that the device
@@ -715,5 +745,40 @@ public class IngestionPipelineIT {
     // Don't include shares not generated in this test run.
     allDataSharesInFolder.removeIf(ds -> !ds.getUuid().toString().startsWith(testCollectionUuid));
     return allDataSharesInFolder;
+  }
+
+  private void compareSeededPacketsToActual(
+      Map<String, List<PrioDataSharePacket>> inputDataSharePackets, String phaDir, String facDir)
+      throws IllegalAccessException, IOException, InstantiationException {
+    Map<String, List<PrioDataSharePacket>> actualDataSharePackets =
+        readOutputShares(phaDir, facDir);
+    for (Map.Entry<String, List<PrioDataSharePacket>> entry : actualDataSharePackets.entrySet()) {
+      Assert.assertTrue(
+          "Output contains data which is not present in input",
+          inputDataSharePackets.containsKey(entry.getKey()));
+      comparePrioDataSharePacket(
+          entry.getValue().get(0), inputDataSharePackets.get(entry.getKey()).get(0));
+      comparePrioDataSharePacket(
+          entry.getValue().get(1), inputDataSharePackets.get(entry.getKey()).get(1));
+    }
+  }
+
+  private List<String> getTestObjKeys(AmazonS3 s3Client, String bucketName, String testIdentifier) {
+    List<S3ObjectSummary> objects = s3Client.listObjectsV2(bucketName).getObjectSummaries();
+    List<DeleteObjectsRequest.KeyVersion> keysToDelete = new ArrayList<>();
+    List<String> filteredKeys = new ArrayList<>();
+    for (S3ObjectSummary os : objects) {
+      String key = os.getKey();
+      if (key.startsWith(testIdentifier)) {
+        filteredKeys.add(key);
+        keysToDelete.add(new DeleteObjectsRequest.KeyVersion(key));
+      }
+    }
+    DeleteObjectsRequest multiObjectDeleteRequest =
+        new DeleteObjectsRequest(testOptions.getPhaAwsBucketName())
+            .withKeys(keysToDelete)
+            .withQuiet(false);
+    s3Client.deleteObjects(multiObjectDeleteRequest);
+    return filteredKeys;
   }
 }
