@@ -65,6 +65,12 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("/yyyy/MM/dd/HH/mm/");
 
+  private static final Counter dataSharesInBatch =
+      Metrics.counter(BatchWriterFn.class, "dataSharesInBatch");
+
+  private static final Counter batchesProcessed =
+      Metrics.counter(BatchWriterFn.class, "batchesProcessed");
+
   private static final Counter successfulBatches =
       Metrics.counter(BatchWriterFn.class, "successfulBatches");
 
@@ -108,6 +114,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
+    batchesProcessed.inc();
     LOG.info("Processing batch: " + metadata.toString());
     // batch size explicitly chosen so that these lists fit in memory on a single worker
     List<PrioDataSharePacket> phaPackets = new ArrayList<>();
@@ -121,6 +128,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       // First packet always goes to PHA
       phaPackets.add(split.get(0));
       facilitatorPackets.add(split.get(1));
+      dataSharesInBatch.inc();
     }
 
     String date =
