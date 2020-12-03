@@ -63,7 +63,7 @@ function correctContents(uuid = 'foo') {
          'prime': 5
        }
       },
-      'certificateChain': ['cert1'],
+      'certificateChain': ['cert1', 'cert2', 'cert3'],
       'signature': 'sig'
    };
 }
@@ -119,6 +119,39 @@ describe('Tests of document writes and access', () => {
         const doc = db.collection('uuid').doc('old')
                       .collection(getPath(oldDate)).doc('fakeMetric-v1');
         await firebase.assertFails(doc.set(correctContents('old')));
+      });
+  it('documents cannot be created with very large uuids',
+      async () => {
+        longuuid = 'x'.repeat(1000);
+        const doc = db.collection('uuid').doc(longuuid)
+                      .collection(datefmt).doc('fakeMetric-v1');
+        contents = correctContents(longuuid);
+        contents['payload']['uuid'] = longuuid;
+        await firebase.assertFails(doc.set(contents));
+      });
+  it('documents cannot be created with very large signatures',
+      async () => {
+        const doc = db.collection('uuid').doc('longsig')
+                      .collection(datefmt).doc('fakeMetric-v1');
+        contents = correctContents('longsig');
+        contents['signature'] = 'x'.repeat(1000);
+        await firebase.assertFails(doc.set(contents));
+      });
+  it('documents cannot be created with very long certificate chains',
+      async () => {
+        const doc = db.collection('uuid').doc('longchain')
+                      .collection(datefmt).doc('fakeMetric-v1');
+        contents = correctContents('longchain');
+        contents['certificateChain'] = Array(12).fill('cert')
+        await firebase.assertFails(doc.set(contents));
+      });
+  it('documents cannot be created with a large certificate',
+      async () => {
+        const doc = db.collection('uuid').doc('longcert')
+                      .collection(datefmt).doc('fakeMetric-v1');
+        contents = correctContents('longcert');
+        contents['certificateChain'].push('x'.repeat(50000));
+        await firebase.assertFails(doc.set(contents));
       });
   it('correct documents can be created',
       async () => {

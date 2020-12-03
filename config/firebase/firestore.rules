@@ -17,6 +17,7 @@ service cloud.firestore {
 
     // Limited rules execution environment and functions are constrained:
     // https://firebase.google.com/docs/rules/rules-language#function
+    // https://firebase.google.com/docs/reference/rules/index-all
     // https://github.com/google/cel-spec/blob/master/doc/langdef.md
     function quickPad(datePart) {
       return datePart.size() == 1 ? "0" + datePart : datePart;
@@ -37,17 +38,61 @@ service cloud.firestore {
           || datePath == buildDatePath(t - duration.value(1, 'h'));
     }
 
+    // There are no filter() or map() functions available to us, and recursion
+    // is not allowed, so we have to unroll the check of the list manually.
+    // https://groups.google.com/g/google-cloud-firestore-discuss/c/S9BqqUcR4Lc/m/4CRjqfMyBwAJ
+    function checkCertLengths(chain) {
+      return checkCertLength(chain, 1)
+          && checkCertLength(chain, 2)
+          && checkCertLength(chain, 3)
+          && checkCertLength(chain, 4)
+          && checkCertLength(chain, 5)
+          && checkCertLength(chain, 6)
+          && checkCertLength(chain, 7)
+          && checkCertLength(chain, 8)
+          && checkCertLength(chain, 9)
+          && checkCertLength(chain, 10);
+    }
+
+    // CEL implementations aren't guaranteed to do short circuit evaluation of
+    // logical operators, so we use conditional operators here to avoid out of
+    // bounds exceptions/NPEs.
+    // https://github.com/google/cel-spec/blob/master/doc/langdef.md#logical-operators
+    // Fun times.
+    function checkCertLength(chain, i) {
+      return chain.size() > i ? chain[i].size() < 30000 : true;
+    }
+    function safeCheckSize(s, len) {
+      return s != null ? s.size() < len : true;
+    }
+
     // Check schema of uploaded document
     function checkFields(d) {
       return
           // Check top level required fields
           d.payload != null
+          && d.signature != null
+          && d.certificateChain != null
           // nothing extraneous at top level
           && d.keys().toSet().hasOnly(['certificateChain', 'signature', 'payload'])
-          // Check payload required fields
-          // uuid, created already enforced elsewhere
+          // Check `payload` required fields
+          // `uuid`, `created` already enforced elsewhere
           && d.payload.schemaVersion != null
           && d.payload.encryptedDataShares != null
+          // TODO: support arbitrary number of servers here
+          && d.payload.encryptedDataShares.size() == 2
+          && d.payload.encryptedDataShares[0].payload != null
+          && d.payload.encryptedDataShares[1].payload != null
+          // check sizes
+          && d.signature.size() < 200
+          && d.certificateChain.size() >= 3
+          && d.certificateChain.size() <= 10
+          && checkCertLengths(d.certificateChain)
+          && d.payload.uuid.size() < 50
+          && safeCheckSize(d.payload.encryptedDataShares[0].encryptionKeyId, 100)
+          && safeCheckSize(d.payload.encryptedDataShares[1].encryptionKeyId, 100)
+          && d.payload.encryptedDataShares[0].payload.size() < 100000
+          && d.payload.encryptedDataShares[1].payload.size() < 100000
           // nothing extraneous at payload level
           && d.payload.keys().toSet().hasOnly([
             'uuid', 'created', 'schemaVersion', 'encryptedDataShares', 'prioParams'
