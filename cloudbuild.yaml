@@ -14,8 +14,7 @@
 
 steps:
 - name: gcr.io/cloud-devrel-public-resources/java11
-  id: "build"
-  waitFor: ["-"]
+  id: "pr-integration-tests"
   entrypoint: bash
   args:
   - "-e"

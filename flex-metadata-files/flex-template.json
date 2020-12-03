@@ -1,0 +1,7 @@
+{
+  "image": "gcr.io/enpa-infra/ingestion-pipeline:0.1.0-SNAPSHOT",
+  "metadata": {},
+  "sdkInfo": {
+    "language": "JAVA"
+  }
+}

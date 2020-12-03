@@ -78,11 +78,11 @@ variable:
 ./mvnw verify
 ```
 
-## Running
+## Running the Pipeline
 
 There are two pipelines. One reads Prio data shares from Firestore and
-generates the outputs which the PHA and facilitator data processors will use.
-The other deletes expired or already processed documents from Firestore. 
+generates the outputs which the PHA and Facilitator data share processors will consume.
+The other deletes expired or already processed data shares from Firestore. 
 
 They both take as options the window of time to cover, in the form of a start
 time and duration. When not supplied, start time is calculated based on current
@@ -94,9 +94,8 @@ To run the ingestion pipeline:
 
 ```sh
 export BEAM_ARGS=(
-    "--project=$PROJECT"
     "--keyResourceName=$KEY_RESOURCE_NAME"
-    "--PHAOutput=$PHA_OUTPUT"
+    "--phaOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
 )
 ./mvnw compile exec:java \
@@ -125,9 +124,8 @@ export BEAM_ARGS=(
 export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
 
 export BEAM_ARGS=(
-    "--project=$PROJECT"
     "--keyResourceName=$KEY_RESOURCE_NAME"
-    "--PHAOutput=$PHA_OUTPUT"
+    "--phaOutput=$PHA_OUTPUT"
     "--facilitatorOutput=$FACILITATOR_OUTPUT"
     "--runner=DataflowRunner"
     "--region=us-central1"
@@ -140,7 +138,8 @@ export BEAM_ARGS=(
 
 #### From Flex Template
 
-See below on how to generate the flex template.
+See [below](#creating-a-flex-template) on how to generate the flex template.
+
 
 ```sh
 export SERVICE_ACCOUNT_EMAIL=$(egrep -o '[^"]+@[^"]+\.iam\.gserviceaccount\.com' $GOOGLE_APPLICATION_CREDENTIALS)
@@ -149,7 +148,7 @@ gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S
     --template-file-gcs-location "$TEMPLATE_PATH" \
     --parameters project="$PROJECT" \
     --parameters keyResourceName="$KEY_RESOURCE_NAME" \
-    --parameters PHAOutput="$PHA_OUTPUT" \
+    --parameters phaOutput="$PHA_OUTPUT" \
     --parameters facilitatorOutput="$FACILITATOR_OUTPUT" \
     --service-account-email "$SERVICE_ACCOUNT_EMAIL" \
     --region "us-central1"
@@ -160,27 +159,41 @@ gcloud dataflow flex-template run "ingestion-pipeline-$USER-`date +%Y%m%d-%H%M%S
 We generate [templated dataflow job](https://cloud.google.com/dataflow/docs/guides/templates/overview#templated-dataflow-jobs)
 that takes all pipeline options as runtime parameters.
 
-### Creating a Flex Template
+### Building a Flex Template and Launch Container
 
-Compile and package into an Uber JAR file.
+To build the launch container we added profiles for the ingestion and deletion pipeline.
 
+To build the ingestion pipeline launch container with the setting a git derived version:
 ```sh
-./mvnw clean package
+./mvnw -Pingestion-container-build -Dcontainer-version=$(git describe --tags --always --dirty=-dirty) package
 ```
 
-Build the Flex Template.
+To build the deletion pipeline launch container with the setting a git derived version:
+```sh
+./mvnw -Pdeletion-container-build -Dcontainer-version=$(git describe --tags --always --dirty=-dirty) package
+```
+
+Containers get automatically published to your projects Google Container Registry (gcr.io)
+at `gcr.io/$PROJECT_ID/ingestion-pipeline:$VERSION` and `gcr.io/$PROJECT_ID/deletion-pipeline:$VERSION`
+respectively.
+
+To generate the Flex Template Metadata files and upload them to GCS run:
+
+*The following commands require nodejs json `npm install -g json`*
 
 ```sh
-export TEMPLATE_PATH="gs://my-google-cloud-bucket/templates/ingestion-pipeline.json"
-export TEMPLATE_IMAGE="gcr.io/$PROJECT/ingestion-pipeline:latest"
+export VERSION=$(git describe --tags --always --dirty=-dirty)
+json -f flex-metadata-files/flex-template.json \
+  -e "this.metadata=`cat flex-metadata-files/ingestion-metadata.json`" \
+  -e "this.image='gcr.io/enpa-infra/ingestion-pipeline:$VERSION'" > ingestion-pipeline-$VERSION.json
 
-gcloud dataflow flex-template build $TEMPLATE_PATH \
-    --image-gcr-path "$TEMPLATE_IMAGE" \
-    --sdk-language "JAVA" \
-    --flex-template-base-image JAVA11 \
-    --metadata-file "metadata.json" \
-    --jar "target/enpa-ingestion-bundled-0.1.jar" \
-    --env FLEX_TEMPLATE_JAVA_MAIN_CLASS="com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline"
+json -f flex-metadata-files/flex-template.json \
+  -e "this.metadata=`cat flex-metadata-files/deletion-metadata.json`" \
+  -e "this.image='gcr.io/enpa-infra/deletion-pipeline:$VERSION'" > deletion-pipeline-$VERSION.json
+
+gsutil cp ingestion-pipeline-$VERSION.json gs://$PROJECT_ID/templates/
+gsutil cp deletion-pipeline-$VERSION.json gs://$PROJECT_ID/templates/
+unset VERSION
 ```
 
 ## Contributing
