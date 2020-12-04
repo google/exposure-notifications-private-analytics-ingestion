@@ -17,10 +17,15 @@ steps:
   id: update-submodules
   args: ['submodule', 'update', '--init']
 
+- name: gcr.io/cloud-builders/git
+  id: recreate-tag
+  args: ['tag', '$TAG_NAME']
+
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
   waitFor:
     - update-submodules
+    - recreate-tag
   entrypoint: bash
   args:
     - '-c'
@@ -37,10 +42,12 @@ steps:
 
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
-#  waitFor:
-#    - ingestion-container-build
-#    - deletion-container-build
+  waitFor:
+    - ingestion-container-build
+    - deletion-container-build
   args:
     - "./ci/generate-templates.sh"
   env:
     - PROJECT_ID=$PROJECT_ID
+substitutions:
+  TAG_NAME: '${SHORT_SHA}-SNAPSHOT' #default value
