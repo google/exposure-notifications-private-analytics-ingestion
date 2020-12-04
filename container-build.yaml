@@ -50,4 +50,4 @@ steps:
   env:
     - PROJECT_ID=$PROJECT_ID
 substitutions:
-  TAG_NAME: '${SHORT_SHA}-SNAPSHOT' #default value
+  TAG_NAME: '${TAG_NAME:-${SHORT_SHA}-SNAPSHOT}' #default value will be SHORT_SHA-SNAPSHOT
