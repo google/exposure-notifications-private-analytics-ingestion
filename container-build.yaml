@@ -19,7 +19,7 @@ steps:
 
 - name: gcr.io/cloud-builders/git
   id: recreate-tag
-  args: ['tag', '$TAG_NAME']
+  args: ['tag', '$_TAG']
 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
@@ -35,6 +35,7 @@ steps:
   id: deletion-container-build
   waitFor:
     - update-submodules
+    - recreate-tag
   entrypoint: bash
   args:
     - '-c'
@@ -50,4 +51,5 @@ steps:
   env:
     - PROJECT_ID=$PROJECT_ID
 substitutions:
-  TAG_NAME: '${TAG_NAME:-${SHORT_SHA}-SNAPSHOT}' #default value will be SHORT_SHA-SNAPSHOT
+  _DEFAULT: '${SHORT_SHA}-SNAPSHOT'
+  _TAG: ${TAG_NAME:-$_DEFAULT} #default value will be SHORT_SHA-SNAPSHOT
