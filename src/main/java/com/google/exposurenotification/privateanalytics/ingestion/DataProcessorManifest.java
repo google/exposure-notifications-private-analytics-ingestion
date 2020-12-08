@@ -44,8 +44,11 @@ public class DataProcessorManifest {
 
   private String awsRole;
 
+  private boolean isAwsBucket;
+
   public DataProcessorManifest(String manifestUrl) {
     this.manifestUrl = manifestUrl;
+    this.isAwsBucket = false;
     if (!"".equals(manifestUrl)) {
       init();
     }
@@ -67,12 +70,17 @@ public class DataProcessorManifest {
     return awsRole;
   }
 
+  public boolean isAwsBucket() {
+    return isAwsBucket;
+  }
+
   private void init() {
     try {
       JsonObject manifestJson = fetchAndParseJson();
       bucket = manifestJson.get(INGESTION_BUCKET).getAsString();
 
       if (bucket.startsWith(AWS_BUCKET_PREFIX)) {
+        isAwsBucket = true;
         String bucketInfo = bucket.substring(AWS_BUCKET_PREFIX.length());
         String[] regionName = bucketInfo.split("/");
         if (regionName.length != 2) {

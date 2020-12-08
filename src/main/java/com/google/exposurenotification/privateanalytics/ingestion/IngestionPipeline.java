@@ -166,18 +166,25 @@ public class IngestionPipeline {
   private static void readOptionsFromManifests(IngestionPipelineOptions options) {
     if (!"".equals(options.getPhaManifestURL())) {
       DataProcessorManifest manifestPha = new DataProcessorManifest(options.getPhaManifestURL());
-      options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
-      options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
-      options.setPhaAwsBucketRole(manifestPha.getAwsRole());
+
+      if (manifestPha.isAwsBucket()) {
+        options.setPhaAwsBucketRegion(manifestPha.getAwsBucketRegion());
+        options.setPhaAwsBucketName(manifestPha.getAwsBucketName());
+        options.setPhaAwsBucketRole(manifestPha.getAwsRole());
+      }
       options.setPhaOutput(getOutputPrefix(options.getPhaOutput(), manifestPha));
     }
 
     if (!"".equals(options.getFacilitatorManifestURL())) {
       DataProcessorManifest manifestFacilitator =
           new DataProcessorManifest(options.getFacilitatorManifestURL());
-      options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
-      options.setFacilitatorAwsBucketName(manifestFacilitator.getAwsBucketName());
-      options.setFacilitatorAwsBucketRole(manifestFacilitator.getAwsRole());
+
+      if (manifestFacilitator.isAwsBucket()) {
+        options.setFacilitatorAwsBucketRegion(manifestFacilitator.getAwsBucketRegion());
+        options.setFacilitatorAwsBucketName(manifestFacilitator.getAwsBucketName());
+        options.setFacilitatorAwsBucketRole(manifestFacilitator.getAwsRole());
+      }
+
       options.setFacilitatorOutput(
           getOutputPrefix(options.getFacilitatorOutput(), manifestFacilitator));
     }
@@ -246,7 +253,7 @@ public class IngestionPipeline {
     if (manifest == null) {
       throw new IllegalArgumentException("Must specify either output option or manifest url");
     }
-    if (!"".equals(manifest.getAwsBucketName())) {
+    if (manifest.isAwsBucket()) {
       return "s3://" + manifest.getAwsBucketName();
     }
     return manifest.getIngestionBucket();
