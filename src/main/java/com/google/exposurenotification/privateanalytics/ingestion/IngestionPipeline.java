@@ -18,6 +18,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.firestore.v1.Document;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
@@ -28,11 +29,13 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.state.StateSpec;
 import org.apache.beam.sdk.state.StateSpecs;
 import org.apache.beam.sdk.state.ValueState;
+import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Reshuffle;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
@@ -122,6 +125,16 @@ public class IngestionPipeline {
     PCollection<DataShare> dataShares =
         pipeline
             .apply(new FirestoreReader())
+            // Ensure distinctness of data shares based on document path
+            .apply(
+                Distinct.<Document, String>withRepresentativeValueFn(
+                    // Not using a lambda here as Beam has trouble inferring a coder
+                    new SerializableFunction<Document, String>() {
+                      @Override
+                      public String apply(Document document) {
+                        return document.getName();
+                      }
+                    }))
             // Shuffle immediately after our crudely partitioned reader
             .apply("Rebalance", Reshuffle.viaRandomKey())
             .apply(ParDo.of(new ConstructDataSharesFn()));

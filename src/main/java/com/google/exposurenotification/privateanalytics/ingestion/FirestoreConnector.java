@@ -16,7 +16,9 @@
 package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.retrying.RetrySettings;
 import com.google.api.gax.rpc.ServerStream;
+import com.google.api.gax.rpc.StatusCode;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.PartitionQueryPagedResponse;
@@ -45,19 +47,18 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
@@ -85,7 +86,9 @@ public class FirestoreConnector {
   // Firestore SDK supports.
   private static final String NAME_FIELD = "__name__";
 
-  private static final Duration FIRESTORE_WAIT_TIME = Duration.ofSeconds(30);
+  private static final Duration FIRESTORE_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+
+  private static final Duration FIRESTORE_INITIAL_RPC_TIMEOUT = Duration.ofSeconds(10);
 
   private static final Distribution docsInPartition =
       Metrics.distribution(FirestoreConnector.class, "numDocsInPartition");
@@ -143,17 +146,7 @@ public class FirestoreConnector {
       return input
           .apply("Begin", Create.of(generateQueries(start, backwardHours, forwardHours)))
           .apply("PartitionQuery", ParDo.of(new PartitionQueryFn()))
-          .apply("Read", ParDo.of(new ReadFn()))
-          // In case workers retried on some shards and duplicates got emitted, ensure distinctness
-          .apply(
-              Distinct.<Document, String>withRepresentativeValueFn(
-                  // Not using a lambda here as Beam has trouble inferring a coder
-                  new SerializableFunction<Document, String>() {
-                    @Override
-                    public String apply(Document document) {
-                      return document.getName();
-                    }
-                  }));
+          .apply("Read", ParDo.of(new ReadFn()));
     }
 
     private Iterable<StructuredQuery> generateQueries(
@@ -218,7 +211,7 @@ public class FirestoreConnector {
         PartitionQueryPagedResponse response = client.partitionQuery(request);
         Iterator<Cursor> iterator = response.iterateAll().iterator();
         if (!iterator.hasNext()) {
-          LOG.info(
+          LOG.warn(
               "No query partitions were returned for date: {}",
               context.element().getFrom(0).getCollectionId());
         } else {
@@ -232,6 +225,7 @@ public class FirestoreConnector {
         Cursor end;
         while (iterator.hasNext()) {
           end = iterator.next();
+          LOG.info("Emitting triple with cursor pair [start: {}, end: {}]", start, end);
           context.output(ImmutableTriple.of(start, end, context.element()));
           partitionCursors.inc();
           start = end;
@@ -259,7 +253,7 @@ public class FirestoreConnector {
       @ProcessElement
       public void processElement(ProcessContext context) {
         LOG.info(
-            "Starting to read documents in new partition: {} : {}.",
+            "Starting to read documents in partition: [start: {}, end: {}].",
             context.element().left,
             context.element().middle);
         IngestionPipelineOptions options =
@@ -268,13 +262,17 @@ public class FirestoreConnector {
             readDocumentsFromFirestore(client, options.getProject(), context.element());
         docsInPartition.update(docs.size());
         LOG.info(
-            "{} documents read in partition: {} : {}.",
+            "{} documents read in partition: [start: {}, end: {}].",
             docs.size(),
             context.element().left,
             context.element().middle);
         for (Document doc : docs) {
           context.output(doc);
         }
+        LOG.info(
+            "Done emitting documents in partition: [start: {}, end: {}].",
+            context.element().left,
+            context.element().middle);
       }
 
       @FinishBundle
@@ -364,19 +362,48 @@ public class FirestoreConnector {
 
   // Returns a v1.Firestore instance to be used to partition read queries.
   private static FirestoreClient getFirestoreClient() throws IOException {
-    FirestoreSettings settings =
+    FirestoreSettings.Builder settingsBuilder =
         FirestoreSettings.newBuilder()
             .setCredentialsProvider(
-                FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()))
+                FixedCredentialsProvider.create(GoogleCredentials.getApplicationDefault()));
+
+    RetrySettings retrySettings =
+        RetrySettings.newBuilder()
+            .setInitialRetryDelay(org.threeten.bp.Duration.ofMillis(500L))
+            .setRetryDelayMultiplier(1.3)
+            .setMaxRetryDelay(org.threeten.bp.Duration.ofSeconds(30L))
+            .setInitialRpcTimeout(
+                org.threeten.bp.Duration.ofSeconds(FIRESTORE_INITIAL_RPC_TIMEOUT.toSeconds()))
+            .setRpcTimeoutMultiplier(1.1)
+            .setMaxRpcTimeout(org.threeten.bp.Duration.ofMinutes(1L))
+            .setTotalTimeout(org.threeten.bp.Duration.ofMinutes(5L))
             .build();
-    return FirestoreClient.create(settings);
+    Set<StatusCode.Code> retryableCodes =
+        Set.of(StatusCode.Code.UNAVAILABLE, StatusCode.Code.DEADLINE_EXCEEDED);
+
+    settingsBuilder
+        .partitionQuerySettings()
+        .setRetrySettings(retrySettings)
+        .setRetryableCodes(retryableCodes);
+
+    settingsBuilder
+        .runQuerySettings()
+        .setRetrySettings(retrySettings)
+        .setRetryableCodes(retryableCodes);
+
+    settingsBuilder
+        .batchWriteSettings()
+        .setRetrySettings(retrySettings)
+        .setRetryableCodes(retryableCodes);
+
+    return FirestoreClient.create(settingsBuilder.build());
   }
 
   public static void shutdownFirestoreClient(FirestoreClient client) {
     client.shutdown();
     LOG.info("Waiting for FirestoreClient to shutdown.");
     try {
-      client.awaitTermination(FIRESTORE_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
+      client.awaitTermination(FIRESTORE_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       LOG.warn("Interrupted while waiting for client shutdown", e);
     }
@@ -399,14 +426,22 @@ public class FirestoreConnector {
   private static List<Document> readDocumentsFromFirestore(
       FirestoreClient firestoreClient,
       String projectId,
-      ImmutableTriple<Cursor, Cursor, StructuredQuery> cursors) {
-    StructuredQuery.Builder queryBuilder = cursors.getRight().toBuilder();
-    if (cursors.getLeft() != null) {
-      queryBuilder.setStartAt(cursors.getLeft());
+      ImmutableTriple<Cursor, Cursor, StructuredQuery> triple) {
+    Cursor start = triple.getLeft();
+    Cursor end = triple.getMiddle();
+    StructuredQuery.Builder queryBuilder = triple.getRight().toBuilder();
+    if (start != null) {
+      queryBuilder.setStartAt(start);
     }
-    if (cursors.getMiddle() != null) {
-      queryBuilder.setEndAt(cursors.getMiddle());
+    if (end != null) {
+      queryBuilder.setEndAt(end);
     }
+    LOG.info(
+        "Querying documents in partition: [start: {}, end: {}] with query [{}]",
+        start,
+        end,
+        queryBuilder.toString());
+
     List<Document> docs = new ArrayList<>();
     try {
       ServerStream<RunQueryResponse> responseIterator =
