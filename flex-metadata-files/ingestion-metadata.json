@@ -117,6 +117,24 @@
       "regexes": [
         "projects/[^/]+/locations/[^/]+/keyRings/[^/]+/cryptoKeys/.+"
       ]
+    },
+    {
+      "name": "autoscalingAlgorithm",
+      "label": "Autoscaling algorithm",
+      "helpText": "Type of autoscaling to use",
+      "isOptional": true,
+      "regexes": [
+        "NONE|THROUGHPUT_BASED"
+      ]
+    },
+    {
+      "name": "numWorkers",
+      "label": "Number of workers",
+      "helpText": "Number of workers to use if, e.g., not using autoscaling.",
+      "isOptional": true,
+      "regexes": [
+        "[0-9]+"
+      ]
     }
   ]
 }
