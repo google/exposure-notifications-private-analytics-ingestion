@@ -191,8 +191,8 @@ json -f flex-metadata-files/flex-template.json \
   -e "this.metadata=`cat flex-metadata-files/deletion-metadata.json`" \
   -e "this.image='gcr.io/enpa-infra/deletion-pipeline:$VERSION'" > deletion-pipeline-$VERSION.json
 
-gsutil cp ingestion-pipeline-$VERSION.json gs://$PROJECT_ID/templates/
-gsutil cp deletion-pipeline-$VERSION.json gs://$PROJECT_ID/templates/
+gsutil cp ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
+gsutil cp deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 unset VERSION
 ```
 
