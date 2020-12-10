@@ -3,11 +3,6 @@
   "description": "A batch processing pipeline that can be used to ingest private data shares according to the Exposure Notification Private Analytics protocol",
   "parameters": [
     {
-      "name": "awsRegion",
-      "label": "AWS Region",
-      "helpText": "AWS Region"
-    },
-    {
       "name": "firestoreProject",
       "label": "Firestore project ID",
       "isOptional": true,

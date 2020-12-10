@@ -3,11 +3,6 @@
   "description": "A pipeline that can be used to delete data in Firestore",
   "parameters": [
     {
-      "name": "awsRegion",
-      "label": "AWS Region",
-      "helpText": "AWS Region"
-    },
-    {
       "name": "firestoreProject",
       "label": "Firestore project ID",
       "isOptional": true,

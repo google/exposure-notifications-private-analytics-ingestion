@@ -15,6 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
+import com.amazonaws.auth.AWSCredentialsProvider;
 import java.time.Clock;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.io.aws.options.AwsOptions;
@@ -23,7 +24,7 @@ import org.apache.beam.sdk.options.Description;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 /** Specific options for the pipeline. */
-public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOptions {
+public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   int UNSPECIFIED = -1;
 
@@ -224,6 +225,18 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions, AwsOp
   Boolean getTestingRootCertificateAccepted();
 
   void setTestingRootCertificateAccepted(Boolean value);
+
+  @Description("AWS region used by the AWS client")
+  String getAwsRegion();
+
+  void setAwsRegion(String value);
+
+  @Description(
+      "The credential instance that should be used to authenticate against AWS services. The option value must contain \"@type\" field and an AWS Credentials Provider class name as the field value. Refer to DefaultAWSCredentialsProviderChain Javadoc for usage help. For example, to specify the AWS key ID and secret, specify the following: {\"@type\": \"AWSStaticCredentialsProvider\", \"awsAccessKeyId\":\"<key_id>\", \"awsSecretKey\":\"<secret_key>\"}")
+  @Default.InstanceFactory(AwsOptions.AwsUserCredentialsFactory.class)
+  AWSCredentialsProvider getAwsCredentialsProvider();
+
+  void setAwsCredentialsProvider(AWSCredentialsProvider value);
 
   /**
    * @return {@code startTime} from options/flags if set. Otherwise, rounds current time down to
