@@ -54,7 +54,7 @@ public abstract class DataShare implements Serializable {
       Metrics.counter(DataShare.class, "datashare-invalidDocument");
 
   // Firestore document field names. See
-  // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#50
+  // https://github.com/google/exposure-notifications-android/blob/4b7b461282b2ede6fb2a93488c6d628440052c8d/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/PrivateAnalyticsFirestoreRepository.java#L44
   public static final String DOCUMENT_FIELDS = "documentFields";
   public static final String PAYLOAD = "payload";
   public static final String SIGNATURE = "signature";
@@ -90,8 +90,6 @@ public abstract class DataShare implements Serializable {
   /** Firestore document path */
   public abstract @Nullable String getPath();
 
-  public abstract @Nullable Long getCreated();
-
   public abstract @Nullable Long getCreatedMs();
 
   public abstract @Nullable String getUuid();
@@ -120,7 +118,6 @@ public abstract class DataShare implements Serializable {
 
     checkValuePresent(CREATED, payload, PAYLOAD, ValueTypeCase.TIMESTAMP_VALUE);
     checkValuePresent(UUID, payload, PAYLOAD, ValueTypeCase.STRING_VALUE);
-    builder.setCreated(payload.get(CREATED).getTimestampValue().getSeconds());
     builder.setCreatedMs(
         payload.get(CREATED).getTimestampValue().getSeconds() * 1000
             + payload.get(CREATED).getTimestampValue().getNanos() / 1000000);
@@ -294,8 +291,6 @@ public abstract class DataShare implements Serializable {
     abstract DataShare build();
 
     abstract Builder setPath(@Nullable String value);
-
-    abstract Builder setCreated(@Nullable Long value);
 
     abstract Builder setCreatedMs(@Nullable Long value);
 

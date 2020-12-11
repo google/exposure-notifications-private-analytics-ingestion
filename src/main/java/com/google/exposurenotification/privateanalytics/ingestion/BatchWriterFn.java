@@ -49,12 +49,8 @@ import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Function to write files (header, data records, signature) for a batch of {@link DataShare}
- *
- * <p>Outputs those DataShares that did not successfully make it into a batch file.
- */
-public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, DataShare> {
+/** Function to write files (header, data records, signature) for a batch of {@link DataShare} */
+public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare>>, Void> {
 
   public static final String INGESTION_HEADER_SUFFIX = ".batch";
   public static final String DATASHARE_PACKET_SUFFIX = ".batch.avro";
@@ -122,6 +118,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     for (DataShare dataShare : input.getValue()) {
       List<PrioDataSharePacket> split = PrioSerializationHelper.splitPackets(dataShare);
       if (split.size() != DataShare.NUMBER_OF_SERVERS) {
+        // Checks exist to discard such data shares prior to reaching this point.
         throw new IllegalArgumentException(
             "Share split into more than hardcoded number of servers");
       }
@@ -176,9 +173,8 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           options.getFacilitatorAwsBucketRegion());
       successfulBatches.inc();
     } catch (IOException | NoSuchAlgorithmException e) {
-      LOG.warn("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
+      LOG.error("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
       failedBatches.inc();
-      input.getValue().forEach(c::output);
     }
   }
 

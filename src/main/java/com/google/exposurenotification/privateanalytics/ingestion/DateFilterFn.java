@@ -23,7 +23,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A DoFn that filters documents in particular time window */
+/** A DoFn that filters data shares in a particular time window */
 public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
@@ -41,7 +41,8 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
           metricName, Metrics.counter(DateFilterFn.class, "dateFilterExcluded_" + metricName));
     }
 
-    if (c.element().getCreated() == null || c.element().getCreated() == 0) {
+    if (c.element().getCreatedMs() == null || c.element().getCreatedMs() == 0) {
+      LOG.warn("Skipping document with no creation timestamp: {}", c.element().getPath());
       return;
     }
     IngestionPipelineOptions options = c.getPipelineOptions().as(IngestionPipelineOptions.class);
@@ -51,7 +52,8 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
             options.getStartTime(), options.getDuration(), Clock.systemUTC());
     long duration = options.getDuration();
 
-    if (c.element().getCreated() >= startTime && c.element().getCreated() < startTime + duration) {
+    if (c.element().getCreatedMs() >= startTime * 1000
+        && c.element().getCreatedMs() < (startTime + duration) * 1000) {
       LOG.debug("Included: " + c.element());
       dateFilterIncluded.get(metricName).inc();
       c.output(c.element());

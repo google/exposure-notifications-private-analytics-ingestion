@@ -72,7 +72,7 @@ import org.threeten.bp.ZoneOffset;
 import org.threeten.bp.format.DateTimeFormatter;
 
 /**
- * Primitive beam connector for Firestore native specific to ENPA.
+ * Primitive beam connector for Firestore specific to this application.
  *
  * <p>For a general purpose connector see https://issues.apache.org/jira/browse/BEAM-8376
  */
@@ -344,8 +344,10 @@ public class FirestoreConnector {
             if (status.getCode() != Code.OK.getNumber()) {
               failedDeletes.inc();
               LOG.warn(
-                  "Failed to delete doc at: %s with Code: %s and Message: %s",
-                  batchDelete.getWrites(index).getDelete(), status.getCode(), status.getMessage());
+                  "Failed to delete doc at: {} with Code: {} and Message: {}",
+                  batchDelete.getWrites(index).getDelete(),
+                  status.getCode(),
+                  status.getMessage());
             } else {
               documentsDeleted.inc();
             }

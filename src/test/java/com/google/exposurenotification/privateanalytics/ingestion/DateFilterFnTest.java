@@ -46,9 +46,21 @@ public class DateFilterFnTest {
     DataShareMetadata meta = DataShareMetadata.builder().setMetricName("sampleMetric").build();
     List<DataShare> dataShares =
         Arrays.asList(
-            DataShare.builder().setPath("id1").setCreated(1L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id2").setCreated(2L).setDataShareMetadata(meta).build(),
-            DataShare.builder().setPath("id3").setCreated(3L).setDataShareMetadata(meta).build(),
+            DataShare.builder()
+                .setPath("id1")
+                .setCreatedMs(1000L)
+                .setDataShareMetadata(meta)
+                .build(),
+            DataShare.builder()
+                .setPath("id2")
+                .setCreatedMs(2000L)
+                .setDataShareMetadata(meta)
+                .build(),
+            DataShare.builder()
+                .setPath("id3")
+                .setCreatedMs(3000L)
+                .setDataShareMetadata(meta)
+                .build(),
             DataShare.builder().setPath("missing").setDataShareMetadata(meta).build());
 
     options.setStartTime(2L);
@@ -64,7 +76,7 @@ public class DateFilterFnTest {
             Collections.singletonList(
                 DataShare.builder()
                     .setPath("id2")
-                    .setCreated(2L)
+                    .setCreatedMs(2000L)
                     .setDataShareMetadata(meta)
                     .build()));
     pipeline.run().waitUntilFinish();

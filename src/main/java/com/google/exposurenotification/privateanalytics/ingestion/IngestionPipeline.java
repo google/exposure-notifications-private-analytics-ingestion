@@ -242,7 +242,7 @@ public class IngestionPipeline {
                     // create output metadata with incremented batch number
                     DataShareMetadata.Builder updatedMetadataBuilder = metadata.toBuilder();
                     Integer updatedBatchNum = batchNumber.read();
-                    if (batchNumber.read() == null) {
+                    if (updatedBatchNum == null) {
                       // first access
                       updatedBatchNum = 1;
                     } else {

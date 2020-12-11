@@ -66,19 +66,19 @@ public class IngestionPipelineTest {
             DataShare.builder()
                 .setCertificateChain(certs)
                 .setPath("id1")
-                .setCreated(1L)
+                .setCreatedMs(1000L)
                 .setDataShareMetadata(meta)
                 .build(),
             DataShare.builder()
                 .setCertificateChain(certs)
                 .setPath("id2")
-                .setCreated(2L)
+                .setCreatedMs(2000L)
                 .setDataShareMetadata(meta)
                 .build(),
             DataShare.builder()
                 .setCertificateChain(certs)
                 .setPath("id3")
-                .setCreated(4L)
+                .setCreatedMs(4000L)
                 .setDataShareMetadata(meta)
                 .build(),
             DataShare.builder()
