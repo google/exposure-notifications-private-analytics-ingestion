@@ -1,0 +1,23 @@
+{
+  "launchParameter": {
+    "jobName": "ingestion-pipeline-${pipeline_version}",
+    "parameters": {
+      "batchSize": "${batch_size}",
+      "keyResourceName": "${key_id}",
+      %{~if dev_project~}
+      "phaOutput": "gs://${project}/output/pha",
+      "facilitatorOutput": "gs://${project}/output/facilitator",
+      %{~else~}
+      "facilitatorManifestURL": "${facilitator_manifest_url}",
+      "phaManifestURL": "${pha_manifest_url}",
+      %{~endif~}
+      "tempLocation": "${temp_location}",
+      "duration":"${window}",
+      "deviceAttestation": "${enable_device_attestation}"
+    },
+    "environment": {
+      "serviceAccountEmail": "${service_account}"
+    },
+    "containerSpecGcsPath": "gs://enpa-pipeline-specs/ingestion-pipeline-${pipeline_version}.json"
+  }
+}

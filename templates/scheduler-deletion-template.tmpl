@@ -1,0 +1,12 @@
+{
+  "launchParameter": {
+    "jobName": "deletion-pipeline-${pipeline_version}",
+    "parameters": {
+      "duration":"${window}"
+    },
+    "environment": {
+      "serviceAccountEmail": "${service_account}"
+    },
+    "containerSpecGcsPath": "gs://enpa-pipeline-specs/deletion-pipeline-${pipeline_version}.json"
+  }
+}

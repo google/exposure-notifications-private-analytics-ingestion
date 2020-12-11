@@ -183,16 +183,21 @@ To generate the Flex Template Metadata files and upload them to GCS run:
 
 ```sh
 export VERSION=$(git describe --tags --always --dirty=-dirty)
-json -f flex-metadata-files/flex-template.json \
-  -e "this.metadata=`cat flex-metadata-files/ingestion-metadata.json`" \
+
+json -f templates/dataflow-flex-template.json \
+  -e "this.metadata=`cat templates/dataflow-ingestion-metadata-template.json`" \
   -e "this.image='gcr.io/enpa-infra/ingestion-pipeline:$VERSION'" > ingestion-pipeline-$VERSION.json
 
-json -f flex-metadata-files/flex-template.json \
-  -e "this.metadata=`cat flex-metadata-files/deletion-metadata.json`" \
+json -f templates/dataflow-flex-template.json \
+  -e "this.metadata=`cat templates/dataflow-deletion-metadata-template.json`" \
   -e "this.image='gcr.io/enpa-infra/deletion-pipeline:$VERSION'" > deletion-pipeline-$VERSION.json
 
 gsutil cp ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 gsutil cp deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
+
+gsutil cp templates/scheduler-ingestion-template.tmpl gs://enpa-pipeline-specs/scheduler-ingestion-template.tmpl
+gsutil cp templates/scheduler-deletion-template.tmpl gs://enpa-pipeline-specs/scheduler-deletion-template.tmpl
+
 unset VERSION
 ```
 
