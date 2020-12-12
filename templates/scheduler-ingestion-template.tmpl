@@ -2,6 +2,7 @@
   "launchParameter": {
     "jobName": "ingestion-pipeline-${pipeline_version}",
     "parameters": {
+      "autoscalingAlgorithm": "${autoscaling_algorithm}",
       "batchSize": "${batch_size}",
       "keyResourceName": "${key_id}",
       %{~if dev_project~}
@@ -16,6 +17,8 @@
       "deviceAttestation": "${enable_device_attestation}"
     },
     "environment": {
+      "machineType": "${machine_type}",
+      "numWorkers": "${worker_count}",
       "serviceAccountEmail": "${service_account}"
     },
     "containerSpecGcsPath": "gs://enpa-pipeline-specs/ingestion-pipeline-${pipeline_version}.json"

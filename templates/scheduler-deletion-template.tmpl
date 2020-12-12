@@ -2,9 +2,12 @@
   "launchParameter": {
     "jobName": "deletion-pipeline-${pipeline_version}",
     "parameters": {
+      "autoscalingAlgorithm": "${autoscaling_algorithm}",
       "duration":"${window}"
     },
     "environment": {
+      "machineType": "${machine_type}",
+      "numWorkers": "${worker_count}",
       "serviceAccountEmail": "${service_account}"
     },
     "containerSpecGcsPath": "gs://enpa-pipeline-specs/deletion-pipeline-${pipeline_version}.json"
