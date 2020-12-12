@@ -92,6 +92,8 @@ These parameters let you tweak the Dataflow pipelines:
 * `deletion_machine_type` -- the machine type used by the deletion pipeline (default: `n1-standard-2`)
 * `deletion_worker_count` -- the number of workers used by the deletion pipeline (default: 10)
 * `deletion_autoscaling_algorithm` -- the algorithm to use for autoscaling the deletion pipeline (default: `THROUGHPUT_BASED`)
+* `package_signature_digest` -- Android package signature digest to use during certificate checking (default: not set)
+* `package_name` -- Android package name to use during certificate checking (default: not set)
 
 #### Internal Parameters
 

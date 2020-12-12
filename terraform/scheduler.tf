@@ -27,13 +27,14 @@ resource "google_project_service" "scheduler" {
 }
 
 data "http" "ingestion_template" {
-  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-ingestion-template-${var.pipeline_version}.json"
+  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-ingestion-template-${var.pipeline_version}.tmpl"
 }
 
 data "template_file" "ingestion" {
   template = data.http.ingestion_template.body
 
   vars = {
+    start_time                = var.ingestion_start_time
     autoscaling_algorithm     = var.ingestion_autoscaling_algorithm
     batch_size                = var.batch_size
     dev_project               = var.dev_project
@@ -49,6 +50,8 @@ data "template_file" "ingestion" {
     temp_location             = "${google_storage_bucket.bucket.url}/temp"
     window                    = var.ingestion_window
     worker_count              = var.ingestion_worker_count
+    package_signature_digest  = var.package_signature_digest
+    package_name              = var.package_name
   }
 }
 
@@ -78,13 +81,14 @@ resource "google_cloud_scheduler_job" "ingestion" {
 }
 
 data "http" "deletion_template" {
-  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-deletion-template-${var.pipeline_version}.json"
+  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-deletion-template-${var.pipeline_version}.tmpl"
 }
 
 data "template_file" "deletion" {
   template = data.http.deletion_template.body
 
   vars = {
+    start_time            = var.deletion_start_time
     autoscaling_algorithm = var.deletion_autoscaling_algorithm
     machine_type          = var.deletion_machine_type
     pipeline_version      = var.pipeline_version

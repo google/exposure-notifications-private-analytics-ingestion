@@ -2,7 +2,6 @@
   "launchParameter": {
     "jobName": "ingestion-pipeline-${pipeline_version}",
     "parameters": {
-      "autoscalingAlgorithm": "${autoscaling_algorithm}",
       "batchSize": "${batch_size}",
       "keyResourceName": "${key_id}",
       %{~if dev_project~}
@@ -13,7 +12,11 @@
       "phaManifestURL": "${pha_manifest_url}",
       %{~endif~}
       "tempLocation": "${temp_location}",
-      "duration":"${window}",
+      "duration":"${window}",%{ if start_time > 0 }
+      "startTime": "${start_time}",%{ endif }%{ if autoscaling_algorithm != "" }
+      "autoscalingAlgorithm": "${autoscaling_algorithm}",%{ endif }%{ if package_name != "" }
+      "packageName":"${package_name}",%{ endif }%{ if package_signature_digest != "" }
+      "packageSignatureDigest":"${package_signature_digest}",%{ endif }
       "deviceAttestation": "${enable_device_attestation}"
     },
     "environment": {

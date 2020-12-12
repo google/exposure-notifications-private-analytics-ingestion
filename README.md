@@ -195,8 +195,10 @@ json -f templates/dataflow-flex-template.json \
 gsutil cp ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 gsutil cp deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 
-gsutil cp templates/scheduler-ingestion-template.tmpl gs://enpa-pipeline-specs/scheduler-ingestion-template.tmpl
-gsutil cp templates/scheduler-deletion-template.tmpl gs://enpa-pipeline-specs/scheduler-deletion-template.tmpl
+gsutil -h "Content-Type:application/json" cp templates/scheduler-ingestion-template.tmpl \
+  gs://enpa-pipeline-specs/scheduler-ingestion-template-$VERSION.tmpl
+gsutil -h "Content-Type:application/json" cp templates/scheduler-deletion-template.tmpl \
+  gs://enpa-pipeline-specs/scheduler-deletion-template-$VERSION.tmpl
 
 unset VERSION
 ```

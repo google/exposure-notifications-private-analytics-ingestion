@@ -1,8 +1,9 @@
 {
   "launchParameter": {
     "jobName": "deletion-pipeline-${pipeline_version}",
-    "parameters": {
-      "autoscalingAlgorithm": "${autoscaling_algorithm}",
+    "parameters": {%{ if start_time > 0 }
+      "startTime": "${start_time}",%{ endif }%{ if autoscaling_algorithm != "" }
+      "autoscalingAlgorithm": "${autoscaling_algorithm}",%{ endif }
       "duration":"${window}"
     },
     "environment": {

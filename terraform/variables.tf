@@ -98,6 +98,12 @@ variable "batch_size" {
   description = "Dataflow tuning parameter: the number of records per batch. Defaults to 100,000."
   default     = 100000
 }
+variable "ingestion_start_time" {
+
+  type        = number
+  description = "Start time in UTC seconds of documents to process for the ingestion pipeline. Defaults to 0 (not set)"
+  default     = 0
+}
 
 variable "ingestion_machine_type" {
   type        = string
@@ -113,8 +119,27 @@ variable "ingestion_worker_count" {
 
 variable "ingestion_autoscaling_algorithm" {
   type        = string
-  description = "Dataflow tuning parameter: the autoscaling algorithm used by the ingestion pipeline. Can be either THROUGHPUT_BASED or NONE. Defaults to THROUGHPUT_BASED."
-  default     = "THROUGHPUT_BASED"
+  description = "Dataflow tuning parameter: the autoscaling algorithm used by the ingestion pipeline. Can be either THROUGHPUT_BASED or NONE. Defaults to NOT SET."
+  default     = ""
+}
+
+variable "package_signature_digest" {
+  type        = string
+  description = "Android package signature digest to use during certificate checking. Defaults to NOT SET"
+  default     = ""
+}
+
+variable "package_name" {
+  type        = string
+  description = "Android package name to use during certificate checking. Defaults to NOT SET"
+  default     = ""
+}
+
+variable "deletion_start_time" {
+
+  type        = number
+  description = "Start time in UTC seconds of documents to process for the deletion pipeline. Defaults to 0 (not set)"
+  default     = 0
 }
 
 variable "deletion_machine_type" {
@@ -131,8 +156,8 @@ variable "deletion_worker_count" {
 
 variable "deletion_autoscaling_algorithm" {
   type        = string
-  description = "Dataflow tuning parameter: the autoscaling algorithm used by the deletion pipeline. Can be either THROUGHPUT_BASED or NONE. Defaults to THROUGHPUT_BASED."
-  default     = "THROUGHPUT_BASED"
+  description = "Dataflow tuning parameter: the autoscaling algorithm used by the deletion pipeline. Can be either THROUGHPUT_BASED or NONE. Defaults to NOT SET."
+  default     = ""
 }
 
 ### Internals

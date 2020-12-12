@@ -123,13 +123,16 @@
       ]
     },
     {
-      "name": "numWorkers",
-      "label": "Number of workers",
-      "helpText": "Number of workers to use if, e.g., not using autoscaling.",
-      "isOptional": true,
-      "regexes": [
-        "[0-9]+"
-      ]
+      "name": "packageName",
+      "label": "Android package name",
+      "helpText": "Android package name to use during certificate checking.",
+      "isOptional": true
+    },
+    {
+      "name": "packageSignatureDigest",
+      "label": "Android package signature digest",
+      "helpText": "Android package signature digest to use during certificate checking.",
+      "isOptional": true
     }
   ]
 }
