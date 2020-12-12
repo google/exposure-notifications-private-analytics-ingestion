@@ -27,7 +27,7 @@ resource "google_project_service" "scheduler" {
 }
 
 data "http" "ingestion_template" {
-  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-ingestion-template-${var.pipeline_version}.tmpl"
+  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-ingestion-template-${replace(var.pipeline_version,".","-")}.tmpl"
 }
 
 data "template_file" "ingestion" {
@@ -81,7 +81,7 @@ resource "google_cloud_scheduler_job" "ingestion" {
 }
 
 data "http" "deletion_template" {
-  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-deletion-template-${var.pipeline_version}.tmpl"
+  url = "https://storage.googleapis.com/enpa-pipeline-specs/scheduler-deletion-template-${replace(var.pipeline_version,".","-")}.tmpl"
 }
 
 data "template_file" "deletion" {
