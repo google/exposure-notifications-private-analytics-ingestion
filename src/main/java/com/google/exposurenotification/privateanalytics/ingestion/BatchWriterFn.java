@@ -64,6 +64,9 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   private static final Counter dataSharesInBatch =
       Metrics.counter(BatchWriterFn.class, "dataSharesInBatch");
 
+  private static final Counter failedDataShares =
+      Metrics.counter(BatchWriterFn.class, "failedDataShares");
+
   private static final Counter batchesProcessed =
       Metrics.counter(BatchWriterFn.class, "batchesProcessed");
 
@@ -125,7 +128,6 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       // First packet always goes to PHA
       phaPackets.add(split.get(0));
       facilitatorPackets.add(split.get(1));
-      dataSharesInBatch.inc();
     }
 
     String date =
@@ -171,10 +173,13 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           facilitatorPackets,
           options.getFacilitatorAwsBucketRole(),
           options.getFacilitatorAwsBucketRegion());
+
       successfulBatches.inc();
+      dataSharesInBatch.inc(phaPackets.size());
     } catch (IOException | NoSuchAlgorithmException e) {
       LOG.error("Unable to serialize Packet/Header/Sig file for PHA or facilitator", e);
       failedBatches.inc();
+      failedDataShares.inc(phaPackets.size());
     }
   }
 
