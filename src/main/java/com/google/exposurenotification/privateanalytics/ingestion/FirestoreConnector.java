@@ -40,6 +40,8 @@ import com.google.rpc.Code;
 import com.google.rpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -139,7 +141,8 @@ public class FirestoreConnector {
           options.getGraceHoursForwards()
               + (options.getDuration() + (SECONDS_IN_HOUR - 1)) / SECONDS_IN_HOUR;
       LOG.info(
-          "Querying Firestore for documents in date range: {} to {}.",
+          "{} Querying Firestore for documents in date range: {} to {}.",
+          getLogPrefix(),
           formatDateTime(start - backwardHours * SECONDS_IN_HOUR),
           formatDateTime(start + forwardHours * SECONDS_IN_HOUR));
 
@@ -178,7 +181,7 @@ public class FirestoreConnector {
         structuredQueries.add(query);
         queriesGenerated.inc();
       }
-      LOG.info("Generated {} Firestore queries.", structuredQueries.size());
+      LOG.info("{} Generated {} Firestore queries.", getLogPrefix(), structuredQueries.size());
       return structuredQueries;
     }
 
@@ -194,14 +197,14 @@ public class FirestoreConnector {
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        LOG.info("Generating query partitions.");
+        LOG.info("{} Generating query partitions.", getLogPrefix());
         IngestionPipelineOptions options =
             context.getPipelineOptions().as(IngestionPipelineOptions.class);
         String path =
             "".equals(options.getFirestoreProject())
                 ? getParentPath(options.getProject())
                 : getParentPath(options.getFirestoreProject());
-        LOG.info("Firestore path: " + path);
+        LOG.info("{} Firestore path: " + path, getLogPrefix());
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount())
@@ -212,11 +215,13 @@ public class FirestoreConnector {
         Iterator<Cursor> iterator = response.iterateAll().iterator();
         if (!iterator.hasNext()) {
           LOG.warn(
-              "No query partitions were returned for date: {}",
+              "{} No query partitions were returned for date: {}",
+              getLogPrefix(),
               context.element().getFrom(0).getCollectionId());
         } else {
           LOG.info(
-              "Query partitions were returned for date: {}",
+              "{} Query partitions were returned for date: {}",
+              getLogPrefix(),
               context.element().getFrom(0).getCollectionId());
         }
 
@@ -225,7 +230,11 @@ public class FirestoreConnector {
         Cursor end;
         while (iterator.hasNext()) {
           end = iterator.next();
-          LOG.info("Emitting triple with cursor pair [start: {}, end: {}]", start, end);
+          LOG.info(
+              "{} Emitting triple with cursor pair [start: {}, end: {}]",
+              getLogPrefix(),
+              start,
+              end);
           context.output(ImmutableTriple.of(start, end, context.element()));
           partitionCursors.inc();
           start = end;
@@ -236,7 +245,7 @@ public class FirestoreConnector {
 
       @FinishBundle
       public void finishBundle() {
-        LOG.info("Closing Firestore Client for PartitionQueryFn");
+        LOG.info("{} Closing Firestore Client for PartitionQueryFn", getLogPrefix());
         shutdownFirestoreClient(client);
       }
     }
@@ -253,7 +262,8 @@ public class FirestoreConnector {
       @ProcessElement
       public void processElement(ProcessContext context) {
         LOG.info(
-            "Starting to read documents in partition: [start: {}, end: {}].",
+            "{} Starting to read documents in partition: [start: {}, end: {}].",
+            getLogPrefix(),
             context.element().left,
             context.element().middle);
         IngestionPipelineOptions options =
@@ -262,7 +272,8 @@ public class FirestoreConnector {
             readDocumentsFromFirestore(client, options.getProject(), context.element());
         docsInPartition.update(docs.size());
         LOG.info(
-            "{} documents read in partition: [start: {}, end: {}].",
+            "{} {} documents read in partition: [start: {}, end: {}].",
+            getLogPrefix(),
             docs.size(),
             context.element().left,
             context.element().middle);
@@ -270,14 +281,15 @@ public class FirestoreConnector {
           context.output(doc);
         }
         LOG.info(
-            "Done emitting documents in partition: [start: {}, end: {}].",
+            "{} Done emitting documents in partition: [start: {}, end: {}].",
+            getLogPrefix(),
             context.element().left,
             context.element().middle);
       }
 
       @FinishBundle
       public void finishBundle() {
-        LOG.info("Closing Firestore Client for ReadFn");
+        LOG.info("{} Closing Firestore Client for ReadFn", getLogPrefix());
         shutdownFirestoreClient(client);
       }
     }
@@ -439,7 +451,8 @@ public class FirestoreConnector {
       queryBuilder.setEndAt(end);
     }
     LOG.info(
-        "Querying documents in partition: [start: {}, end: {}] with query [{}]",
+        "{} Querying documents in partition: [start: {}, end: {}] with query [{}]",
+        getLogPrefix(),
         start,
         end,
         queryBuilder.toString());
@@ -460,7 +473,7 @@ public class FirestoreConnector {
             // Streaming grpc may return partial results
             if (res.hasDocument()) {
               docs.add(res.getDocument());
-              LOG.debug("Fetched document from Firestore: " + res.getDocument().getName());
+              LOG.debug("Fetched document from Firestore: {}", res.getDocument().getName());
               documentsRead.inc();
             } else {
               partialProgress.inc();
@@ -471,5 +484,22 @@ public class FirestoreConnector {
       grpcException.inc();
     }
     return docs;
+  }
+
+  // TODO: use org.slf4j.MDC (mapped diagnostic content) or something cooler here
+  private static String getLogPrefix() {
+    String host = "unknown";
+    try {
+      InetAddress address = InetAddress.getLocalHost();
+      host = address.getHostName();
+    } catch (UnknownHostException ignore) {
+    }
+    return "["
+        + host
+        + "|"
+        + ProcessHandle.current().pid()
+        + "|"
+        + Thread.currentThread().getName()
+        + "] - ";
   }
 }
