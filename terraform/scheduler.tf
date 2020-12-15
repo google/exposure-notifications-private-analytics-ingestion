@@ -57,13 +57,20 @@ data "template_file" "ingestion" {
 }
 
 resource "google_cloud_scheduler_job" "ingestion" {
-  count = (var.enable_pipelines ? 1 : 0)
-
   project = var.project
   name    = "ingestion-pipeline"
   region  = var.region
 
-  schedule  = var.ingestion_schedule
+  # the GCP provider currently does not support pausing/resuming scheduler jobs,
+  # so if we want to disable a job the best workaround we have is to schedule it
+  # far into the future. Unfortunately due to the cron format the best we can do
+  # is "one year from now", where "now" means the time at which I'm typing this
+  # comment.
+  #
+  # Since we don't expect this project to live for another year it should be
+  # fine, but don't be surprised if your pipeline runs at noon UTC on December
+  # 15th.
+  schedule  = (var.enable_pipelines ? var.ingestion_schedule : "0 12 15 12 *")
   time_zone = "Etc/UTC"
 
   http_target {
@@ -101,13 +108,12 @@ data "template_file" "deletion" {
 }
 
 resource "google_cloud_scheduler_job" "deletion" {
-  count = (var.enable_pipelines ? 1 : 0)
-
   project = var.project
   name    = "deletion-pipeline"
   region  = var.region
 
-  schedule  = var.deletion_schedule
+  # see comment in the ingestion job definition for info about this magic value
+  schedule  = (var.enable_pipelines ? var.ingestion_schedule : "0 12 15 12 *")
   time_zone = "Etc/UTC"
 
   http_target {
