@@ -15,12 +15,7 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -103,23 +98,5 @@ public class IngestionPipelineTest {
     PAssert.that(actualOutput.apply(Keys.create())).containsInAnyOrder(expectedKeys);
     PAssert.that(actualOutput.apply(Values.create())).containsInAnyOrder(expectedValues);
     pipeline.run().waitUntilFinish();
-  }
-
-  @Test
-  public void test_calculatePipelineStart() {
-    assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, Clock.systemUTC()))
-        .isEqualTo(123);
-    assertThat(
-            IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
-                10,
-                Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
-        .isEqualTo(30); // 32 is in [30, 30 + 10]
-    assertThat(
-            IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
-                10,
-                Clock.fixed(Instant.ofEpochSecond(20), ZoneId.systemDefault())))
-        .isEqualTo(20); // 20 is in [20, 20 + 10]
   }
 }

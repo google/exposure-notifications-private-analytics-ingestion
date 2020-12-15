@@ -246,7 +246,7 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
     if (startOption != UNSPECIFIED) {
       return startOption;
     }
-    return (clock.instant().getEpochSecond() / duration) * duration;
+    return ((clock.instant().getEpochSecond() / duration) - 1) * duration;
   }
 
   /**
