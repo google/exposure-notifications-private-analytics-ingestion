@@ -34,7 +34,7 @@ data "template_file" "ingestion" {
   template = data.http.ingestion_template.body
 
   vars = {
-    pipeline_name             = "ingestion-pipeline-${replace(var.pipeline_version,".","-")}"
+    pipeline_name             = "ingestion-pipeline-${replace(var.pipeline_version, ".", "-")}"
     start_time                = var.ingestion_start_time
     autoscaling_algorithm     = var.ingestion_autoscaling_algorithm
     batch_size                = var.batch_size
@@ -96,7 +96,7 @@ data "template_file" "deletion" {
   template = data.http.deletion_template.body
 
   vars = {
-    pipeline_name         = "deletion-pipeline-${replace(var.pipeline_version,".","-")}"
+    pipeline_name         = "deletion-pipeline-${replace(var.pipeline_version, ".", "-")}"
     start_time            = var.deletion_start_time
     autoscaling_algorithm = var.deletion_autoscaling_algorithm
     machine_type          = var.deletion_machine_type
