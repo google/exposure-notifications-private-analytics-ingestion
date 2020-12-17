@@ -389,7 +389,7 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>gcr.io/dataflow-templates-base/java11-template-launcher-base:latest</image>
+                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
               </from>
               <to>
                 <image>gcr.io/enpa-infra/ingestion-pipeline</image>
@@ -439,7 +439,7 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>gcr.io/dataflow-templates-base/java11-template-launcher-base:latest</image>
+                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
               </from>
               <to>
                 <image>gcr.io/enpa-infra/deletion-pipeline</image>
