@@ -108,7 +108,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
-            options.getStartTime(), options.getDuration(), Clock.systemUTC());
+            options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
     long duration = options.getDuration();
 
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();

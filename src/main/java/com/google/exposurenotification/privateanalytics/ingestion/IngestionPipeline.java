@@ -19,6 +19,7 @@ import com.google.exposurenotification.privateanalytics.ingestion.DataShare.Cons
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.firestore.v1.Document;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
@@ -121,9 +122,12 @@ public class IngestionPipeline {
   /** Perform the input, processing and output for the full ingestion pipeline. */
   static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
+    long startTime =
+        IngestionPipelineOptions.calculatePipelineStart(
+            options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
     PCollection<DataShare> dataShares =
         pipeline
-            .apply(new FirestoreReader())
+            .apply(new FirestoreReader(startTime))
             // Ensure distinctness of data shares based on document path
             .apply(
                 Distinct.<Document, String>withRepresentativeValueFn(

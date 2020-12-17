@@ -366,7 +366,8 @@ public class IngestionPipelineIT {
     int numDocs = 200;
     seedDatabaseAndReturnEntryVal(numDocs);
 
-    PCollection<Long> numShares = testPipeline.apply(new FirestoreReader()).apply(Count.globally());
+    PCollection<Long> numShares =
+        testPipeline.apply(new FirestoreReader(CREATION_TIME)).apply(Count.globally());
 
     PAssert.that(numShares).containsInAnyOrder((long) numDocs);
     PipelineResult result = testPipeline.run();

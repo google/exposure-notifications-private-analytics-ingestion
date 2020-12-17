@@ -85,8 +85,10 @@ generates the outputs which the PHA and Facilitator data share processors will c
 The other deletes expired or already processed data shares from Firestore. 
 
 They both take as options the window of time to cover, in the form of a start
-time and duration. When not supplied, start time is calculated based on current
-time rounding back to previous window of length `duration`.
+time and duration. When not supplied, start time for the ingestion pipeline is
+calculated based on current time rounding back to previous window of length
+`duration`. For the deletion pipeline, it goes back two windows to ensure a
+safety margin of not deleting uningested data.
 
 ### Locally
 

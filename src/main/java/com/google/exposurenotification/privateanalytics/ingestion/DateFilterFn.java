@@ -49,7 +49,7 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
-            options.getStartTime(), options.getDuration(), Clock.systemUTC());
+            options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
     long duration = options.getDuration();
 
     if (c.element().getCreatedMs() >= startTime * 1000

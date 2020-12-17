@@ -16,6 +16,7 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreDeleter;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import java.time.Clock;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricResults;
@@ -30,7 +31,10 @@ public class DeletionPipeline {
 
   static PipelineResult runDeletionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
-    pipeline.apply(new FirestoreReader()).apply(new FirestoreDeleter());
+    long startTime =
+        IngestionPipelineOptions.calculatePipelineStart(
+            options.getStartTime(), options.getDuration(), 2, Clock.systemUTC());
+    pipeline.apply(new FirestoreReader(startTime)).apply(new FirestoreDeleter());
     return pipeline.run();
   }
 

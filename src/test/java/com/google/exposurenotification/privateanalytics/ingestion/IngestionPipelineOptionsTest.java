@@ -15,35 +15,48 @@ public class IngestionPipelineOptionsTest {
 
   @Test
   public void test_calculatePipelineStart() {
-    assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, Clock.systemUTC()))
+    assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, 1, Clock.systemUTC()))
+        .isEqualTo(123);
+    assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, 4, Clock.systemUTC()))
         .isEqualTo(123);
     assertThat(
             IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
+                IngestionPipelineOptions.UNSPECIFIED_START,
                 10,
+                1,
                 Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
         .isEqualTo(20);
     assertThat(
             IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
+                IngestionPipelineOptions.UNSPECIFIED_START,
                 10,
+                2,
+                Clock.fixed(Instant.ofEpochSecond(32), ZoneId.systemDefault())))
+        .isEqualTo(10);
+    assertThat(
+            IngestionPipelineOptions.calculatePipelineStart(
+                IngestionPipelineOptions.UNSPECIFIED_START,
+                10,
+                1,
                 Clock.fixed(Instant.ofEpochSecond(20), ZoneId.systemDefault())))
         .isEqualTo(10);
     assertThat(
             IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
+                IngestionPipelineOptions.UNSPECIFIED_START,
                 // default ingestion pipeline window
                 // https://github.com/google/exposure-notifications-private-analytics-ingestion/blob/ebf484edf5969d2b7113534db7450f61a937ecf0/terraform/variables.tf#L79
                 3600,
+                1,
                 Clock.fixed(Instant.ofEpochSecond(1608067718), ZoneId.of("UTC"))))
         .isEqualTo(1608062400);
     assertThat(
             IngestionPipelineOptions.calculatePipelineStart(
-                IngestionPipelineOptions.UNSPECIFIED,
+                IngestionPipelineOptions.UNSPECIFIED_START,
                 // default deletion pipeline window
                 // https://github.com/google/exposure-notifications-private-analytics-ingestion/blob/ebf484edf5969d2b7113534db7450f61a937ecf0/terraform/variables.tf#L91
                 43200,
+                2,
                 Clock.fixed(Instant.ofEpochSecond(1608033600), ZoneId.of("UTC"))))
-        .isEqualTo(1607990400);
+        .isEqualTo(1607947200);
   }
 }

@@ -26,7 +26,7 @@ import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 /** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
-  int UNSPECIFIED = -1;
+  int UNSPECIFIED_START = -1;
 
   /** Firestore Project */
   @Description("Firestore Project")
@@ -124,7 +124,7 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
    * on the duration.
    */
   @Description("Start time in UTC seconds of documents to process")
-  @Default.Long(UNSPECIFIED)
+  @Default.Long(UNSPECIFIED_START)
   Long getStartTime();
 
   void setStartTime(Long value);
@@ -240,13 +240,13 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   /**
    * @return {@code startTime} from options/flags if set. Otherwise, rounds current time down to
-   *     start of previous window of length {@code duration} option/flag.
+   *     start of {@code numWindows} windows back of length {@code duration} option/flag.
    */
-  static long calculatePipelineStart(long startOption, long duration, Clock clock) {
-    if (startOption != UNSPECIFIED) {
-      return startOption;
+  static long calculatePipelineStart(long start, long duration, int numWindows, Clock clock) {
+    if (start != UNSPECIFIED_START) {
+      return start;
     }
-    return ((clock.instant().getEpochSecond() / duration) - 1) * duration;
+    return ((clock.instant().getEpochSecond() / duration) - numWindows) * duration;
   }
 
   /**

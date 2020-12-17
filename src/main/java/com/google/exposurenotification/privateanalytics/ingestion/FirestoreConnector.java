@@ -42,7 +42,6 @@ import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -122,15 +121,18 @@ public class FirestoreConnector {
   /** Reads documents from Firestore */
   public static final class FirestoreReader extends PTransform<PBegin, PCollection<Document>> {
 
+    long start;
+
+    public FirestoreReader(long start) {
+      this.start = start;
+    }
+
     @Override
     public PCollection<Document> expand(PBegin input) {
       IngestionPipelineOptions options =
           (IngestionPipelineOptions) input.getPipeline().getOptions();
       LOG.info("IngestionPipelineOptions: " + IngestionPipelineOptions.displayString(options));
-      long start =
-          IngestionPipelineOptions.calculatePipelineStart(
-              options.getStartTime(), options.getDuration(), Clock.systemUTC());
-      LOG.info("Calculated start time in seconds as: {}", start);
+      LOG.info("Using start time in seconds of {}", start);
       long backwardHours = options.getGraceHoursBackwards();
       // To correctly compute how many hours forward we need to look at, when including the
       // duration, we need to compute:
