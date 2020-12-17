@@ -131,7 +131,6 @@ public class FirestoreConnector {
     public PCollection<Document> expand(PBegin input) {
       IngestionPipelineOptions options =
           (IngestionPipelineOptions) input.getPipeline().getOptions();
-      LOG.info("IngestionPipelineOptions: " + IngestionPipelineOptions.displayString(options));
       LOG.info("Using start time in seconds of {}", start);
       long backwardHours = options.getGraceHoursBackwards();
       // To correctly compute how many hours forward we need to look at, when including the

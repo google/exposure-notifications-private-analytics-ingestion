@@ -21,7 +21,6 @@ import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.io.aws.options.AwsOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
-import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 /** Specific options for the pipeline. */
 public interface IngestionPipelineOptions extends DataflowPipelineOptions {
@@ -247,13 +246,5 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
       return start;
     }
     return ((clock.instant().getEpochSecond() / duration) - numWindows) * duration;
-  }
-
-  /**
-   * @param options IngestionPipelineOptions object
-   * @return Loggable string of all options
-   */
-  static String displayString(IngestionPipelineOptions options) {
-    return ReflectionToStringBuilder.toString(options);
   }
 }
