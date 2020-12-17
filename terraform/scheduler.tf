@@ -34,7 +34,7 @@ data "template_file" "ingestion" {
   template = data.http.ingestion_template.body
 
   vars = {
-    pipeline_name             = "ingestion-pipeline-${lower(replace(replace(var.pipeline_version, ".", "-"),"_","-"))}"
+    pipeline_name             = "ingestion-pipeline-${lower(replace(replace(var.pipeline_version, ".", "-"), "_", "-"))}"
     start_time                = var.ingestion_start_time
     autoscaling_algorithm     = var.ingestion_autoscaling_algorithm
     batch_size                = var.batch_size
@@ -96,7 +96,7 @@ data "template_file" "deletion" {
   template = data.http.deletion_template.body
 
   vars = {
-    pipeline_name         = "deletion-pipeline-${lower(replace(replace(var.pipeline_version, ".", "-"),"_","-"))}"
+    pipeline_name         = "deletion-pipeline-${lower(replace(replace(var.pipeline_version, ".", "-"), "_", "-"))}"
     start_time            = var.deletion_start_time
     autoscaling_algorithm = var.deletion_autoscaling_algorithm
     machine_type          = var.deletion_machine_type
@@ -113,7 +113,7 @@ resource "google_cloud_scheduler_job" "deletion" {
   region  = var.region
 
   # see comment in the ingestion job definition for info about this magic value
-  schedule  = (var.enable_pipelines ? var.ingestion_schedule : "0 12 15 12 *")
+  schedule  = (var.enable_pipelines ? var.deletion_schedule : "0 12 15 12 *")
   time_zone = "Etc/UTC"
 
   http_target {
