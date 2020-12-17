@@ -21,7 +21,7 @@
 
   <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
   <artifactId>enpa-ingestion</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>20201217_RC01</version>
 
   <packaging>jar</packaging>
 
