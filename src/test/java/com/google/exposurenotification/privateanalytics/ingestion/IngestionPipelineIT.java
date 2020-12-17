@@ -343,7 +343,8 @@ public class IngestionPipelineIT {
             .metrics()
             .queryMetrics(
                 MetricsFilter.builder()
-                    .addNameFilter(MetricNameFilter.named(DeviceAttestation.class, "repeatedCerts"))
+                    .addNameFilter(
+                        MetricNameFilter.named(DeviceAttestation.class, "repeatedCerts-dist"))
                     .build())
             .getDistributions()
             .iterator()
