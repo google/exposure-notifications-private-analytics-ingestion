@@ -30,18 +30,23 @@ gsutil --version
 npm install -g json
 json --version
 
-export VERSION=`git describe --tags --always --dirty=-dirty`
+export VERSION=$(git describe --tags --always --dirty=-dirty)
 
+# Generate Dataflow Flex Templates, version and upload to GCS
 json -f templates/dataflow-flex-template.json \
-  -e "this.metadata=`cat templates/dataflow-ingestion-metadata-template.json`" \
+  -e "this.metadata=$(cat templates/dataflow-ingestion-metadata-template.json)" \
   -e "this.image='gcr.io/enpa-infra/ingestion-pipeline:$VERSION'" > ingestion-pipeline-$VERSION.json
 
 json -f templates/dataflow-flex-template.json \
-  -e "this.metadata=`cat templates/dataflow-deletion-metadata-template.json`" \
+  -e "this.metadata=$(cat templates/dataflow-deletion-metadata-template.json)" \
   -e "this.image='gcr.io/enpa-infra/deletion-pipeline:$VERSION'" > deletion-pipeline-$VERSION.json
 
 gsutil cp ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 gsutil cp deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 
+# Version and upload scheduler templates to GCS
 gsutil -h "Content-Type:application/json" cp templates/scheduler-ingestion-template.tmpl gs://enpa-pipeline-specs/scheduler-ingestion-template-$VERSION.tmpl
 gsutil -h "Content-Type:application/json" cp templates/scheduler-deletion-template.tmpl gs://enpa-pipeline-specs/scheduler-deletion-template-$VERSION.tmpl
+
+# Version Firestore Security Rules and upload to GCS
+gsutil -h "Content-Type:text/plain" cp config/firebase/firestore.rules gs://enpa-infra/security-rules/firestore-$VERSION.rules

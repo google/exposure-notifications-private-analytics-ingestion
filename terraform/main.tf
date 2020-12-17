@@ -107,5 +107,5 @@ resource "google_storage_object_acl" "manifest" {
   object = google_storage_bucket_object.manifest.output_name
   bucket = var.manifest_bucket
 
-  predefined_acl = "publicRead"
+  predefined_acl = (var.dev_project ? "authenticatedRead" : "publicRead")
 }

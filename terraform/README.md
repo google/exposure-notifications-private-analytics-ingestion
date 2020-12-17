@@ -12,7 +12,10 @@ Before applying this module there are a few manual steps:
 * create the Google Cloud project
 * associate a billing account
 * enable Firebase, AppEngine, and Firestore
-* apply appropriate Firestore rules
+* make sure you have [`gsutil`] and [the `firebase` CLI] installed
+
+[`gsutil`]: https://cloud.google.com/storage/docs/gsutil_install
+[the `firebase` CLI]: https://firebase.google.com/docs/cli
 
 Example Invocations
 --------------------------------------------------------------------------------
