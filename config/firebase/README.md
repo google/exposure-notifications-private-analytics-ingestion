@@ -1,11 +1,6 @@
 # Firebase Config
 
-Install the [Firebase CLI](https://firebase.google.com/docs/cli) and login as
-follows:
-
-```shell script
-firebase login
-```
+Install the [Firebase CLI](https://firebase.google.com/docs/cli).
 
 ## Firestore Security Rules
 
@@ -31,6 +26,13 @@ firebase emulators:exec --only firestore "npm run test"
 ```
 
 ### Deploying
+
+Login firebase as
+follows:
+
+```shell script
+firebase login
+```
 
 You can update your projects Firestore Security Policy with these rules as
 follows:

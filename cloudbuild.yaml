@@ -32,8 +32,3 @@ steps:
   args:
   - "-e"
   - "./ci/firebase.sh"
-  env:
-  - 'kmsKeyName=projects/enpa-integration-testing/locations/global/keyRings/firebase-keyring/cryptoKeys/firebase-token'
-  - 'FIREBASE_TOKEN=***REMOVED***
-                      ***REMOVED***
-                      ***REMOVED***'
