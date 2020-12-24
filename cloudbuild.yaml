@@ -13,6 +13,7 @@
 # limitations under the License.
 
 steps:
+# Run project integration tests using Maven
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: "pr-integration-tests"
   entrypoint: bash
@@ -23,3 +24,16 @@ steps:
   - 'PROJECT=enpa-integration-testing'
   - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
   - 'GOOGLE_APPLICATION_CREDENTIALS=svc-account.json'
+
+# Run Firebase integration tests using npm
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: "firebase-integration-tests"
+  entrypoint: bash
+  args:
+  - "-e"
+  - "./ci/firebase.sh"
+  env:
+  - 'kmsKeyName=projects/enpa-integration-testing/locations/global/keyRings/firebase-keyring/cryptoKeys/firebase-token'
+  - 'FIREBASE_TOKEN=***REMOVED***
+                      ***REMOVED***
+                      ***REMOVED***'
