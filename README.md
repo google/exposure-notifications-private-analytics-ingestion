@@ -205,6 +205,32 @@ gsutil -h "Content-Type:application/json" cp templates/scheduler-deletion-templa
 unset VERSION
 ```
 
+## Coverage
+
+To run a coverage run reporting to Sonarqube locally you need to tunnel to the Sonarqube Compute instance and decrypt
+the sonal login key with KMS.
+
+To tunnel (make sure to use corp ssh helper).
+```shell script
+gcloud compute ssh sonarqube --zone=us-central1-a -- -L 9000:localhost:9000
+```
+You can visit Sonarqube on `http://localhost:9000` now.
+
+To decrypt Sonar login token:
+```shell script
+export SONAR_LOGIN=`echo -n CiQAzNSb44LsbxTU5fuUpwjR/sp9IQG7LLL5gPx0HzV8hiLU6FUSUQA/9gK90G85EW6UoVmogWfuWpQQkdJdHxYQgolOgocquzR4omaN2EfQwdjoCRtOYYTQcJSopcTqJQNJjsQsVAAJze6SdPI9saTV48Pqi9bxHA== | base64 -D | gcloud kms decrypt --plaintext-file=- \
+     --ciphertext-file=- --location=global --keyring=cloudbuild-keyring \
+     --key=cloudbuild`
+```
+
+To run coverage locally reporting to Sonarqube
+```shell script
+./mvnw -Pcoverage verify sonar:sonar \
+  -Dsonar.projectKey=enpa-ingestion \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.login=$SONAR_LOGIN
+```
+
 ## Contributing
 
 Contributions to this repository are always welcome and highly encouraged.

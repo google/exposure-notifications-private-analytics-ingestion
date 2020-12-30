@@ -35,3 +35,7 @@ gcloud secrets versions access latest --secret=enpa-integration-testing-secrets 
 
 retry_with_backoff 3 10 \
   ./mvnw clean verify
+
+# enable once we can write to the firewalled sonarqube instance
+#retry_with_backoff 3 10 \
+#  ./mvnw -Pcoverage clean verify sonar:sonar -Dsonar.projectKey=enpa-ingestion -Dsonar.host.url=http://10.128.0.2:9000 -Dsonar.login=$SONAR_LOGIN

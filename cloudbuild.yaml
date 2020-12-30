@@ -24,6 +24,8 @@ steps:
   - 'PROJECT=enpa-integration-testing'
   - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
   - 'GOOGLE_APPLICATION_CREDENTIALS=svc-account.json'
+  - 'SONAR_LOGIN=$$SONAR_LOGIN_SECRET'
+  secretEnv: ['SONAR_LOGIN_SECRET']
 
 # Run Firebase integration tests using npm
 - name: gcr.io/cloud-devrel-public-resources/java11
@@ -32,3 +34,10 @@ steps:
   args:
   - "-e"
   - "./ci/firebase.sh"
+
+secrets:
+  - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
+    secretEnv:
+      SONAR_LOGIN_SECRET: 'CiQAzNSb44LsbxTU5fuUpwjR/sp9IQG7LLL5gPx0HzV8hiLU6FUSUQA/9gK90G85EW6UoVmogWfuWpQQkdJdHxYQgolOgocquzR4omaN2EfQwdjoCRtOYYTQcJSopcTqJQNJjsQsVAAJze6SdPI9saTV48Pqi9bxHA=='
+
+

@@ -15,8 +15,8 @@
     limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
@@ -109,8 +109,11 @@
               <goal>schema</goal>
             </goals>
             <configuration>
-              <sourceDirectory>${project.basedir}/third_party/prio-server/avro-schema/</sourceDirectory>
-              <outputDirectory>${project.build.directory}/generated-sources/</outputDirectory>
+              <sourceDirectory>
+                ${project.basedir}/third_party/prio-server/avro-schema/
+              </sourceDirectory>
+              <outputDirectory>${project.build.directory}/generated-sources/
+              </outputDirectory>
             </configuration>
           </execution>
         </executions>
@@ -398,10 +401,15 @@
                 </tags>
               </to>
               <container>
-                <mainClass>com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline</mainClass>
+                <mainClass>
+                  com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline
+                </mainClass>
                 <environment>
-                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline</FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*</FLEX_TEMPLATE_JAVA_CLASSPATH>
+                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>
+                    com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline
+                  </FLEX_TEMPLATE_JAVA_MAIN_CLASS>
+                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*
+                  </FLEX_TEMPLATE_JAVA_CLASSPATH>
                 </environment>
               </container>
               <containerizingMode>packaged</containerizingMode>
@@ -448,10 +456,15 @@
                 </tags>
               </to>
               <container>
-                <mainClass>com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline</mainClass>
+                <mainClass>
+                  com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline
+                </mainClass>
                 <environment>
-                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline</FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*</FLEX_TEMPLATE_JAVA_CLASSPATH>
+                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>
+                    com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline
+                  </FLEX_TEMPLATE_JAVA_MAIN_CLASS>
+                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*
+                  </FLEX_TEMPLATE_JAVA_CLASSPATH>
                 </environment>
               </container>
               <containerizingMode>packaged</containerizingMode>
@@ -461,6 +474,32 @@
                 <phase>package</phase>
                 <goals>
                   <goal>build</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>0.8.6</version>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>report</id>
+                <goals>
+                  <goal>report</goal>
                 </goals>
               </execution>
             </executions>
