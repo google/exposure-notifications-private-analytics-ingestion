@@ -189,7 +189,7 @@ public class FirestoreConnector {
     static class PartitionQueryFn
         extends DoFn<StructuredQuery, ImmutableTriple<Cursor, Cursor, StructuredQuery>> {
 
-      private FirestoreClient client;
+      private transient FirestoreClient client;
 
       @StartBundle
       public void startBundle() throws Exception {
@@ -253,7 +253,7 @@ public class FirestoreConnector {
 
     static class ReadFn extends DoFn<ImmutableTriple<Cursor, Cursor, StructuredQuery>, Document> {
 
-      private FirestoreClient client;
+      private transient FirestoreClient client;
 
       @StartBundle
       public void startBundle() throws Exception {
@@ -328,7 +328,7 @@ public class FirestoreConnector {
 
     static class DeleteFn extends DoFn<KV<Long, Iterable<Document>>, Void> {
 
-      private FirestoreClient client;
+      private transient FirestoreClient client;
 
       @StartBundle
       public void startBundle() throws Exception {

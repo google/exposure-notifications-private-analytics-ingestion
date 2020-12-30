@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 /** Pipeline to delete processed data shares from Firestore. */
 public class DeletionPipeline {
 
-  private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DeletionPipeline.class);
 
   static PipelineResult runDeletionPipeline(IngestionPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
@@ -46,7 +46,7 @@ public class DeletionPipeline {
       PipelineResult result = runDeletionPipeline(options);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
-      LOG.info("Metrics:\n\n" + metrics.toString());
+      LOG.info("Metrics:\n\n{}", metrics);
     } catch (UnsupportedOperationException ignore) {
       // Known issue that this can throw when generating a template:
       // https://issues.apache.org/jira/browse/BEAM-9337

@@ -162,8 +162,8 @@ public class IngestionPipelineIT {
     testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
     testOptions.setDeviceAttestation(false);
     testOptions.setAwsRegion("global");
-    LOG.info("Project: " + testOptions.getProject());
-    LOG.info("AWS Region: " + testOptions.getAwsRegion());
+    LOG.info("Project: {}", testOptions.getProject());
+    LOG.info("AWS Region: {}", testOptions.getAwsRegion());
     int numDocs = 2;
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal(numDocs);

@@ -76,8 +76,8 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   private static final Counter failedBatches =
       Metrics.counter(BatchWriterFn.class, "failedBatches");
 
-  private KeyManagementServiceClient client;
-  private CryptoKeyVersionName keyVersionName;
+  private transient KeyManagementServiceClient client;
+  private transient CryptoKeyVersionName keyVersionName;
 
   // Uses pipeline options, otherwise could've lived in @Setup
   @StartBundle
@@ -114,7 +114,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     KV<DataShareMetadata, Iterable<DataShare>> input = c.element();
     DataShareMetadata metadata = input.getKey();
     batchesProcessed.inc();
-    LOG.info("Processing batch: " + metadata.toString());
+    LOG.info("Processing batch: {}", metadata);
     // batch size explicitly chosen so that these lists fit in memory on a single worker
     List<PrioDataSharePacket> phaPackets = new ArrayList<>();
     List<PrioDataSharePacket> facilitatorPackets = new ArrayList<>();
@@ -149,7 +149,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
 
     try {
       // Write to PHA Output Destination
-      LOG.info("PHA Output: " + phaFilePath);
+      LOG.info("PHA Output: {}", phaFilePath);
       writeBatch(
           options,
           startTime,
@@ -162,7 +162,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
           options.getPhaAwsBucketRegion());
 
       // Write to Facilitator Output Destination
-      LOG.info("Facilitator Output: " + facilitatorPath);
+      LOG.info("Facilitator Output: {}", facilitatorPath);
       writeBatch(
           options,
           startTime,
@@ -238,7 +238,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
   }
 
   static void writeToFile(String filename, ByteBuffer contents) throws IOException {
-    LOG.info("Writing output file: " + filename);
+    LOG.info("Writing output file: {}", filename);
     ResourceId resourceId = FileSystems.matchNewResource(filename, false);
     try (WritableByteChannel out = FileSystems.create(resourceId, MimeTypes.TEXT)) {
       out.write(contents);

@@ -54,11 +54,11 @@ public class DateFilterFn extends DoFn<DataShare, DataShare> {
 
     if (c.element().getCreatedMs() >= startTime * 1000
         && c.element().getCreatedMs() < (startTime + duration) * 1000) {
-      LOG.debug("Included: " + c.element());
+      LOG.debug("Included: {}", c.element());
       dateFilterIncluded.get(metricName).inc();
       c.output(c.element());
     } else {
-      LOG.trace("Excluded: " + c.element());
+      LOG.trace("Excluded: {}", c.element());
       dateFilterExcluded.get(metricName).inc();
     }
   }

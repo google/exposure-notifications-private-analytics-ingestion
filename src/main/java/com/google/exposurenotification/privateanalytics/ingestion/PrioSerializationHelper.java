@@ -45,15 +45,16 @@ public class PrioSerializationHelper {
       List<T> records, Class<T> recordClass, Schema schema) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     DatumWriter<T> dataShareDatumWriter = new SpecificDatumWriter<>(recordClass);
-    DataFileWriter<T> dataFileWriter = new DataFileWriter<T>(dataShareDatumWriter);
-    dataFileWriter.create(schema, outputStream);
+    try (DataFileWriter<T> dataFileWriter = new DataFileWriter<T>(dataShareDatumWriter)) {
+      dataFileWriter.create(schema, outputStream);
 
-    for (T record : records) {
-      dataFileWriter.append(record);
+      for (T record : records) {
+        dataFileWriter.append(record);
+      }
+
+      dataFileWriter.flush();
+      dataFileWriter.close();
     }
-
-    dataFileWriter.flush();
-    dataFileWriter.close();
     return ByteBuffer.wrap(outputStream.toByteArray());
   }
 
@@ -61,14 +62,14 @@ public class PrioSerializationHelper {
       Class<T> recordClass, String pathname)
       throws IOException, IllegalAccessException, InstantiationException {
     DatumReader<T> datumReader = new SpecificDatumReader<>(recordClass);
-    DataFileReader<T> dataFileReader = new DataFileReader<>(new File(pathname), datumReader);
-
     List<T> results = new ArrayList<>();
-    T record;
-    while (dataFileReader.hasNext()) {
-      record = recordClass.newInstance();
-      record = dataFileReader.next(record);
-      results.add(record);
+    try (DataFileReader<T> dataFileReader = new DataFileReader<>(new File(pathname), datumReader)) {
+      T record;
+      while (dataFileReader.hasNext()) {
+        record = recordClass.newInstance();
+        record = dataFileReader.next(record);
+        results.add(record);
+      }
     }
     return results;
   }

@@ -395,7 +395,8 @@ public class DataShareTest {
     docBuilder.putAllFields(fields);
     document = docBuilder.build();
 
-    DataShare.from(document);
+    DataShare ds = DataShare.from(document);
+    assertEquals(validSchemaVersion, ds.getSchemaVersion());
   }
 
   /** Test with schema version = 0. */

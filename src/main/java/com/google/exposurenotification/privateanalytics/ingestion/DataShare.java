@@ -41,6 +41,7 @@ public abstract class DataShare implements Serializable {
 
   private static final long serialVersionUID = 1L;
   public static final int LATEST_SCHEMA_VERSION = 2;
+  private static final String MISSING_MSG_PREFIX = "Missing required field: ";
 
   private static final Counter missingRequiredCounter =
       Metrics.counter(DataShare.class, "datashare-missingRequired");
@@ -112,7 +113,7 @@ public abstract class DataShare implements Serializable {
     // Process the payload.
     if (doc.getFieldsMap().get(PAYLOAD) == null) {
       missingRequiredCounter.inc();
-      throw new InvalidDataShareException("Missing required field: " + PAYLOAD);
+      throw new InvalidDataShareException(MISSING_MSG_PREFIX + PAYLOAD);
     }
     Map<String, Value> payload = doc.getFieldsMap().get(PAYLOAD).getMapValue().getFieldsMap();
 
@@ -128,7 +129,7 @@ public abstract class DataShare implements Serializable {
     // according to the value in the payload.
     if (payload.get(SCHEMA_VERSION) == null) {
       missingRequiredCounter.inc();
-      throw new InvalidDataShareException("Missing required field: " + SCHEMA_VERSION);
+      throw new InvalidDataShareException(MISSING_MSG_PREFIX + SCHEMA_VERSION);
     }
     Integer schemaVersion = (int) payload.get(SCHEMA_VERSION).getIntegerValue();
     if (schemaVersion > LATEST_SCHEMA_VERSION || schemaVersion <= 0) {
@@ -181,7 +182,7 @@ public abstract class DataShare implements Serializable {
       metadataBuilder.setMetricName(fullPath.substring(fullPath.lastIndexOf('/') + 1));
     } catch (RuntimeException e) {
       missingRequiredCounter.inc();
-      throw new InvalidDataShareException("Missing required field: Name", e);
+      throw new InvalidDataShareException(MISSING_MSG_PREFIX + "Name", e);
     }
 
     builder.setDataShareMetadata(metadataBuilder.build());
@@ -254,7 +255,7 @@ public abstract class DataShare implements Serializable {
     builder.setSignature(fields.get(SIGNATURE).getStringValue());
     if (fields.get(CERT_CHAIN) == null) {
       missingRequiredCounter.inc();
-      throw new InvalidDataShareException("Missing required field: " + CERT_CHAIN);
+      throw new InvalidDataShareException(MISSING_MSG_PREFIX + CERT_CHAIN);
     }
     List<Value> certChainValue = fields.get(CERT_CHAIN).getArrayValue().getValuesList();
     List<String> certChainString = new ArrayList<>();
@@ -354,7 +355,7 @@ public abstract class DataShare implements Serializable {
     if (!sourceMap.containsKey(field) || sourceMap.get(field) == null) {
       missingRequiredCounter.inc();
       throw new InvalidDataShareException(
-          "Missing required field: '" + field + "' from '" + sourceName + "'");
+          MISSING_MSG_PREFIX + "'" + field + "' from '" + sourceName + "'");
     }
 
     if (!sourceMap.get(field).getValueTypeCase().equals(type)) {

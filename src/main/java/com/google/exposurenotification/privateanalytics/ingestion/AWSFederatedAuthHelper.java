@@ -9,11 +9,8 @@ import com.amazonaws.services.securitytoken.model.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdTokenProvider;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class AWSFederatedAuthHelper {
-  private static final Logger LOG = LoggerFactory.getLogger(AWSFederatedAuthHelper.class);
 
   public static void setupAWSAuth(IngestionPipelineOptions options, String role, String region)
       throws IOException {

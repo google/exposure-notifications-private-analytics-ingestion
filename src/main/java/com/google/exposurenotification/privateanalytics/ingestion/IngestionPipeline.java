@@ -154,7 +154,7 @@ public class IngestionPipeline {
       PipelineResult result = runIngestionPipeline(options);
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
-      LOG.info("Metrics:\n\n" + metrics.allMetrics().getCounters().toString());
+      LOG.info("Metrics:\n\n{}", metrics.allMetrics().getCounters());
       metrics
           .allMetrics()
           .getDistributions()
