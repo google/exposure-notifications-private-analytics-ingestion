@@ -114,10 +114,12 @@ service cloud.firestore {
     // Check metric name
     function checkMetricName(n) {
       return n in [
-          // Currently supported metrics:
-          // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/metrics
+          // Metric for testing
           'fakeMetric-v1',
+          // Currently supported metrics:
+          // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/metrics        
           'histogramMetric-v1',
+          'histogramMetric-v2',
           'PeriodicExposureNotificationInteraction-v1',
           'PeriodicExposureNotification-v1'
       ];
