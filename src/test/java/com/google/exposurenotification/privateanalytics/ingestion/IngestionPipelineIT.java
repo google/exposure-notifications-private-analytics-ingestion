@@ -58,7 +58,6 @@ import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.metrics.DistributionResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
 import org.apache.beam.sdk.testing.NeedsRunner;
@@ -338,22 +337,20 @@ public class IngestionPipelineIT {
 
     Assert.assertEquals(expectedPhaPayload, actualPhaShare.getEncryptedPayload());
     Assert.assertEquals(expectedFacPayload, actualFacShare.getEncryptedPayload());
-    DistributionResult repeatedCertMetric =
+    long quantile10Metric =
         result
             .metrics()
             .queryMetrics(
                 MetricsFilter.builder()
                     .addNameFilter(
-                        MetricNameFilter.named(DeviceAttestation.class, "repeatedCerts-dist"))
+                        MetricNameFilter.named(
+                            DeviceAttestation.class, "duplicateCerts-quantile-10"))
                     .build())
-            .getDistributions()
+            .getCounters()
             .iterator()
             .next()
             .getCommitted();
-    Assert.assertEquals(2, repeatedCertMetric.getCount());
-    Assert.assertEquals(3, repeatedCertMetric.getSum());
-    Assert.assertEquals(2, repeatedCertMetric.getMax());
-    Assert.assertEquals(1, repeatedCertMetric.getMin());
+    Assert.assertEquals(1, quantile10Metric);
   }
 
   @Test
