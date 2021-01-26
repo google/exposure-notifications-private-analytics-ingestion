@@ -218,13 +218,6 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   void setPackageSignatureDigest(String value);
 
-  /** Accept device attestation with testing root certificate. Should not be used in production. */
-  @Description("Accept testing root certificate")
-  @Default.Boolean(false)
-  Boolean getTestingRootCertificateAccepted();
-
-  void setTestingRootCertificateAccepted(Boolean value);
-
   @Description("AWS region used by the AWS client")
   String getAwsRegion();
 
