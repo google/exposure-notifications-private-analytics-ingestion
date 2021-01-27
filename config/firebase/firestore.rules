@@ -121,7 +121,9 @@ service cloud.firestore {
           'histogramMetric-v1',
           'histogramMetric-v2',
           'PeriodicExposureNotificationInteraction-v1',
-          'PeriodicExposureNotification-v1'
+          'PeriodicExposureNotification-v1',
+          'CodeVerified-v1',
+          'KeysUploaded-v1'
       ];
     }
 
