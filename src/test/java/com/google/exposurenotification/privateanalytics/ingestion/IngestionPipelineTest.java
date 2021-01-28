@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
+import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.Keys;
 import org.apache.beam.sdk.transforms.Values;
@@ -85,17 +86,13 @@ public class IngestionPipelineTest {
     PCollection<KV<DataShareMetadata, Iterable<DataShare>>> actualOutput =
         IngestionPipeline.processDataShares(pipeline.apply(Create.of(inputData)));
 
-    // Check keys and values separately since we don't know which share will end up in which batch
-    List<DataShareMetadata> expectedKeys =
-        Arrays.asList(
-            meta.toBuilder().setBatchNumber(1).build(), meta.toBuilder().setBatchNumber(2).build());
     List<Iterable<DataShare>> expectedValues =
         Arrays.asList(
             Collections.singletonList(
                 DataShare.builder().setPath("id1").setDataShareMetadata(meta).build()),
             Collections.singletonList(
                 DataShare.builder().setPath("id2").setDataShareMetadata(meta).build()));
-    PAssert.that(actualOutput.apply(Keys.create())).containsInAnyOrder(expectedKeys);
+    PAssert.that(actualOutput.apply(Keys.create()).apply(Count.globally())).containsInAnyOrder(2L);
     PAssert.that(actualOutput.apply(Values.create())).containsInAnyOrder(expectedValues);
     pipeline.run().waitUntilFinish();
   }

@@ -137,7 +137,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
     String aggregateId = metadata.getMetricName() + date;
     // In case of dataflow runner retries, its useful to make the batch UUID deterministic so
     // that files that may already have been written are overwritten, instead of new files created.
-    byte[] seed = (aggregateId + metadata.getBatchNumber()).getBytes();
+    byte[] seed = (aggregateId + metadata.getBatchId()).getBytes();
     UUID batchId = UUID.nameUUIDFromBytes(seed);
     String phaFilePath =
         phaPrefix + ((phaPrefix.endsWith("/")) ? "" : "/") + aggregateId + batchId.toString();

@@ -22,14 +22,11 @@ import com.google.firestore.v1.Document;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.state.StateSpec;
-import org.apache.beam.sdk.state.StateSpecs;
-import org.apache.beam.sdk.state.ValueState;
 import org.apache.beam.sdk.transforms.Distinct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupIntoBatches;
@@ -208,6 +205,8 @@ public class IngestionPipeline {
       PCollection<KV<DataShareMetadata, DataShare>> serializedDataShares, long batchSize) {
     return serializedDataShares
         .apply(
+            // Using AutoValue leads to problems with the coder being non-deterministic (using
+            // @DefaultSchema(AutoValueSchema.class), so just manually constructing the key
             "KeyOnMetadata",
             MapElements.via(
                 new SimpleFunction<
@@ -221,20 +220,14 @@ public class IngestionPipeline {
                 }))
         .apply("GroupIntoBatches", GroupIntoBatches.ofSize(batchSize))
         .apply(
-            "FlattenAndNumberBatches",
+            "FlattenAndIdBatches",
             ParDo.of(
                 new DoFn<
                     KV<String, Iterable<KV<DataShareMetadata, DataShare>>>,
                     KV<DataShareMetadata, Iterable<DataShare>>>() {
 
-                  // A state cell holding latest used batch number
-                  @StateId("batchNumber")
-                  private final StateSpec<ValueState<Integer>> batchNumberSpec =
-                      StateSpecs.value(VarIntCoder.of());
-
                   @ProcessElement
-                  public void processElement(
-                      ProcessContext c, @StateId("batchNumber") ValueState<Integer> batchNumber) {
+                  public void processElement(ProcessContext c) {
                     List<DataShare> packets = new ArrayList<>();
                     DataShareMetadata metadata = null;
                     for (KV<DataShareMetadata, DataShare> entry : c.element().getValue()) {
@@ -243,18 +236,15 @@ public class IngestionPipeline {
                       }
                       packets.add(entry.getValue());
                     }
-                    // create output metadata with incremented batch number
-                    DataShareMetadata.Builder updatedMetadataBuilder = metadata.toBuilder();
-                    Integer updatedBatchNum = batchNumber.read();
-                    if (updatedBatchNum == null) {
-                      // first access
-                      updatedBatchNum = 1;
-                    } else {
-                      updatedBatchNum = updatedBatchNum + 1;
-                    }
-                    batchNumber.write(updatedBatchNum);
-                    updatedMetadataBuilder.setBatchNumber(updatedBatchNum);
-                    c.output(KV.of(updatedMetadataBuilder.build(), packets));
+                    /*
+                     * It's useful to assign batch ids at this stage rather than in BatchWriterFn
+                     * because if DataFlowRunner retries a batch, we'll write to the same
+                     * destination. Of course with a random batch id (as opposed to, e.g., numbered
+                     * batches) the destinations won't be the same if the entire pipeline is rerun.
+                     */
+                    DataShareMetadata updatedMetadata =
+                        metadata.toBuilder().setBatchId(UUID.randomUUID().toString()).build();
+                    c.output(KV.of(updatedMetadata, packets));
                   }
                 }));
   }

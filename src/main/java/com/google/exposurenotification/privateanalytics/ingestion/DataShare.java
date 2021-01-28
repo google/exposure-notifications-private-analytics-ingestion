@@ -400,7 +400,7 @@ public abstract class DataShare implements Serializable {
 
     public abstract @Nullable String getMetricName();
 
-    public abstract @Nullable Integer getBatchNumber();
+    public abstract @Nullable String getBatchId();
 
     public abstract DataShareMetadata.Builder toBuilder();
 
@@ -425,7 +425,7 @@ public abstract class DataShare implements Serializable {
 
       abstract Builder setMetricName(@Nullable String value);
 
-      abstract Builder setBatchNumber(@Nullable Integer value);
+      abstract Builder setBatchId(@Nullable String value);
     }
   }
 
