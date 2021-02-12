@@ -18,6 +18,8 @@ package com.google.exposurenotification.privateanalytics.ingestion;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestation;
+import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestationPipelineOptions;
 import com.google.firestore.v1.Document;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -142,6 +144,7 @@ public class IngestionPipeline {
 
   public static void main(String[] args) {
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
+    PipelineOptionsFactory.register(KeyAttestationPipelineOptions.class);
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 

@@ -201,23 +201,6 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
 
   void setDeviceAttestation(Boolean value);
 
-  /** Package name to be verified in the key attestation certificate. */
-  @Description("Package name of the Android application.")
-  @Default.String("")
-  String getPackageName();
-
-  void setPackageName(String value);
-
-  /**
-   * Package digest (HEX(SHA256)) of the Android application, to be verified in the key attestation
-   * certificate.
-   */
-  @Description("Package signature digest of the Android application.")
-  @Default.String("")
-  String getPackageSignatureDigest();
-
-  void setPackageSignatureDigest(String value);
-
   @Description("AWS region used by the AWS client")
   String getAwsRegion();
 

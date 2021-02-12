@@ -30,6 +30,8 @@ import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
 import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestation;
+import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestationTest;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.CreateDocumentRequest;
 import com.google.firestore.v1.Document;
@@ -238,7 +240,7 @@ public class IngestionPipelineIT {
     long startTime = 1604039801L;
     testOptions.setPhaOutput(phaDir);
     testOptions.setFacilitatorOutput(facDir);
-    testOptions.setStartTime(DeviceAttestationTest.CREATED_TIME);
+    testOptions.setStartTime(KeyAttestationTest.CREATED_TIME);
     testOptions.setProject(PROJECT);
     testOptions.setDuration(3600L);
     testOptions.setGraceHoursBackwards(0L);
@@ -248,17 +250,17 @@ public class IngestionPipelineIT {
     testOptions.setDeviceAttestation(true);
 
     List<Document> docs = new ArrayList<>();
-    Map<String, Value> validDocFields = DeviceAttestationTest.getValidDocFields();
+    Map<String, Value> validDocFields = KeyAttestationTest.getValidDocFields();
     Document validDoc = Document.newBuilder().putAllFields(validDocFields).build();
     docs.add(validDoc);
 
-    Map<String, Value> fieldsWithInvalidSig = DeviceAttestationTest.getValidDocFields();
+    Map<String, Value> fieldsWithInvalidSig = KeyAttestationTest.getValidDocFields();
     fieldsWithInvalidSig.replace(
         DataShare.SIGNATURE, Value.newBuilder().setStringValue("invalidSignature").build());
     Document docWithInvalidSig = Document.newBuilder().putAllFields(fieldsWithInvalidSig).build();
     docs.add(docWithInvalidSig);
 
-    Map<String, Value> fieldsWithInvalidCerts = DeviceAttestationTest.getValidDocFields();
+    Map<String, Value> fieldsWithInvalidCerts = KeyAttestationTest.getValidDocFields();
     fieldsWithInvalidSig.replace(
         DataShare.CERT_CHAIN, Value.newBuilder().setStringValue("invalidSignature").build());
     fieldsWithInvalidCerts.put(
@@ -286,7 +288,7 @@ public class IngestionPipelineIT {
     for (int i = 0; i < docs.size(); i++) {
       client.createDocument(
           CreateDocumentRequest.newBuilder()
-              .setCollectionId(formatDateTime(DeviceAttestationTest.CREATED_TIME))
+              .setCollectionId(formatDateTime(KeyAttestationTest.CREATED_TIME))
               .setDocumentId("testDoc" + i)
               .setDocument(docs.get(i))
               .setParent(
@@ -309,17 +311,17 @@ public class IngestionPipelineIT {
               + TEST_COLLECTION_NAME
               + "/testDoc"
               + "/"
-              + formatDateTime(DeviceAttestationTest.CREATED_TIME)
+              + formatDateTime(KeyAttestationTest.CREATED_TIME)
               + "/testDoc"
               + i;
       Document doc = fetchDocumentFromFirestore(docName, client);
       documentList.add(doc.getName());
     }
-    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, DeviceAttestationTest.UUID);
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, KeyAttestationTest.UUID);
     // If the docs with invalid signatures/certificates were filtered, we expect only one share.
     // (from the valid doc)
     Assert.assertEquals(1, phaShares.size());
-    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, DeviceAttestationTest.UUID);
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, KeyAttestationTest.UUID);
     Assert.assertEquals(1, facShares.size());
     PrioDataSharePacket actualPhaShare = phaShares.get(0);
     PrioDataSharePacket actualFacShare = facShares.get(0);
@@ -343,8 +345,7 @@ public class IngestionPipelineIT {
             .queryMetrics(
                 MetricsFilter.builder()
                     .addNameFilter(
-                        MetricNameFilter.named(
-                            DeviceAttestation.class, "duplicateCerts-quantile-10"))
+                        MetricNameFilter.named(KeyAttestation.class, "duplicateCerts-quantile-10"))
                     .build())
             .getCounters()
             .iterator()

@@ -89,9 +89,19 @@ public class IngestionPipelineTest {
     List<Iterable<DataShare>> expectedValues =
         Arrays.asList(
             Collections.singletonList(
-                DataShare.builder().setPath("id1").setDataShareMetadata(meta).build()),
+                DataShare.builder()
+                    .setPath("id1")
+                    .setCreatedMs(1000L)
+                    .setCertificateChain(certs)
+                    .setDataShareMetadata(meta)
+                    .build()),
             Collections.singletonList(
-                DataShare.builder().setPath("id2").setDataShareMetadata(meta).build()));
+                DataShare.builder()
+                    .setPath("id2")
+                    .setCreatedMs(2000L)
+                    .setCertificateChain(certs)
+                    .setDataShareMetadata(meta)
+                    .build()));
     PAssert.that(actualOutput.apply(Keys.create()).apply(Count.globally())).containsInAnyOrder(2L);
     PAssert.that(actualOutput.apply(Values.create())).containsInAnyOrder(expectedValues);
     pipeline.run().waitUntilFinish();

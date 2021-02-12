@@ -271,7 +271,7 @@ public abstract class DataShare implements Serializable {
     return builder.build();
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new AutoValue_DataShare.Builder();
   }
 
@@ -287,29 +287,29 @@ public abstract class DataShare implements Serializable {
   }
 
   @AutoValue.Builder
-  abstract static class Builder {
+  public abstract static class Builder {
 
-    abstract DataShare build();
+    public abstract DataShare build();
 
-    abstract Builder setPath(@Nullable String value);
+    public abstract Builder setPath(@Nullable String value);
 
-    abstract Builder setCreatedMs(@Nullable Long value);
+    public abstract Builder setCreatedMs(@Nullable Long value);
 
-    abstract Builder setUuid(@Nullable String value);
+    public abstract Builder setUuid(@Nullable String value);
 
-    abstract Builder setException(@Nullable String value);
+    public abstract Builder setException(@Nullable String value);
 
-    abstract Builder setRPit(@Nullable Long value);
+    public abstract Builder setRPit(@Nullable Long value);
 
-    abstract Builder setSchemaVersion(@Nullable Integer value);
+    public abstract Builder setSchemaVersion(@Nullable Integer value);
 
-    abstract Builder setEncryptedDataShares(@Nullable List<EncryptedShare> value);
+    public abstract Builder setEncryptedDataShares(@Nullable List<EncryptedShare> value);
 
-    abstract Builder setDataShareMetadata(@Nullable DataShareMetadata value);
+    public abstract Builder setDataShareMetadata(@Nullable DataShareMetadata value);
 
-    abstract Builder setSignature(@Nullable String value);
+    public abstract Builder setSignature(@Nullable String value);
 
-    abstract Builder setCertificateChain(@Nullable List<String> certChain);
+    public abstract Builder setCertificateChain(@Nullable List<String> certChain);
   }
 
   // A transform that constructs and outputs a DataShare for a Document.
@@ -404,28 +404,28 @@ public abstract class DataShare implements Serializable {
 
     public abstract DataShareMetadata.Builder toBuilder();
 
-    static DataShareMetadata.Builder builder() {
+    public static DataShareMetadata.Builder builder() {
       return new AutoValue_DataShare_DataShareMetadata.Builder();
     }
 
     @AutoValue.Builder
     public abstract static class Builder {
 
-      abstract DataShareMetadata build();
+      public abstract DataShareMetadata build();
 
-      abstract Builder setEpsilon(@Nullable Double value);
+      public abstract Builder setEpsilon(@Nullable Double value);
 
-      abstract Builder setPrime(@Nullable Long value);
+      public abstract Builder setPrime(@Nullable Long value);
 
-      abstract Builder setBins(@Nullable Integer value);
+      public abstract Builder setBins(@Nullable Integer value);
 
-      abstract Builder setNumberOfServers(@Nullable Integer value);
+      public abstract Builder setNumberOfServers(@Nullable Integer value);
 
-      abstract Builder setHammingWeight(@Nullable Integer value);
+      public abstract Builder setHammingWeight(@Nullable Integer value);
 
-      abstract Builder setMetricName(@Nullable String value);
+      public abstract Builder setMetricName(@Nullable String value);
 
-      abstract Builder setBatchId(@Nullable String value);
+      public abstract Builder setBatchId(@Nullable String value);
     }
   }
 
@@ -439,18 +439,18 @@ public abstract class DataShare implements Serializable {
 
     public abstract @Nullable String getEncryptionKeyId();
 
-    static EncryptedShare.Builder builder() {
+    public static EncryptedShare.Builder builder() {
       return new AutoValue_DataShare_EncryptedShare.Builder();
     }
 
     @AutoValue.Builder
     public abstract static class Builder {
 
-      abstract EncryptedShare build();
+      public abstract EncryptedShare build();
 
-      abstract Builder setEncryptedPayload(byte[] value);
+      public abstract Builder setEncryptedPayload(byte[] value);
 
-      abstract Builder setEncryptionKeyId(String value);
+      public abstract Builder setEncryptionKeyId(String value);
     }
   }
 }
