@@ -41,6 +41,8 @@
     <hadoop.version>2.8.5</hadoop.version>
     <maven-surefire-plugin.version>2.22.0</maven-surefire-plugin.version>
     <container-version>${project.version}</container-version>
+    <auto-service.version>1.0-rc7</auto-service.version>
+    <auto-value.version>1.7.4</auto-value.version>
   </properties>
 
   <repositories>
@@ -74,6 +76,18 @@
           <testCompilerArgument>-parameters</testCompilerArgument>
           <source>11</source>
           <target>11</target>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.google.auto.service</groupId>
+              <artifactId>auto-service</artifactId>
+              <version>${auto-service.version}</version>
+            </path>
+            <path>
+              <groupId>com.google.auto.value</groupId>
+              <artifactId>auto-value</artifactId>
+              <version>${auto-value.version}</version>
+            </path>
+          </annotationProcessorPaths>
         </configuration>
       </plugin>
 
@@ -296,7 +310,7 @@
     <dependency>
       <groupId>com.google.auto.value</groupId>
       <artifactId>auto-value</artifactId>
-      <version>1.7.4</version>
+      <version>${auto-value.version}</version>
       <scope>provided</scope>
     </dependency>
 
@@ -368,6 +382,11 @@
       <artifactId>truth-java8-extension</artifactId>
       <version>1.0.1</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.google.auto.service</groupId>
+      <artifactId>auto-service-annotations</artifactId>
+      <version>${auto-service.version}</version>
     </dependency>
   </dependencies>
   <profiles>
