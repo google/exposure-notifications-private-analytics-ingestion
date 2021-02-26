@@ -123,7 +123,8 @@ service cloud.firestore {
           'PeriodicExposureNotificationInteraction-v1',
           'PeriodicExposureNotification-v1',
           'CodeVerified-v1',
-          'KeysUploaded-v1'
+          'KeysUploaded-v1',
+          'DateExposure-v1'
       ];
     }
 
