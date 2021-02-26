@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.formatDateTime;
+import static com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.formatDateTime;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -27,11 +27,10 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
-import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
-import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestation;
-import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestationTest;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.EncryptedShare;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.CreateDocumentRequest;
 import com.google.firestore.v1.Document;
@@ -240,7 +239,7 @@ public class IngestionPipelineIT {
     long startTime = 1604039801L;
     testOptions.setPhaOutput(phaDir);
     testOptions.setFacilitatorOutput(facDir);
-    testOptions.setStartTime(KeyAttestationTest.CREATED_TIME);
+    testOptions.setStartTime(TestAttestation.CREATED_TIME);
     testOptions.setProject(PROJECT);
     testOptions.setDuration(3600L);
     testOptions.setGraceHoursBackwards(0L);
@@ -250,17 +249,17 @@ public class IngestionPipelineIT {
     testOptions.setDeviceAttestation(true);
 
     List<Document> docs = new ArrayList<>();
-    Map<String, Value> validDocFields = KeyAttestationTest.getValidDocFields();
+    Map<String, Value> validDocFields = TestAttestation.getValidDocFields();
     Document validDoc = Document.newBuilder().putAllFields(validDocFields).build();
     docs.add(validDoc);
 
-    Map<String, Value> fieldsWithInvalidSig = KeyAttestationTest.getValidDocFields();
+    Map<String, Value> fieldsWithInvalidSig = TestAttestation.getValidDocFields();
     fieldsWithInvalidSig.replace(
         DataShare.SIGNATURE, Value.newBuilder().setStringValue("invalidSignature").build());
     Document docWithInvalidSig = Document.newBuilder().putAllFields(fieldsWithInvalidSig).build();
     docs.add(docWithInvalidSig);
 
-    Map<String, Value> fieldsWithInvalidCerts = KeyAttestationTest.getValidDocFields();
+    Map<String, Value> fieldsWithInvalidCerts = TestAttestation.getValidDocFields();
     fieldsWithInvalidSig.replace(
         DataShare.CERT_CHAIN, Value.newBuilder().setStringValue("invalidSignature").build());
     fieldsWithInvalidCerts.put(
@@ -288,7 +287,7 @@ public class IngestionPipelineIT {
     for (int i = 0; i < docs.size(); i++) {
       client.createDocument(
           CreateDocumentRequest.newBuilder()
-              .setCollectionId(formatDateTime(KeyAttestationTest.CREATED_TIME))
+              .setCollectionId(formatDateTime(TestAttestation.CREATED_TIME))
               .setDocumentId("testDoc" + i)
               .setDocument(docs.get(i))
               .setParent(
@@ -311,17 +310,17 @@ public class IngestionPipelineIT {
               + TEST_COLLECTION_NAME
               + "/testDoc"
               + "/"
-              + formatDateTime(KeyAttestationTest.CREATED_TIME)
+              + formatDateTime(TestAttestation.CREATED_TIME)
               + "/testDoc"
               + i;
       Document doc = fetchDocumentFromFirestore(docName, client);
       documentList.add(doc.getName());
     }
-    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, KeyAttestationTest.UUID);
+    List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, TestAttestation.UUID);
     // If the docs with invalid signatures/certificates were filtered, we expect only one share.
     // (from the valid doc)
     Assert.assertEquals(1, phaShares.size());
-    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, KeyAttestationTest.UUID);
+    List<PrioDataSharePacket> facShares = getSharesInFolder(facDir, TestAttestation.UUID);
     Assert.assertEquals(1, facShares.size());
     PrioDataSharePacket actualPhaShare = phaShares.get(0);
     PrioDataSharePacket actualFacShare = facShares.get(0);
@@ -339,19 +338,6 @@ public class IngestionPipelineIT {
 
     Assert.assertEquals(expectedPhaPayload, actualPhaShare.getEncryptedPayload());
     Assert.assertEquals(expectedFacPayload, actualFacShare.getEncryptedPayload());
-    long quantile10Metric =
-        result
-            .metrics()
-            .queryMetrics(
-                MetricsFilter.builder()
-                    .addNameFilter(
-                        MetricNameFilter.named(KeyAttestation.class, "duplicateCerts-quantile-10"))
-                    .build())
-            .getCounters()
-            .iterator()
-            .next()
-            .getCommitted();
-    Assert.assertEquals(1, quantile10Metric);
   }
 
   @Test

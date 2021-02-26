@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.model;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.InvalidDataShareException;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.InvalidDataShareException;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.MapValue;

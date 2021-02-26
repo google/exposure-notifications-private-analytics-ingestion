@@ -23,6 +23,18 @@ with security rules.
 
 ## Before you begin
 
+### Multiple Maven modules
+
+The project is structured into multiple maven modules to allow incorporation of
+outside implementations of attestation. Implementations need only depend on the
+DataShare model module, and a profile can be added to get it included in the
+pipeline module build. The pipeline pulls available implementations dynamically.
+
+Since there aren't too many individual classes that make up each module, and
+since they are only meant to be packaged and executed together, we use a single
+source tree for all modules.
+
+### Git Submodules
 This repository uses git submodules. You will need to initialize the git submodules 
 before being able to compile.
 ```sh
@@ -46,7 +58,7 @@ page. You will need the following:
     [reading the KMS key](https://cloud.google.com/kms/docs/reference/permissions-and-roles),
     and [Dataflow](https://cloud.google.com/dataflow/docs/concepts/access-control#roles).
 
-## Environment Variables
+### Useful Environment Variables
 
 Setting the following environment variables can be handy when working in the
 project.
@@ -102,7 +114,7 @@ export BEAM_ARGS=(
 )
 ./mvnw compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.pipeline.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 
@@ -114,7 +126,7 @@ export BEAM_ARGS=(
 )
 ./mvnw compile exec:java \
     -Djava.util.logging.config.file=logging.properties \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.pipeline.DeletionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 
@@ -134,7 +146,7 @@ export BEAM_ARGS=(
     "--serviceAccount=$SERVICE_ACCOUNT_EMAIL"
 )
 ./mvnw compile exec:java \
-    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline \
+    -Dexec.mainClass=com.google.exposurenotification.privateanalytics.ingestion.pipeline.IngestionPipeline \
     -Dexec.args="$BEAM_ARGS"
 ```
 

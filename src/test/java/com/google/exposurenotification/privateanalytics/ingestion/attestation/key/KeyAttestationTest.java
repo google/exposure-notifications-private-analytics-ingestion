@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.google.exposurenotification.privateanalytics.ingestion.attestation;
+package com.google.exposurenotification.privateanalytics.ingestion.attestation.key;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.collect.ImmutableList;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShareTest;
 import com.google.exposurenotification.privateanalytics.ingestion.Payload;
-import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestation.UpdateCertRepetitionMetric;
+import com.google.exposurenotification.privateanalytics.ingestion.attestation.key.KeyAttestation.UpdateCertRepetitionMetric;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShareTest;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.MapValue;
@@ -127,7 +127,7 @@ public class KeyAttestationTest {
       Long value = i * 1000L;
       quantiles.add(value);
       expected.put(
-          "com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestation:duplicateCerts-quantile-"
+          "com.google.exposurenotification.privateanalytics.ingestion.attestation.key.KeyAttestation:duplicateCerts-quantile-"
               + i * 5,
           value);
     }

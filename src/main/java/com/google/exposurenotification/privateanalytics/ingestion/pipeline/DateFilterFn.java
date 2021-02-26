@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;

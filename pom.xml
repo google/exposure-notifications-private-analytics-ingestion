@@ -23,9 +23,17 @@
   <artifactId>enpa-ingestion</artifactId>
   <version>2020_RC02-SNAPSHOT</version>
 
-  <packaging>jar</packaging>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>model</module>
+    <module>attestation</module>
+    <module>pipeline</module>
+  </modules>
 
   <properties>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
     <beam.version>2.25.0</beam.version>
     <hamcrest.version>2.1</hamcrest.version>
     <jackson.version>2.10.2</jackson.version>
@@ -60,135 +68,6 @@
   </repositories>
 
   <build>
-    <testResources>
-      <testResource>
-        <directory>src/test/resources</directory>
-      </testResource>
-    </testResources>
-
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>${maven-compiler-plugin.version}</version>
-        <configuration>
-          <parameters>true</parameters>
-          <testCompilerArgument>-parameters</testCompilerArgument>
-          <source>11</source>
-          <target>11</target>
-          <annotationProcessorPaths>
-            <path>
-              <groupId>com.google.auto.service</groupId>
-              <artifactId>auto-service</artifactId>
-              <version>${auto-service.version}</version>
-            </path>
-            <path>
-              <groupId>com.google.auto.value</groupId>
-              <artifactId>auto-value</artifactId>
-              <version>${auto-value.version}</version>
-            </path>
-          </annotationProcessorPaths>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${maven-surefire-plugin.version}</version>
-        <configuration>
-          <excludes>
-            <exclude>**/*IT.java</exclude>
-          </excludes>
-          <parallel>all</parallel>
-          <threadCount>4</threadCount>
-          <redirectTestOutputToFile>true</redirectTestOutputToFile>
-        </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>org.apache.maven.surefire</groupId>
-            <artifactId>surefire-junit47</artifactId>
-            <version>${maven-surefire-plugin.version}</version>
-          </dependency>
-        </dependencies>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-maven-plugin</artifactId>
-        <version>1.10.0</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>schema</goal>
-            </goals>
-            <configuration>
-              <sourceDirectory>
-                ${project.basedir}/third_party/prio-server/avro-schema/
-              </sourceDirectory>
-              <outputDirectory>${project.build.directory}/generated-sources/
-              </outputDirectory>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-failsafe-plugin</artifactId>
-        <version>3.0.0-M5</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>integration-test</goal>
-              <goal>verify</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>com.github.os72</groupId>
-        <artifactId>protoc-jar-maven-plugin</artifactId>
-        <version>3.11.4</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>run</goal>
-            </goals>
-            <configuration>
-              <protocVersion>3.13.0</protocVersion>
-              <inputDirectories>
-                <include>src/proto</include>
-              </inputDirectories>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>build-helper-maven-plugin</artifactId>
-        <version>3.0.0</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>add-source</goal>
-            </goals>
-            <configuration>
-              <sources>
-                <source>
-                  ${project.basedir}/third_party/android-key-attestation/server/src/main
-                </source>
-              </sources>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-
     <pluginManagement>
       <plugins>
         <plugin>
@@ -196,7 +75,8 @@
           <artifactId>exec-maven-plugin</artifactId>
           <version>${maven-exec-plugin.version}</version>
           <configuration>
-            <cleanupDaemonThreads>false</cleanupDaemonThreads>
+            <skip>true</skip>
+            <executable>java</executable>
           </configuration>
         </plugin>
       </plugins>
@@ -215,59 +95,12 @@
     </dependencies>
   </dependencyManagement>
 
+  <!-- Common general dependencies -->
   <dependencies>
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-runners-google-cloud-dataflow-java</artifactId>
-      <version>${beam.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>com.google.cloud</groupId>
-      <artifactId>google-cloud-firestore</artifactId>
-      <version>2.0.0</version>
-    </dependency>
-
-    <dependency>
-      <groupId>com.google.firebase</groupId>
-      <artifactId>firebase-admin</artifactId>
-      <version>7.0.0</version>
-    </dependency>
-
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>29.0-jre</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-sdks-java-core</artifactId>
-      <version>${beam.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-sdks-java-io-google-cloud-platform</artifactId>
-      <version>${beam.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-sdks-java-io-amazon-web-services</artifactId>
-      <version>${beam.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-runners-core-construction-java</artifactId>
-      <version>${beam.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>javax.xml.bind</groupId>
-      <artifactId>jaxb-api</artifactId>
-      <version>2.3.1</version>
     </dependency>
 
     <dependency>
@@ -305,6 +138,7 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>${junit.version}</version>
+      <scope>test</scope>
     </dependency>
 
     <dependency>
@@ -312,6 +146,11 @@
       <artifactId>auto-value</artifactId>
       <version>${auto-value.version}</version>
       <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.google.auto.service</groupId>
+      <artifactId>auto-service-annotations</artifactId>
+      <version>${auto-service.version}</version>
     </dependency>
 
     <dependency>
@@ -329,9 +168,9 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-runners-direct-java</artifactId>
-      <version>${beam.version}</version>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.13.0</version>
     </dependency>
 
     <dependency>
@@ -349,28 +188,7 @@
       <artifactId>avro-maven-plugin</artifactId>
       <version>1.10.0</version>
     </dependency>
-    <dependency>
-      <groupId>com.google.apis</groupId>
-      <artifactId>google-api-services-cloudkms</artifactId>
-      <version>v1-rev20200903-1.30.10</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.cloud</groupId>
-      <artifactId>google-cloud-kms</artifactId>
-      <version>1.40.0</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>3.13.0</version>
-    </dependency>
 
-    <dependency>
-      <groupId>org.bouncycastle</groupId>
-      <artifactId>bcpkix-jdk15on</artifactId>
-      <version>1.61</version>
-      <scope>compile</scope>
-    </dependency>
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
@@ -383,148 +201,5 @@
       <version>1.0.1</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>com.google.auto.service</groupId>
-      <artifactId>auto-service-annotations</artifactId>
-      <version>${auto-service.version}</version>
-    </dependency>
   </dependencies>
-  <profiles>
-    <profile>
-      <id>ingestion-container-build</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <version>${maven-surefire-plugin.version}</version>
-            <configuration>
-              <skipTests>true</skipTests>
-            </configuration>
-          </plugin>
-          <plugin>
-            <groupId>com.google.cloud.tools</groupId>
-            <artifactId>jib-maven-plugin</artifactId>
-            <version>2.6.0</version>
-            <configuration>
-              <from>
-                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
-              </from>
-              <to>
-                <image>gcr.io/enpa-infra/ingestion-pipeline</image>
-                <tags>
-                  <tag>${container-version}</tag>
-                </tags>
-              </to>
-              <container>
-                <mainClass>
-                  com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline
-                </mainClass>
-                <environment>
-                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                    com.google.exposurenotification.privateanalytics.ingestion.IngestionPipeline
-                  </FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*
-                  </FLEX_TEMPLATE_JAVA_CLASSPATH>
-                </environment>
-              </container>
-              <containerizingMode>packaged</containerizingMode>
-            </configuration>
-            <executions>
-              <execution>
-                <phase>package</phase>
-                <goals>
-                  <goal>build</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>deletion-container-build</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <version>${maven-surefire-plugin.version}</version>
-            <configuration>
-              <skipTests>true</skipTests>
-            </configuration>
-          </plugin>
-          <plugin>
-            <groupId>com.google.cloud.tools</groupId>
-            <artifactId>jib-maven-plugin</artifactId>
-            <version>2.6.0</version>
-            <configuration>
-              <from>
-                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
-              </from>
-              <to>
-                <image>gcr.io/enpa-infra/deletion-pipeline</image>
-                <tags>
-                  <tag>${container-version}</tag>
-                </tags>
-              </to>
-              <container>
-                <mainClass>
-                  com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline
-                </mainClass>
-                <environment>
-                  <FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                    com.google.exposurenotification.privateanalytics.ingestion.DeletionPipeline
-                  </FLEX_TEMPLATE_JAVA_MAIN_CLASS>
-                  <FLEX_TEMPLATE_JAVA_CLASSPATH>/app/classpath/*:/app/libs/*
-                  </FLEX_TEMPLATE_JAVA_CLASSPATH>
-                </environment>
-              </container>
-              <containerizingMode>packaged</containerizingMode>
-            </configuration>
-            <executions>
-              <execution>
-                <phase>package</phase>
-                <goals>
-                  <goal>build</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>coverage</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.jacoco</groupId>
-            <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.6</version>
-            <executions>
-              <execution>
-                <id>prepare-agent</id>
-                <goals>
-                  <goal>prepare-agent</goal>
-                </goals>
-              </execution>
-              <execution>
-                <id>report</id>
-                <goals>
-                  <goal>report</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 </project>

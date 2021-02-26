@@ -1,4 +1,4 @@
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import com.amazonaws.auth.*;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;

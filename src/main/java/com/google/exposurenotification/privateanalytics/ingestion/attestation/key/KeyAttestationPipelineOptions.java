@@ -1,4 +1,4 @@
-package com.google.exposurenotification.privateanalytics.ingestion.attestation;
+package com.google.exposurenotification.privateanalytics.ingestion.attestation.key;
 
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;

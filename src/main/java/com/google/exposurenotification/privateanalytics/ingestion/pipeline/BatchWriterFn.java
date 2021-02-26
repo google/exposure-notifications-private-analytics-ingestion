@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import com.google.cloud.kms.v1.AsymmetricSignResponse;
 import com.google.cloud.kms.v1.CryptoKeyVersionName;
 import com.google.cloud.kms.v1.Digest;
 import com.google.cloud.kms.v1.KeyManagementServiceClient;
 import com.google.common.collect.ImmutableList;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.nio.ByteBuffer;

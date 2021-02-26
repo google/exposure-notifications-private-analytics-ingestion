@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.EncryptedShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.EncryptedShare;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -141,7 +142,7 @@ public class PrioSerializationHelperTest {
     URL manifestUrl =
         getClass()
             .getResource(
-                "/java/com/google/exposurenotification/privateanalytics/ingestion/test-manifest.json");
+                "/com/google/exposurenotification/privateanalytics/ingestion/pipeline/test-manifest.json");
     DataProcessorManifest phaManifest = new DataProcessorManifest(manifestUrl.toString());
 
     List<PrioDataSharePacket> packets = PrioSerializationHelper.splitPackets(share);

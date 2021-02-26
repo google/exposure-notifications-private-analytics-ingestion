@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.ConstructDataSharesFn;
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.FirestoreConnector.FirestoreReader;
 import com.google.exposurenotification.privateanalytics.ingestion.attestation.AbstractDeviceAttestation;
-import com.google.exposurenotification.privateanalytics.ingestion.attestation.KeyAttestationPipelineOptions;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.ConstructDataSharesFn;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
 import com.google.firestore.v1.Document;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -146,7 +146,10 @@ public class IngestionPipeline {
 
   public static void main(String[] args) {
     PipelineOptionsFactory.register(IngestionPipelineOptions.class);
-    PipelineOptionsFactory.register(KeyAttestationPipelineOptions.class);
+    ServiceLoader<AbstractDeviceAttestation> serviceLoader =
+        ServiceLoader.load(AbstractDeviceAttestation.class);
+    Optional<AbstractDeviceAttestation> attestationOption = serviceLoader.findFirst();
+    serviceLoader.forEach(x -> PipelineOptionsFactory.register(x.getOptionsClass()));
     IngestionPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(IngestionPipelineOptions.class);
 

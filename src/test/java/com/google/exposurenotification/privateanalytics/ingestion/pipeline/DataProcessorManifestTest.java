@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -30,7 +30,7 @@ public class DataProcessorManifestTest {
     URL manifestUrl =
         getClass()
             .getResource(
-                "/java/com/google/exposurenotification/privateanalytics/ingestion/test-manifest.json");
+                "/com/google/exposurenotification/privateanalytics/ingestion/pipeline/test-manifest.json");
     DataProcessorManifest manifest = new DataProcessorManifest(manifestUrl.toString());
     assertThat(manifest.getIngestionBucket())
         .isEqualTo("s3://us-west-1/prio-demo-gcp-test-pha-1-ingestor-1-ingestion");

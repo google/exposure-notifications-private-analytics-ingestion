@@ -1,4 +1,4 @@
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import static com.google.common.truth.Truth.assertThat;
 

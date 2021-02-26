@@ -12,7 +12,9 @@ buildNumber.properties
 .mvn/wrapper/maven-wrapper.jar
 .idea/
 node_modules/
-enpa-ingestion.iml
+**enpa-ingestion*.iml
+enpa-ingestion.ipr
+enpa-ingestion.iws
 **firestore-debug.log
 **ui-debug.log
 package-lock.json

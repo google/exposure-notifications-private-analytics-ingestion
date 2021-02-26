@@ -1,8 +1,9 @@
 package com.google.exposurenotification.privateanalytics.ingestion.attestation;
 
-import com.google.exposurenotification.privateanalytics.ingestion.DataShare;
+import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 
@@ -18,7 +19,10 @@ public abstract class AbstractDeviceAttestation
 
   // Counters for the number of elements processed and eventually accepted.
   protected static final Counter processedCounter =
-      Metrics.counter(KeyAttestation.class, "processed");
+      Metrics.counter(AbstractDeviceAttestation.class, "processed");
   protected static final Counter acceptedCounter =
-      Metrics.counter(KeyAttestation.class, "accepted");
+      Metrics.counter(AbstractDeviceAttestation.class, "accepted");
+
+  /** @return a non-null class object if the attestation has pipeline options to be registered */
+  public abstract Class<? extends PipelineOptions> getOptionsClass();
 }

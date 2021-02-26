@@ -23,7 +23,7 @@ steps:
   env:
   - 'PROJECT=enpa-integration-testing'
   - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
-  - 'GOOGLE_APPLICATION_CREDENTIALS=svc-account.json'
+  - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json'
   - 'SONAR_LOGIN=$$SONAR_LOGIN_SECRET'
   secretEnv: ['SONAR_LOGIN_SECRET']
 

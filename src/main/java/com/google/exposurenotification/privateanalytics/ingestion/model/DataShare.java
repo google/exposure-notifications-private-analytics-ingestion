@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.exposurenotification.privateanalytics.ingestion;
+package com.google.exposurenotification.privateanalytics.ingestion.model;
 
 import com.google.auto.value.AutoValue;
 import com.google.firestore.v1.Document;
@@ -313,7 +313,7 @@ public abstract class DataShare implements Serializable {
   }
 
   // A transform that constructs and outputs a DataShare for a Document.
-  static class ConstructDataSharesFn extends DoFn<Document, DataShare> {
+  public static class ConstructDataSharesFn extends DoFn<Document, DataShare> {
 
     @ProcessElement
     public void processElement(ProcessContext context) {
