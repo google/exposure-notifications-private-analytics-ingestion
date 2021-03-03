@@ -18,18 +18,15 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
-  <artifactId>enpa-ingestion-pipeline</artifactId>
-  <version>2020_RC02-SNAPSHOT</version>
-
-  <packaging>jar</packaging>
-
   <parent>
     <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
     <artifactId>enpa-ingestion</artifactId>
-    <version>2020_RC02-SNAPSHOT</version>
+    <version>${revision}</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
+  <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
+  <artifactId>enpa-ingestion-pipeline</artifactId>
+  <packaging>jar</packaging>
 
   <build>
     <sourceDirectory>../src/main/java</sourceDirectory>
@@ -65,7 +62,6 @@
           </testIncludes>
         </configuration>
       </plugin>
-
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
@@ -79,7 +75,6 @@
           </execution>
         </executions>
       </plugin>
-
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -100,7 +95,6 @@
           </dependency>
         </dependencies>
       </plugin>
-
       <plugin>
         <groupId>org.apache.avro</groupId>
         <artifactId>avro-maven-plugin</artifactId>
@@ -120,6 +114,14 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <version>3.0.0-M1</version>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
       </plugin>
     </plugins>
 
@@ -142,68 +144,58 @@
     <dependency>
       <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
       <artifactId>enpa-ingestion-model</artifactId>
-      <version>2020_RC02-SNAPSHOT</version>
+      <version>${revision}</version>
     </dependency>
     <dependency>
       <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
       <artifactId>enpa-ingestion-attestation</artifactId>
-      <version>2020_RC02-SNAPSHOT</version>
+      <version>${revision}</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-google-cloud-dataflow-java</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>com.google.cloud</groupId>
       <artifactId>google-cloud-firestore</artifactId>
       <version>2.0.0</version>
     </dependency>
-
     <dependency>
       <groupId>com.google.firebase</groupId>
       <artifactId>firebase-admin</artifactId>
       <version>7.0.0</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-core</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-io-google-cloud-platform</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-io-amazon-web-services</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-core-construction-java</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>javax.xml.bind</groupId>
       <artifactId>jaxb-api</artifactId>
       <version>2.3.1</version>
     </dependency>
-
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-direct-java</artifactId>
       <version>${beam.version}</version>
     </dependency>
-
     <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-cloudkms</artifactId>
@@ -353,6 +345,17 @@
         </plugins>
       </build>
     </profile>
+   <profile>
+     <!-- Optional runtime dependency for Google's private attestation impl-->
+     <id>attestation</id>
+     <dependencies>
+       <dependency>
+         <groupId>com.google.exposurenotification.privateanalytics.ingestion</groupId>
+         <artifactId>enpa-ingestion-attestation-impl</artifactId>
+	 <version>${attestation-impl.version}</version>
+       </dependency>
+     </dependencies>
+   </profile>
   </profiles>
 
 </project>

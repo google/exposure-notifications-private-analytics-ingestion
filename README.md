@@ -34,13 +34,6 @@ Since there aren't too many individual classes that make up each module, and
 since they are only meant to be packaged and executed together, we use a single
 source tree for all modules.
 
-### Git Submodules
-This repository uses git submodules. You will need to initialize the git submodules 
-before being able to compile.
-```sh
-git submodule update --init
-```
-
 Follow the
 [Getting started with Google Cloud Dataflow](https://github.com/GoogleCloudPlatform/java-docs-samples/blob/master/dataflow/README.md)
 page. You will need the following:
@@ -180,6 +173,13 @@ To build the launch container we added profiles for the ingestion and deletion p
 To build the ingestion pipeline launch container with the setting a git derived version:
 ```sh
 ./mvnw -Pingestion-container-build -Dcontainer-version=$(git describe --tags --always --dirty=-dirty) package
+```
+
+To build the ingestion pipeline with a custom attestation implementation,
+include the additional `attestation` profile, which assumes the package is
+available in any of your configured maven repositories (in .m2/settings.xml):
+```sh
+./mvnw -Pingestion-container-build,attestation -Dcontainer-version=$(git describe --tags --always --dirty=-dirty) package
 ```
 
 To build the deletion pipeline launch container with the setting a git derived version:
