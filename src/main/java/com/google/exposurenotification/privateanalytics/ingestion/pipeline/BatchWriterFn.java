@@ -97,6 +97,7 @@ public class BatchWriterFn extends DoFn<KV<DataShareMetadata, Iterable<DataShare
       client.awaitTermination(KMS_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       LOG.warn("Interrupted while waiting for client shutdown", e);
+      Thread.currentThread().interrupt();
     }
   }
 

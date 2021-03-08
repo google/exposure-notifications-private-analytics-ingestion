@@ -21,6 +21,7 @@ import com.google.exposurenotification.privateanalytics.ingestion.model.DataShar
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,17 +37,24 @@ import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.avro.util.Utf8;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helpers for serializing and deserializing Prio data shares into (or from) the Apache Avro file
  * format.
  */
 public class PrioSerializationHelper {
+
+  private PrioSerializationHelper() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(PrioSerializationHelper.class);
+
   public static <T extends SpecificRecordBase> ByteBuffer serializeRecords(
       List<T> records, Class<T> recordClass, Schema schema) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     DatumWriter<T> dataShareDatumWriter = new SpecificDatumWriter<>(recordClass);
-    try (DataFileWriter<T> dataFileWriter = new DataFileWriter<T>(dataShareDatumWriter)) {
+    try (DataFileWriter<T> dataFileWriter = new DataFileWriter<>(dataShareDatumWriter)) {
       dataFileWriter.create(schema, outputStream);
 
       for (T record : records) {
@@ -67,9 +75,13 @@ public class PrioSerializationHelper {
     try (DataFileReader<T> dataFileReader = new DataFileReader<>(new File(pathname), datumReader)) {
       T record;
       while (dataFileReader.hasNext()) {
-        record = recordClass.newInstance();
-        record = dataFileReader.next(record);
-        results.add(record);
+        try {
+          record = recordClass.getDeclaredConstructor().newInstance();
+          record = dataFileReader.next(record);
+          results.add(record);
+        } catch (InvocationTargetException | NoSuchMethodException e) {
+          LOG.error("PrioSerializationHelper Record instance creation error:", e);
+        }
       }
     }
     return results;

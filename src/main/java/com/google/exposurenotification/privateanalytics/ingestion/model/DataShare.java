@@ -192,10 +192,10 @@ public abstract class DataShare implements Serializable {
     // Cf. page 18 of https://eprint.iacr.org/2019/188.pdf.
     Long rPit;
     try {
-      BigInteger N = BigInteger.valueOf(nextPowerTwo(bins + 1));
-      BigInteger P = BigInteger.valueOf(prime);
+      BigInteger n = BigInteger.valueOf(nextPowerTwo(bins + 1));
+      BigInteger p = BigInteger.valueOf(prime);
       rPit = generateRandom(prime);
-      while (BigInteger.valueOf(rPit).modPow(N, P) == BigInteger.ONE) {
+      while (BigInteger.valueOf(rPit).modPow(n, p) == BigInteger.ONE) {
         rPit = generateRandom(prime);
       }
     } catch (RuntimeException e) {
@@ -332,7 +332,7 @@ public abstract class DataShare implements Serializable {
   }
 
   // Next power of two of an int.
-  public static long nextPowerTwo(int n) throws IllegalArgumentException {
+  public static long nextPowerTwo(int n) {
     if (n < 0) {
       throw new InvalidDataShareException("n cannot be < 0.");
     }
@@ -366,7 +366,7 @@ public abstract class DataShare implements Serializable {
   }
 
   // Generate a random element in [0, p-1] using SecureRandom.
-  private static Long generateRandom(Long p) throws IllegalArgumentException {
+  private static Long generateRandom(Long p) {
     if (p <= 0) {
       throw new InvalidDataShareException("The upper bound should be > 0.");
     }

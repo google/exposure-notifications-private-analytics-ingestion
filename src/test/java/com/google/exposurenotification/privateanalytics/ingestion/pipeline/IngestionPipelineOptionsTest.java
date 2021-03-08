@@ -14,7 +14,7 @@ import org.junit.runners.JUnit4;
 public class IngestionPipelineOptionsTest {
 
   @Test
-  public void test_calculatePipelineStart() {
+  public void testCalculatePipelineStart() {
     assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, 1, Clock.systemUTC()))
         .isEqualTo(123);
     assertThat(IngestionPipelineOptions.calculatePipelineStart(123, 5, 4, Clock.systemUTC()))

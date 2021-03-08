@@ -205,7 +205,7 @@ public class FirestoreConnector {
             "".equals(options.getFirestoreProject())
                 ? getParentPath(options.getProject())
                 : getParentPath(options.getFirestoreProject());
-        LOG.info("{} Firestore path: " + path, getLogPrefix());
+        LOG.info("{} Firestore path: {}", getLogPrefix(), path);
         PartitionQueryRequest request =
             PartitionQueryRequest.newBuilder()
                 .setPartitionCount(options.getPartitionCount())
@@ -292,6 +292,56 @@ public class FirestoreConnector {
       public void finishBundle() {
         LOG.info("{} Closing Firestore Client for ReadFn", getLogPrefix());
         shutdownFirestoreClient(client);
+      }
+
+      // Returns a list of Documents captured within the given query Cursor pair.
+      private static List<Document> readDocumentsFromFirestore(
+          FirestoreClient firestoreClient,
+          String projectId,
+          ImmutableTriple<Cursor, Cursor, StructuredQuery> triple) {
+        Cursor start = triple.getLeft();
+        Cursor end = triple.getMiddle();
+        StructuredQuery.Builder queryBuilder = triple.getRight().toBuilder();
+        if (start != null) {
+          queryBuilder.setStartAt(start);
+        }
+        if (end != null) {
+          queryBuilder.setEndAt(end);
+        }
+        LOG.info(
+            "{} Querying documents in partition: [start: {}, end: {}] with query [{}]",
+            getLogPrefix(),
+            start,
+            end,
+            queryBuilder.toString());
+
+        List<Document> docs = new ArrayList<>();
+        try {
+          ServerStream<RunQueryResponse> responseIterator =
+              firestoreClient
+                  .runQueryCallable()
+                  .call(
+                      RunQueryRequest.newBuilder()
+                          .setStructuredQuery(queryBuilder.build())
+                          .setParent(getParentPath(projectId))
+                          .build());
+          responseIterator.forEach(
+              res -> {
+                skippedResults.inc(res.getSkippedResults());
+                // Streaming grpc may return partial results
+                if (res.hasDocument()) {
+                  docs.add(res.getDocument());
+                  LOG.debug("Fetched document from Firestore: {}", res.getDocument().getName());
+                  documentsRead.inc();
+                } else {
+                  partialProgress.inc();
+                }
+              });
+        } catch (StatusRuntimeException e) {
+          LOG.warn("grpc status exception", e);
+          grpcException.inc();
+        }
+        return docs;
       }
     }
   }
@@ -421,6 +471,7 @@ public class FirestoreConnector {
       client.awaitTermination(FIRESTORE_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       LOG.warn("Interrupted while waiting for client shutdown", e);
+      Thread.currentThread().interrupt();
     }
   }
 
@@ -435,56 +486,6 @@ public class FirestoreConnector {
     DateTimeFormatter formatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd-HH", Locale.US).withZone(ZoneOffset.UTC);
     return formatter.format(dateTimeToQuery);
-  }
-
-  // Returns a list of Documents captured within the given query Cursor pair.
-  private static List<Document> readDocumentsFromFirestore(
-      FirestoreClient firestoreClient,
-      String projectId,
-      ImmutableTriple<Cursor, Cursor, StructuredQuery> triple) {
-    Cursor start = triple.getLeft();
-    Cursor end = triple.getMiddle();
-    StructuredQuery.Builder queryBuilder = triple.getRight().toBuilder();
-    if (start != null) {
-      queryBuilder.setStartAt(start);
-    }
-    if (end != null) {
-      queryBuilder.setEndAt(end);
-    }
-    LOG.info(
-        "{} Querying documents in partition: [start: {}, end: {}] with query [{}]",
-        getLogPrefix(),
-        start,
-        end,
-        queryBuilder.toString());
-
-    List<Document> docs = new ArrayList<>();
-    try {
-      ServerStream<RunQueryResponse> responseIterator =
-          firestoreClient
-              .runQueryCallable()
-              .call(
-                  RunQueryRequest.newBuilder()
-                      .setStructuredQuery(queryBuilder.build())
-                      .setParent(getParentPath(projectId))
-                      .build());
-      responseIterator.forEach(
-          res -> {
-            skippedResults.inc(res.getSkippedResults());
-            // Streaming grpc may return partial results
-            if (res.hasDocument()) {
-              docs.add(res.getDocument());
-              LOG.debug("Fetched document from Firestore: {}", res.getDocument().getName());
-              documentsRead.inc();
-            } else {
-              partialProgress.inc();
-            }
-          });
-    } catch (StatusRuntimeException e) {
-      LOG.warn("grpc status exception", e);
-      grpcException.inc();
-    }
-    return docs;
   }
 
   // TODO: use org.slf4j.MDC (mapped diagnostic content) or something cooler here

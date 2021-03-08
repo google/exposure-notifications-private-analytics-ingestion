@@ -1,3 +1,18 @@
+/*
+ * Copyright 2020 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import com.amazonaws.auth.*;
@@ -12,6 +27,8 @@ import java.io.IOException;
 
 public class AWSFederatedAuthHelper {
 
+  private AWSFederatedAuthHelper() {}
+
   public static void setupAWSAuth(IngestionPipelineOptions options, String role, String region)
       throws IOException {
     GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
@@ -25,9 +42,10 @@ public class AWSFederatedAuthHelper {
             .withRegion(region)
             .build();
 
-    // Obtain credentials for the IAM role. Note that you cannot assume the role of an AWS root
-    // account;
-    // Amazon S3 will deny access. You must use credentials for an IAM user or an IAM role.
+    /**
+     * Obtain credentials for the IAM role. Note that you cannot assume the role of an AWS root
+     * account. Amazon S3 will deny access. You must use credentials for an IAM user or an IAM role.
+     */
     AssumeRoleWithWebIdentityRequest roleRequest =
         new AssumeRoleWithWebIdentityRequest()
             .withRoleArn(role)

@@ -82,7 +82,7 @@ public class DeletionPipelineIT {
 
   @Test
   @Category(NeedsRunner.class)
-  public void testFirestoreDeleter_deletesDocs() throws InterruptedException {
+  public void testFirestoreDeleterDeletesDocs() throws InterruptedException {
     IngestionPipelineOptions options =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
     options.setStartTime(CREATION_TIME);
@@ -97,9 +97,10 @@ public class DeletionPipelineIT {
 
     // Assert that processed documents have been deleted.
     documentList.forEach(
-        doc ->
-            assertThrows(
-                NotFoundException.class, () -> fetchDocumentFromFirestore(doc.getName(), client)));
+        doc -> {
+          String name = doc.getName();
+          assertThrows(NotFoundException.class, () -> fetchDocumentFromFirestore(name, client));
+        });
     long documentsDeleted =
         result
             .metrics()

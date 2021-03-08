@@ -16,7 +16,9 @@ package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import java.net.MalformedURLException;
 import java.net.URL;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -39,5 +41,13 @@ public class DataProcessorManifestTest {
         .isEqualTo("prio-demo-gcp-test-pha-1-ingestor-1-ingestion");
     assertThat(manifest.getAwsRole())
         .isEqualTo("arn:aws:iam::12345678:role/AWSRoleAssumedByGCPSvcAcc");
+  }
+
+  @Test
+  public void testInvalidURLParsing() throws MalformedURLException {
+    URL manifestUrl = new URL("http://nothing/to/see/here");
+    Assert.assertThrows(
+        DataProcessorManifest.ManifestProcessingRuntimeException.class,
+        () -> new DataProcessorManifest(manifestUrl.toString()));
   }
 }

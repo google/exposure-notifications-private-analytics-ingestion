@@ -229,7 +229,7 @@ public class IngestionPipelineIT {
   // through.
   @Test
   @Category(NeedsRunner.class)
-  public void testIngestionPipeline_deviceAttestationEnabled() throws Exception {
+  public void testIngestionPipelineDeviceAttestationEnabled() throws Exception {
     IngestionPipelineOptions testOptions =
         TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
     String phaDir =
@@ -342,7 +342,7 @@ public class IngestionPipelineIT {
 
   @Test
   @Category(ValidatesRunner.class)
-  public void testFirestoreReader_partitionsQueryAndReadsCorrectNumberDocuments()
+  public void testFirestoreReaderPartitionsQueryAndReadsCorrectNumberDocuments()
       throws InterruptedException {
     testOptions.setStartTime(CREATION_TIME);
     testOptions.setDuration(DURATION);

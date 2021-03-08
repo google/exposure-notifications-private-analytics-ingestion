@@ -33,12 +33,9 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 
 /** Unit tests for {@link DataShare}. */
 @RunWith(JUnit4.class)
@@ -59,8 +56,6 @@ public class DataShareTest {
   public static final Integer CREATED = 1234;
 
   Document document;
-
-  @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
 
   @Test
   public void testHappyCase() {

@@ -47,7 +47,7 @@ public class IngestionPipelineTest {
 
   @Test
   @Category(ValidatesRunner.class)
-  public void processDataShares_valid() {
+  public void processDataSharesValid() {
     options.setStartTime(1L);
     options.setDuration(2L);
     options.setBatchSize(1L);
