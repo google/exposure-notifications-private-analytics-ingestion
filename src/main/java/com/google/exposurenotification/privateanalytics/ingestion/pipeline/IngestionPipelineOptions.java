@@ -136,8 +136,7 @@ public interface IngestionPipelineOptions extends DataflowPipelineOptions {
   @Default.Long(3600)
   Long getDuration();
 
-  void setDuration(ValueProvider<Long> value);
-
+  void setDuration(Long value);
 
   /**
    * Hours to look before startTime when querying Firestore collection. Used to construct document

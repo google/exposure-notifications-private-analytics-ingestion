@@ -230,10 +230,10 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
+                <image>${container_registry_tag_prefix}/openjdk-flex-template-launcher:11-jre-slim</image>
               </from>
               <to>
-                <image>gcr.io/enpa-infra/ingestion-pipeline</image>
+                <image>${container_registry_tag_prefix}/ingestion-pipeline</image>
                 <tags>
                   <tag>${container-version}</tag>
                 </tags>
@@ -285,10 +285,10 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>gcr.io/enpa-infra/openjdk-flex-template-launcher:11-jre-slim</image>
+                <image>${container_registry_tag_prefix}/openjdk-flex-template-launcher:11-jre-slim</image>
               </from>
               <to>
-                <image>gcr.io/enpa-infra/deletion-pipeline</image>
+                <image>${container_registry_tag_prefix}/deletion-pipeline</image>
                 <tags>
                   <tag>${container-version}</tag>
                 </tags>

@@ -173,3 +173,9 @@ variable "manifest_bucket" {
   description = "The bucket in which to store the generated manifest. Defaults to 'prio-manifests'."
   default     = "prio-manifests"
 }
+
+variable "templates_bucket" {
+  type        = string
+  description = "The bucket in which templates are fetched from. Defaults to 'enpa-infra'."
+  default     = "enpa-infra"
+}

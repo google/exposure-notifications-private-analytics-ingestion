@@ -46,78 +46,44 @@ import org.slf4j.LoggerFactory;
 /**
  * Pipeline to export Exposure Notification Private Analytics data shares from Firestore and
  * translate into format usable by downstream batch processing by Health Authorities and
- * Facilitators.*
- *
- * <p>To execute this pipeline locally, specify general pipeline configuration:
- *
- * <pre>{@code
- * --project=YOUR_PROJECT_ID
- * }</pre>
- *
- * <p>To change the runner, specify:
- *
- * <pre>{@code
- * --runner=YOUR_SELECTED_RUNNER
- * }</pre>
+ * Facilitators.
  */
 public class IngestionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(IngestionPipeline.class);
 
   /**
-   * A DoFn that filters documents in particular time window
+   * Process input {@link PCollection<DataShare>}, and make them available for final serialization.
+   * This encapsulates all the pipeline logic apart from I/O, for testability.
    */
-  public static class DateFilterFn extends DoFn<DataShare, DataShare> {
-
-    private static final Logger LOG = LoggerFactory.getLogger(DateFilterFn.class);
-
-    private final Counter dateFilterIncluded = Metrics
-        .counter(DateFilterFn.class, "dateFilterIncluded");
-    private final Counter dateFilterExcluded = Metrics
-        .counter(DateFilterFn.class, "dateFilterExcluded");
-    private final ValueProvider<Long> startTime;
-    private final ValueProvider<Long> duration;
-
-    public DateFilterFn(ValueProvider<Long> startTime, ValueProvider<Long> duration) {
-      this.startTime = startTime;
-      this.duration = duration;
-    }
-
-    @ProcessElement
-    public void processElement(ProcessContext c) {
-      if (c.element().getCreated() == null || c.element().getCreated() == 0) {
-        return;
-      }
-      if (c.element().getCreated() >= startTime.get() &&
-          c.element().getCreated() < startTime.get() + duration.get()) {
-        LOG.debug("Included: " + c.element());
-        dateFilterIncluded.inc();
-        c.output(c.element());
+  static PCollection<KV<DataShareMetadata, Iterable<DataShare>>> processDataShares(
+      PCollection<DataShare> inputDataShares) {
+    IngestionPipelineOptions options =
+        (IngestionPipelineOptions) inputDataShares.getPipeline().getOptions();
+    PCollection<DataShare> filteredShares =
+        inputDataShares.apply("FilterDates", ParDo.of(new DateFilterFn()));
+    if (options.getDeviceAttestation()) {
+      ServiceLoader<AbstractDeviceAttestation> serviceLoader =
+          ServiceLoader.load(AbstractDeviceAttestation.class);
+      // In future we could chain together all attestation implementations found
+      Optional<AbstractDeviceAttestation> attestationOption = serviceLoader.findFirst();
+      if (attestationOption.isPresent()) {
+        filteredShares = filteredShares.apply("DeviceAttestation", attestationOption.get());
       } else {
-        LOG.trace("Excluded: " + c.element());
-        dateFilterExcluded.inc();
+        LOG.warn("Requested attestation at commandline but no implementations found");
       }
     }
-  }
-
-  static PCollection<DataShare> processDataShares(
-      PCollection<DataShare> inputDataShares, IngestionPipelineOptions options, String metric) {
-    PCollection<DataShare> dataShares = inputDataShares
-        .apply("FilterDates_" + metric, ParDo.of(new DateFilterFn(options.getStartTime(),
-            options.getDuration(), metric)))
-        .apply("DeviceAttestation_" + metric, new DeviceAttestation());
-    ValueProvider<Long> minParticipantCount = options.getMinimumParticipantCount();
-    PAssert.thatSingleton(dataShares.apply("CountParticipants_" + metric, Count.globally()))
-        .satisfies(input -> {
-          Assert.assertTrue("Number of participating devices is:"
-                  + input
-                  + " which is less than the minimum requirement of "
-                  + minParticipantCount.get(),
-              input >= minParticipantCount.get());
-          return null;
-        });
-
-    return dataShares;
+    PCollection<KV<DataShareMetadata, DataShare>> unbatchedShares =
+        filteredShares.apply(
+            "MapMetadata-",
+            MapElements.via(
+                new SimpleFunction<DataShare, KV<DataShareMetadata, DataShare>>() {
+                  @Override
+                  public KV<DataShareMetadata, DataShare> apply(DataShare input) {
+                    return KV.of(input.getDataShareMetadata(), input);
+                  }
+                }));
+    return groupIntoBatches(unbatchedShares, options.getBatchSize());
   }
 
   /** Perform the input, processing and output for the full ingestion pipeline. */

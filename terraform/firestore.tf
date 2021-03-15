@@ -19,7 +19,7 @@ locals {
 }
 
 data "google_storage_object_signed_url" "firestore_rules" {
-  bucket   = "enpa-infra"
+  bucket   = var.templates_bucket
   path     = "security-rules/firestore-${var.pipeline_version}.rules"
   duration = "5m"
 }
