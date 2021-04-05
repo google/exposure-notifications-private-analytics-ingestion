@@ -23,7 +23,7 @@ jobs:
   format-code:
     runs-on: ubuntu-latest
     env:
-      ACCESS_TOKEN: ${{ secrets.FORMATTER_BOT_TOKEN }}
+      ACCESS_TOKEN: ${{secrets.YOSHI_APPROVER_TOKEN}}
     steps:
     - uses: actions/checkout@v2
       with:
