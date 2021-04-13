@@ -32,6 +32,8 @@ steps:
 # Step 2: Download submodules
 ###########################################################
 - name: gcr.io/cloud-builders/git
+  waitFor:
+    - '-'
   id: update-submodules
   args: ['submodule', 'update', '--init']
 
@@ -39,6 +41,8 @@ steps:
 # Step 3: Retag cloned git repo hash
 ###########################################################
 - name: gcr.io/cloud-builders/git
+  waitFor:
+    - '-'
   id: recreate-tag
   args: ['tag', '$_TAG']
 

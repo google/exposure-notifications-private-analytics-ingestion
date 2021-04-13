@@ -53,6 +53,8 @@ steps:
 ########################################################### 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: firebase-integration-tests
+  waitFor: 
+    - '-'
   entrypoint: bash
   args:
     - "-e"
