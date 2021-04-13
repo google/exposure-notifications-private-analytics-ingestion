@@ -108,6 +108,7 @@ steps:
 #         build.
 ###########################################################
 - name: 'gcr.io/cloud-builders/gsutil'
+  id: sync-mvn-cache
   waitFor:
     - ingestion-container-build
     - deletion-container-build
@@ -131,3 +132,7 @@ secrets:
   - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
     secretEnv:
       GITHUB_TOKEN: 'CiQAzNSb40phOg8+Rtn21yuiJuqJA3CKm5YWgigMwpA5lsM42NgSUQA/9gK92tb89IansK/cTpYuAJpf9PUZ7Lvse94FqFmk/mVULLISsoNr6+39npTZAG2el7cRQ22LozB5lwE9dZGywalT7xHxs46+nywy/ix8Qg=='
+
+options:
+  # Use higher CPU machines so the caching and build steps are faster.
+  machineType: 'N1_HIGHCPU_32'
