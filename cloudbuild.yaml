@@ -13,31 +13,76 @@
 # limitations under the License.
 
 steps:
-# Run project integration tests using Maven
+###########################################################
+# Step 1: Retrieve the cached .m2 directory from GCS
+###########################################################
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: fetch-mvn-cache
+  args:
+    - '-m'
+    - 'rsync'
+    - '-r'
+    - 'gs://${_BUCKET}/cache/.m2'
+    - '/cache/.m2'
+  volumes:
+    - path: '/cache/.m2'
+      name: 'm2_cache'
+
+###########################################################
+# Step 2: Run project integration tests using Maven
+###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
-  id: "pr-integration-tests"
+  id: pr-integration-tests
+  waitFor:
+    - fetch-mvn-cache
   entrypoint: bash
   args:
-  - "-e"
-  - "./ci/integration.sh"
+    - "-e"
+    - "./ci/integration.sh"
+  volumes:
+    - path: '/cache/.m2'
+      name: 'm2_cache'
   env:
-  - 'PROJECT=enpa-integration-testing'
-  - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
-  - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json'
-  - 'SONAR_LOGIN=$$SONAR_LOGIN_SECRET'
-  secretEnv: ['SONAR_LOGIN_SECRET']
+    - MAVEN_OPTS=-Dmaven.repo.local=/cache/.m2
+    - PROJECT=enpa-integration-testing
+    - KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1
+    - GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json
 
-# Run Firebase integration tests using npm
+###########################################################
+# Step 3: Run Firebase integration tests using npm
+########################################################### 
 - name: gcr.io/cloud-devrel-public-resources/java11
-  id: "firebase-integration-tests"
+  id: firebase-integration-tests
+  waitFor: 
+    - '-'
   entrypoint: bash
   args:
-  - "-e"
-  - "./ci/firebase.sh"
+    - "-e"
+    - "./ci/firebase.sh"
 
-secrets:
-  - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
-    secretEnv:
-      SONAR_LOGIN_SECRET: 'CiQAzNSb44LsbxTU5fuUpwjR/sp9IQG7LLL5gPx0HzV8hiLU6FUSUQA/9gK90G85EW6UoVmogWfuWpQQkdJdHxYQgolOgocquzR4omaN2EfQwdjoCRtOYYTQcJSopcTqJQNJjsQsVAAJze6SdPI9saTV48Pqi9bxHA=='
+###########################################################
+# Step 4: Update cached .m2 directory on GCS with any
+#         additional dependencies downloaded during the
+#         build.
+###########################################################
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: sync-mvn-cache
+  waitFor:
+    - pr-integration-tests
+  args:
+    - '-m'
+    - 'rsync'
+    - '-r'
+    - '/cache/.m2'
+    - 'gs://${_BUCKET}/cache/.m2/'
+  volumes:
+    - path: '/cache/.m2'
+      name: 'm2_cache'
 
+substitutions:
+  # Default value
+  _BUCKET: 'enpa-infra'
 
+options:
+  # Use higher CPU machines so the caching and build steps are faster.
+  machineType: 'N1_HIGHCPU_32'
