@@ -29,7 +29,7 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -DskipTests -Drevision=`git describe --tags --always --dirty=-dirty` deploy'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -DskipTests -Drevision=$(${_VERSION})'
   env:
     - 'PROJECT=enpa-integration-testing'
     - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
@@ -44,7 +44,7 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && VERSION=`git describe --tags --always --dirty=-dirty` retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
 
 - name: gcr.io/cloud-devrel-public-resources/java11
