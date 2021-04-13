@@ -32,6 +32,7 @@ steps:
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -Drevision=`git describe --tags --always --dirty=-dirty` deploy'
   env:
   - 'GITHUB_TOKEN=$$GITHUB_TOKEN'
+  secretEnv: ['GITHUB_TOKEN']
 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
