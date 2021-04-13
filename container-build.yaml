@@ -44,7 +44,7 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && VERSION=`git describe --tags --always --dirty=-dirty` retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$VERSION -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$VERSION package'
+    - 'source ci/common.sh && VERSION=`git describe --tags --always --dirty=-dirty` retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$$VERSION -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$$VERSION package'
 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
@@ -54,7 +54,7 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && VERSION=`git describe --tags --always --dirty=-dirty` retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$VERSION -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$VERSION package'
+    - 'source ci/common.sh && VERSION=`git describe --tags --always --dirty=-dirty` retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$$VERSION -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$$VERSION package'
 
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
