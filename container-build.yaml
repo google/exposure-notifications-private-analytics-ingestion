@@ -29,10 +29,8 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'export && source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -Drevision=`git describe --tags --always --dirty=-dirty` deploy'
-  env:
-  - 'GITHUB_TOKEN=$$GITHUB_TOKEN_SECRET'
-  secretEnv: ['GITHUB_TOKEN_SECRET']
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -Drevision=`git describe --tags --always --dirty=-dirty` deploy'
+  secretEnv: ['GITHUB_TOKEN']
 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
@@ -69,4 +67,4 @@ substitutions:
 secrets:
   - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
     secretEnv:
-      GITHUB_TOKEN_SECRET: 'CiQAzNSb40phOg8+Rtn21yuiJuqJA3CKm5YWgigMwpA5lsM42NgSUQA/9gK92tb89IansK/cTpYuAJpf9PUZ7Lvse94FqFmk/mVULLISsoNr6+39npTZAG2el7cRQ22LozB5lwE9dZGywalT7xHxs46+nywy/ix8Qg=='
+      GITHUB_TOKEN: 'CiQAzNSb40phOg8+Rtn21yuiJuqJA3CKm5YWgigMwpA5lsM42NgSUQA/9gK92tb89IansK/cTpYuAJpf9PUZ7Lvse94FqFmk/mVULLISsoNr6+39npTZAG2el7cRQ22LozB5lwE9dZGywalT7xHxs46+nywy/ix8Qg=='
