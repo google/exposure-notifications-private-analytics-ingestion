@@ -22,6 +22,21 @@ steps:
   args: ['tag', '$_TAG']
 
 - name: gcr.io/cloud-devrel-public-resources/java11
+  id: package-deploy-mvn-registry
+  waitFor:
+    - update-submodules
+    - recreate-tag
+  entrypoint: bash
+  args:
+    - '-c'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -U -s mvn-settings.xml -DskipTests -Drevision=$(${_VERSION}) deploy'
+  env:
+    - 'PROJECT=enpa-integration-testing'
+    - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
+    - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json'
+  secretEnv: ['GITHUB_TOKEN']
+
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
   waitFor:
     - update-submodules
@@ -29,7 +44,8 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -Pingestion-container-build -Dcontainer-version=`git describe --tags --always --dirty=-dirty` -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+
 
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
@@ -39,7 +55,7 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -Pdeletion-container-build -Dcontainer-version=`git describe --tags --always --dirty=-dirty` -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
@@ -53,3 +69,8 @@ steps:
 substitutions:
   _DEFAULT: '${SHORT_SHA}-SNAPSHOT'
   _TAG: ${TAG_NAME:-$_DEFAULT} #default value will be SHORT_SHA-SNAPSHOT
+  _VERSION: 'git describe --tags --always --dirty=-dirty'
+secrets:
+  - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
+    secretEnv:
+      GITHUB_TOKEN: 'CiQAzNSb40phOg8+Rtn21yuiJuqJA3CKm5YWgigMwpA5lsM42NgSUQA/9gK92tb89IansK/cTpYuAJpf9PUZ7Lvse94FqFmk/mVULLISsoNr6+39npTZAG2el7cRQ22LozB5lwE9dZGywalT7xHxs46+nywy/ix8Qg=='
