@@ -13,19 +13,44 @@
 # limitations under the License.
 
 steps:
+###########################################################
+# Step 1: Retrieve the cached .m2 directory from GCS
+###########################################################
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: fetch-mvn-cache
+  args:
+    - '-m'
+    - 'rsync'
+    - '-r'
+    - 'gs://${_BUCKET}/cache/.m2'
+    - '/cache/.m2'
+  volumes:
+    - path: '/cache/.m2'
+      name: 'm2_cache'
+
+###########################################################
+# Step 2: Download submodules
+###########################################################
 - name: gcr.io/cloud-builders/git
   id: update-submodules
   args: ['submodule', 'update', '--init']
 
+###########################################################
+# Step 3: Retag cloned git repo hash
+###########################################################
 - name: gcr.io/cloud-builders/git
   id: recreate-tag
   args: ['tag', '$_TAG']
 
+###########################################################
+# Step 4: Package and Deploy to Github maven repo
+###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: package-deploy-mvn-registry
   waitFor:
     - update-submodules
     - recreate-tag
+    - fetch-mvn-cache
   entrypoint: bash
   args:
     - '-c'
@@ -36,27 +61,37 @@ steps:
     - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json'
   secretEnv: ['GITHUB_TOKEN']
 
+###########################################################
+# Step 5: Build and Publish Ingestion Container Image
+###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
+    - fetch-mvn-cache
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
-
+###########################################################
+# Step 6: Build and Publish Deletion Container Image
+###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
+    - fetch-mvn-cache
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
+###########################################################
+# Step 7: Generate Templates for Dataflow jobs and Firebase
+###########################################################
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
   waitFor:
@@ -66,7 +101,29 @@ steps:
     - "./ci/generate-templates.sh"
   env:
     - PROJECT_ID=$PROJECT_ID
+
+###########################################################
+# Step 8: Update cached .m2 directory on GCS with any
+#         additional dependencies downloaded during the
+#         build.
+###########################################################
+- name: 'gcr.io/cloud-builders/gsutil'
+  waitFor:
+    - ingestion-container-build
+    - deletion-container-build
+  args:
+    - '-m'
+    - 'rsync'
+    - '-r'
+    - '/cache/.m2'
+    - 'gs://${_BUCKET}/cache/.m2/'
+  volumes:
+    - path: '/cache/.m2'
+      name: 'm2_cache'
+
 substitutions:
+  # Default value
+  _BUCKET: 'enpa-infra'
   _DEFAULT: '${SHORT_SHA}-SNAPSHOT'
   _TAG: ${TAG_NAME:-$_DEFAULT} #default value will be SHORT_SHA-SNAPSHOT
   _VERSION: 'git describe --tags --always --dirty=-dirty'
