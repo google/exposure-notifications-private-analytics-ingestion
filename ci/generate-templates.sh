@@ -41,8 +41,18 @@ json -f templates/dataflow-flex-template.json \
   -e "this.metadata=$(cat templates/dataflow-deletion-metadata-template.json)" \
   -e "this.image='gcr.io/enpa-infra/deletion-pipeline:$VERSION'" > deletion-pipeline-$VERSION.json
 
+json -f templates/dataflow-flex-template.json \
+  -e "this.metadata=$(cat templates/dataflow-ingestion-metadata-template.json)" \
+  -e "this.image='gcr.io/enpa-public-assets/ingestion-pipeline:$VERSION'" > public-ingestion-pipeline-$VERSION.json
+
+json -f templates/dataflow-flex-template.json \
+  -e "this.metadata=$(cat templates/dataflow-deletion-metadata-template.json)" \
+  -e "this.image='gcr.io/enpa-public-assets/deletion-pipeline:$VERSION'" > public-deletion-pipeline-$VERSION.json
+
 gsutil cp ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 gsutil cp deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
+gsutil cp public-ingestion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
+gsutil cp public-deletion-pipeline-$VERSION.json gs://enpa-pipeline-specs/
 
 # Version and upload scheduler templates to GCS
 gsutil -h "Content-Type:application/json" cp templates/scheduler-ingestion-template.tmpl gs://enpa-pipeline-specs/scheduler-ingestion-template-$VERSION.tmpl

@@ -47,7 +47,31 @@ steps:
   args: ['tag', '$_TAG']
 
 ###########################################################
-# Step 4: Package and Deploy to Github maven repo
+# Step 4: Rebuild Dataflow Flex Template base image
+###########################################################
+- name: gcr.io/cloud-builders/docker
+  id: rebuild-dataflow-flex-base-image
+  waitFor:
+    - '-'
+  args: 
+    - 'build'
+    - '-t'
+    - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
+    - 'df-flex-template-base-image'
+
+###########################################################
+# Step 5: Publish Dataflow Flex Template base image
+###########################################################
+- name: gcr.io/cloud-builders/docker
+  id: push-dataflow-flex-base-image
+  waitFor:
+    - rebuild-dataflow-flex-base-image
+  args: 
+    - 'push'
+    - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
+
+###########################################################
+# Step 6: Package and Deploy to Github maven repo
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: package-deploy-mvn-registry
@@ -66,7 +90,37 @@ steps:
   secretEnv: ['GITHUB_TOKEN']
 
 ###########################################################
-# Step 5: Build and Publish Ingestion Container Image
+# Step 7: Build and Publish Public Ingestion Container Image
+###########################################################
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: public-ingestion-container-build
+  waitFor:
+    - update-submodules
+    - recreate-tag
+    - fetch-mvn-cache
+    - push-dataflow-flex-base-image
+  entrypoint: bash
+  args:
+    - '-c'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
+
+###########################################################
+# Step 8: Build and Publish Public Deletion Container Image
+###########################################################
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: public-deletion-container-build
+  waitFor:
+    - update-submodules
+    - recreate-tag
+    - fetch-mvn-cache
+    - push-dataflow-flex-base-image
+  entrypoint: bash
+  args:
+    - '-c'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
+
+###########################################################
+# Step 9: Build and Publish Ingestion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
@@ -74,13 +128,15 @@ steps:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - push-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
-
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -s mvn-settings.xml -DskipTests -Pingestion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+  secretEnv: ['GITHUB_TOKEN']
+  
 ###########################################################
-# Step 6: Build and Publish Deletion Container Image
+# Step 10: Build and Publish Deletion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
@@ -88,30 +144,31 @@ steps:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - push-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -s mvn-settings.xml -DskipTests -Pdeletion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+  secretEnv: ['GITHUB_TOKEN']
 
 ###########################################################
-# Step 7: Generate Templates for Dataflow jobs and Firebase
+# Step 11: Generate Templates for Dataflow jobs and Firebase
 ###########################################################
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
   waitFor:
-    - ingestion-container-build
-    - deletion-container-build
+    - recreate-tag
   args:
     - "./ci/generate-templates.sh"
   env:
     - PROJECT_ID=$PROJECT_ID
 
 ###########################################################
-# Step 8: Update cached .m2 directory on GCS with any
+# Step 12: Update cached .m2 directory on GCS with any
 #         additional dependencies downloaded during the
 #         build.
 ###########################################################
-- name: 'gcr.io/cloud-builders/gsutil'
+- name: gcr.io/cloud-builders/gsutil
   id: sync-mvn-cache
   waitFor:
     - ingestion-container-build
@@ -125,12 +182,13 @@ steps:
   volumes:
     - path: '/cache/.m2'
       name: 'm2_cache'
-
+images:
+  - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
 substitutions:
   # Default value
   _BUCKET: 'enpa-infra'
-  _DEFAULT: '${SHORT_SHA}-SNAPSHOT'
-  _TAG: ${TAG_NAME:-$_DEFAULT} #default value will be SHORT_SHA-SNAPSHOT
+  _DEFAULT_TAG: '${SHORT_SHA}-SNAPSHOT'
+  _TAG: ${TAG_NAME:-$_DEFAULT_TAG} #default value will be SHORT_SHA-SNAPSHOT
   _VERSION: 'git describe --tags --always --dirty=-dirty'
 secrets:
   - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
