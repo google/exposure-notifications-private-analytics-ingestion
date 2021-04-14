@@ -66,7 +66,7 @@ steps:
   secretEnv: ['GITHUB_TOKEN']
 
 ###########################################################
-# Step 5: Build and Publish Ingestion Container Image
+# Step 5: Build and Publish Public Ingestion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
@@ -77,10 +77,10 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 6: Build and Publish Deletion Container Image
+# Step 6: Build and Publish Public Deletion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
@@ -91,10 +91,38 @@ steps:
   entrypoint: bash
   args:
     - '-c'
-    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 7: Generate Templates for Dataflow jobs and Firebase
+# Step 7: Build and Publish Public Ingestion Container Image
+###########################################################
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: ingestion-container-build
+  waitFor:
+    - update-submodules
+    - recreate-tag
+    - fetch-mvn-cache
+  entrypoint: bash
+  args:
+    - '-c'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+
+###########################################################
+# Step 8: Build and Publish Public Deletion Container Image
+###########################################################
+- name: gcr.io/cloud-devrel-public-resources/java11
+  id: deletion-container-build
+  waitFor:
+    - update-submodules
+    - recreate-tag
+    - fetch-mvn-cache
+  entrypoint: bash
+  args:
+    - '-c'
+    - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
+
+###########################################################
+# Step 9: Generate Templates for Dataflow jobs and Firebase
 ###########################################################
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
@@ -129,8 +157,8 @@ steps:
 substitutions:
   # Default value
   _BUCKET: 'enpa-infra'
-  _DEFAULT: '${SHORT_SHA}-SNAPSHOT'
-  _TAG: ${TAG_NAME:-$_DEFAULT} #default value will be SHORT_SHA-SNAPSHOT
+  _DEFAULT_TAG: '${SHORT_SHA}-SNAPSHOT'
+  _TAG: ${TAG_NAME:-$_DEFAULT_TAG} #default value will be SHORT_SHA-SNAPSHOT
   _VERSION: 'git describe --tags --always --dirty=-dirty'
 secrets:
   - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
