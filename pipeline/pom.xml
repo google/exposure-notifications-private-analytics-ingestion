@@ -230,7 +230,7 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>${container_registry_tag_prefix}/openjdk-flex-template-launcher:11-jre-slim</image>
+                <image>gcr.io/enpa-public-assets/distroless-flex-template-launcher:11</image>
               </from>
               <to>
                 <image>${container_registry_tag_prefix}/ingestion-pipeline</image>
@@ -285,7 +285,7 @@
             <version>2.6.0</version>
             <configuration>
               <from>
-                <image>${container_registry_tag_prefix}/openjdk-flex-template-launcher:11-jre-slim</image>
+                <image>gcr.io/enpa-public-assets/distroless-flex-template-launcher:11</image>
               </from>
               <to>
                 <image>${container_registry_tag_prefix}/deletion-pipeline</image>

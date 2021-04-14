@@ -47,9 +47,22 @@ steps:
   args: ['tag', '$_TAG']
 
 ###########################################################
-# Step 4: Package and Deploy to Github maven repo
+# Step 4: Rebuild Dataflow Flex Template base image
 ###########################################################
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: 'gcr.io/cloud-builders/docker'
+  id: rebuild-dataflow-flex-base-image
+  waitFor:
+    - '-'
+  args: 
+    - 'build'
+    - '-t'
+    - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
+    - 'df-flex-template-base-image'
+
+###########################################################
+# Step 5: Package and Deploy to Github maven repo
+###########################################################
+- name: gcr.io/distroless/java:11
   id: package-deploy-mvn-registry
   waitFor:
     - update-submodules
@@ -66,63 +79,67 @@ steps:
   secretEnv: ['GITHUB_TOKEN']
 
 ###########################################################
-# Step 5: Build and Publish Public Ingestion Container Image
+# Step 6: Build and Publish Public Ingestion Container Image
 ###########################################################
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: gcr.io/distroless/java:11
   id: public-ingestion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - rebuild-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 6: Build and Publish Public Deletion Container Image
+# Step 7: Build and Publish Public Deletion Container Image
 ###########################################################
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: gcr.io/distroless/java:11
   id: public-deletion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - rebuild-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 7: Build and Publish Ingestion Container Image
+# Step 8: Build and Publish Ingestion Container Image
 ###########################################################
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: gcr.io/distroless/java:11
   id: ingestion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - rebuild-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 8: Build and Publish Deletion Container Image
+# Step 9: Build and Publish Deletion Container Image
 ###########################################################
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: gcr.io/distroless/java:11
   id: deletion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
     - fetch-mvn-cache
+    - rebuild-dataflow-flex-base-image
   entrypoint: bash
   args:
     - '-c'
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 9: Generate Templates for Dataflow jobs and Firebase
+# Step 10: Generate Templates for Dataflow jobs and Firebase
 ###########################################################
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
@@ -134,7 +151,7 @@ steps:
     - PROJECT_ID=$PROJECT_ID
 
 ###########################################################
-# Step 8: Update cached .m2 directory on GCS with any
+# Step 11: Update cached .m2 directory on GCS with any
 #         additional dependencies downloaded during the
 #         build.
 ###########################################################
@@ -152,7 +169,8 @@ steps:
   volumes:
     - path: '/cache/.m2'
       name: 'm2_cache'
-
+images:
+  - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
 substitutions:
   # Default value
   _BUCKET: 'enpa-infra'
