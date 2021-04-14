@@ -16,7 +16,7 @@ steps:
 ###########################################################
 # Step 1: Retrieve the cached .m2 directory from GCS
 ###########################################################
-- name: 'gcr.io/cloud-builders/gsutil'
+- name: gcr.io/cloud-builders/gsutil
   id: fetch-mvn-cache
   args:
     - '-m'
@@ -31,7 +31,7 @@ steps:
 ###########################################################
 # Step 2: Run project integration tests using Maven
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: pr-integration-tests
   waitFor:
     - fetch-mvn-cache
@@ -51,7 +51,7 @@ steps:
 ###########################################################
 # Step 3: Run Firebase integration tests using npm
 ########################################################### 
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: firebase-integration-tests
   waitFor: 
     - '-'
@@ -65,7 +65,7 @@ steps:
 #         additional dependencies downloaded during the
 #         build.
 ###########################################################
-- name: 'gcr.io/cloud-builders/gsutil'
+- name: gcr.io/cloud-builders/gsutil
   id: sync-mvn-cache
   waitFor:
     - pr-integration-tests

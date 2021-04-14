@@ -49,7 +49,7 @@ steps:
 ###########################################################
 # Step 4: Rebuild Dataflow Flex Template base image
 ###########################################################
-- name: 'gcr.io/cloud-builders/docker'
+- name: gcr.io/cloud-builders/docker
   id: rebuild-dataflow-flex-base-image
   waitFor:
     - '-'
@@ -62,7 +62,7 @@ steps:
 ###########################################################
 # Step 5: Package and Deploy to Github maven repo
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: package-deploy-mvn-registry
   waitFor:
     - update-submodules
@@ -81,7 +81,7 @@ steps:
 ###########################################################
 # Step 6: Build and Publish Public Ingestion Container Image
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: public-ingestion-container-build
   waitFor:
     - update-submodules
@@ -96,7 +96,7 @@ steps:
 ###########################################################
 # Step 7: Build and Publish Public Deletion Container Image
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: public-deletion-container-build
   waitFor:
     - update-submodules
@@ -111,7 +111,7 @@ steps:
 ###########################################################
 # Step 8: Build and Publish Ingestion Container Image
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
   waitFor:
     - update-submodules
@@ -126,7 +126,7 @@ steps:
 ###########################################################
 # Step 9: Build and Publish Deletion Container Image
 ###########################################################
-- name: gcr.io/distroless/java:11
+- name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
   waitFor:
     - update-submodules
@@ -155,7 +155,7 @@ steps:
 #         additional dependencies downloaded during the
 #         build.
 ###########################################################
-- name: 'gcr.io/cloud-builders/gsutil'
+- name: gcr.io/cloud-builders/gsutil
   id: sync-mvn-cache
   waitFor:
     - ingestion-container-build
