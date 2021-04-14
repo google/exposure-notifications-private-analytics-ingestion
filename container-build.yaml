@@ -69,7 +69,7 @@ steps:
 # Step 5: Build and Publish Public Ingestion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
-  id: ingestion-container-build
+  id: public-ingestion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
@@ -83,7 +83,7 @@ steps:
 # Step 6: Build and Publish Public Deletion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
-  id: deletion-container-build
+  id: public-deletion-container-build
   waitFor:
     - update-submodules
     - recreate-tag
@@ -94,7 +94,7 @@ steps:
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pdeletion-container-build -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-public-assets" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 7: Build and Publish Public Ingestion Container Image
+# Step 7: Build and Publish Ingestion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: ingestion-container-build
@@ -108,7 +108,7 @@ steps:
     - 'source ci/common.sh && retry_with_backoff 3 10 ./mvnw -DskipTests -Pingestion-container-build,attestation -Dcontainer-version=$(${_VERSION}) -Dcontainer_registry_tag_prefix="gcr.io/enpa-infra" -Drevision=$(${_VERSION}) package'
 
 ###########################################################
-# Step 8: Build and Publish Public Deletion Container Image
+# Step 8: Build and Publish Deletion Container Image
 ###########################################################
 - name: gcr.io/cloud-devrel-public-resources/java11
   id: deletion-container-build
@@ -127,8 +127,7 @@ steps:
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
   id: flex-template-generator-and-uploader
   waitFor:
-    - ingestion-container-build
-    - deletion-container-build
+    - recreate-tag
   args:
     - "./ci/generate-templates.sh"
   env:
