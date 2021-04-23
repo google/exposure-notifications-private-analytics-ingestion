@@ -37,7 +37,7 @@
     <attestation-impl.version>20210426_01</attestation-impl.version>
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
-    <beam.version>2.25.0</beam.version>
+    <beam.version>2.32.0</beam.version>
     <hamcrest.version>2.1</hamcrest.version>
     <jackson.version>2.10.2</jackson.version>
     <joda.version>2.10.5</joda.version>

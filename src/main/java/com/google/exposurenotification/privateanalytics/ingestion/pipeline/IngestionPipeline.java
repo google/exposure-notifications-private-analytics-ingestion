@@ -19,8 +19,9 @@ import com.google.exposurenotification.privateanalytics.ingestion.attestation.Ab
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestorePartitionQueryCreation;
 import com.google.firestore.v1.Document;
+import com.google.firestore.v1.RunQueryResponse;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.ServiceLoader;
 import java.util.UUID;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.gcp.firestore.FirestoreIO;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.Distinct;
@@ -94,7 +96,17 @@ public class IngestionPipeline {
             options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
     PCollection<DataShare> dataShares =
         pipeline
-            .apply(new FirestoreReader(startTime))
+            .apply(new FirestorePartitionQueryCreation(startTime))
+            .apply(FirestoreIO.v1().read().partitionQuery().build())
+            .apply(FirestoreIO.v1().read().runQuery().build())
+            .apply(
+                MapElements.via(
+                    new SimpleFunction<RunQueryResponse, Document>() {
+                      @Override
+                      public Document apply(RunQueryResponse input) {
+                        return input.hasDocument() ? input.getDocument() : null;
+                      }
+                    }))
             // Ensure distinctness of data shares based on document path
             .apply(
                 Distinct.<Document, String>withRepresentativeValueFn(

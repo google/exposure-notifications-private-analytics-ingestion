@@ -16,13 +16,17 @@
 
 package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
-import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreDeleter;
-import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestorePartitionQueryCreation;
+import com.google.firestore.v1.RunQueryResponse;
+import com.google.firestore.v1.Write;
 import java.time.Clock;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.gcp.firestore.FirestoreIO;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +40,19 @@ public class DeletionPipeline {
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), 2, Clock.systemUTC());
-    pipeline.apply(new FirestoreReader(startTime)).apply(new FirestoreDeleter());
+    pipeline
+        .apply(new FirestorePartitionQueryCreation(startTime))
+        .apply(FirestoreIO.v1().read().partitionQuery().withNameOnlyQuery().build())
+        .apply(FirestoreIO.v1().read().runQuery().build())
+        .apply(
+            MapElements.via(
+                new SimpleFunction<RunQueryResponse, Write>() {
+                  @Override
+                  public Write apply(RunQueryResponse input) {
+                    return Write.newBuilder().setDelete(input.getDocument().getName()).build();
+                  }
+                }))
+        .apply(FirestoreIO.v1().write().batchWrite().build());
     return pipeline.run();
   }
 

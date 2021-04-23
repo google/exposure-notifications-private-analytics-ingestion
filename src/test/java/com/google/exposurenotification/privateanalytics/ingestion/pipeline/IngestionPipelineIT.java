@@ -15,8 +15,8 @@
  */
 package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
-import static com.google.common.truth.Truth.assertThat;
 import static com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.formatDateTime;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -30,13 +30,14 @@ import com.google.cloud.firestore.v1.FirestoreSettings;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.EncryptedShare;
-import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestorePartitionQueryCreation;
 import com.google.firestore.v1.ArrayValue;
 import com.google.firestore.v1.CreateDocumentRequest;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.GetDocumentRequest;
 import com.google.firestore.v1.ListDocumentsRequest;
 import com.google.firestore.v1.MapValue;
+import com.google.firestore.v1.RunQueryRequest;
 import com.google.firestore.v1.Value;
 import java.io.File;
 import java.io.IOException;
@@ -55,17 +56,18 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.abetterinternet.prio.v1.PrioBatchSignature;
 import org.abetterinternet.prio.v1.PrioDataSharePacket;
 import org.abetterinternet.prio.v1.PrioIngestionHeader;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.metrics.MetricNameFilter;
-import org.apache.beam.sdk.metrics.MetricsFilter;
+import org.apache.beam.sdk.io.gcp.firestore.FirestoreIO;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Count;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.After;
 import org.junit.Assert;
@@ -120,7 +122,7 @@ public class IngestionPipelineIT {
   @After
   public void tearDown() {
     cleanUpDb();
-    FirestoreConnector.shutdownFirestoreClient(client);
+    FirestoreClientTestUtils.shutdownFirestoreClient(client);
   }
 
   @Test
@@ -351,26 +353,23 @@ public class IngestionPipelineIT {
     int numDocs = 200;
     seedDatabaseAndReturnEntryVal(numDocs);
 
-    PCollection<Long> numShares =
-        testPipeline.apply(new FirestoreReader(CREATION_TIME)).apply(Count.globally());
+    PCollection<RunQueryRequest> partitionedQueries =
+        testPipeline
+            .apply(new FirestorePartitionQueryCreation(CREATION_TIME))
+            .apply(FirestoreIO.v1().read().partitionQuery().build());
 
-    PAssert.that(numShares).containsInAnyOrder((long) numDocs);
-    PipelineResult result = testPipeline.run();
-    long partitionsCreated =
-        result
-            .metrics()
-            .queryMetrics(
-                MetricsFilter.builder()
-                    .addNameFilter(
-                        MetricNameFilter.named(FirestoreConnector.class, "partitionCursors"))
-                    .build())
-            .getCounters()
-            .iterator()
-            .next()
-            .getCommitted();
+    PCollection<Long> partitionsCreated = partitionedQueries.apply(Count.globally());
+
+    PCollection<Long> numShares =
+        partitionedQueries
+            .apply(FirestoreIO.v1().read().runQuery().build())
+            .apply(Count.globally());
+
     // Assert that at least one partition was created. Number of partitions created is determined at
     // runtime, so we can't specify an exact number.
-    assertThat(partitionsCreated).isGreaterThan(1);
+    PAssert.that(partitionsCreated).satisfies(new PartitionsCreatedAssertion());
+    PAssert.that(numShares).containsInAnyOrder((long) numDocs);
+    PipelineResult result = testPipeline.run();
   }
 
   private static Document fetchDocumentFromFirestore(String path, FirestoreClient client) {
@@ -766,5 +765,26 @@ public class IngestionPipelineIT {
             .withQuiet(false);
     s3Client.deleteObjects(multiObjectDeleteRequest);
     return filteredKeys;
+  }
+
+  /**
+   * Define a set of assertions which will be performed on the result of counting the number of
+   * RunQueryRequests which are created by partition query.
+   *
+   * <p>This is a separate class to ensure a boundary which is {@link java.io.Serializable}
+   * otherwise the JUnit test will be closed over which isn't Serializable.
+   */
+  private static class PartitionsCreatedAssertion
+      implements SerializableFunction<Iterable<Long>, Void> {
+
+    @Override
+    public Void apply(Iterable<Long> input) {
+      var first = StreamSupport.stream(input.spliterator(), false).findFirst();
+
+      assertTrue(first.isPresent());
+      assertTrue(first.get() > 1);
+
+      return null;
+    }
   }
 }

@@ -77,7 +77,7 @@ public class DeletionPipelineIT {
 
   @After
   public void tearDown() {
-    FirestoreConnector.shutdownFirestoreClient(client);
+    FirestoreClientTestUtils.shutdownFirestoreClient(client);
   }
 
   @Test
