@@ -34,7 +34,7 @@
   <properties>
     <revision>20210413_RC01-SNAPSHOT</revision>
     <container_registry_tag_prefix>change.me/changme</container_registry_tag_prefix>
-    <attestation-impl.version>20210421_01</attestation-impl.version>
+    <attestation-impl.version>20210426_01</attestation-impl.version>
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
     <beam.version>2.25.0</beam.version>
