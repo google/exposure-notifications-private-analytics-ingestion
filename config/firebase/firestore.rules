@@ -124,7 +124,8 @@ service cloud.firestore {
           'PeriodicExposureNotification-v1',
           'CodeVerified-v1',
           'KeysUploaded-v1',
-          'DateExposure-v1'
+          'DateExposure-v1',
+          'KeysUploadedVaccineStatus-v1',
       ];
     }
 
