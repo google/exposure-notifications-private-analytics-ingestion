@@ -16,6 +16,6 @@
 
 resource "google_storage_bucket_iam_member" "gcr_bucket" {
   bucket = "artifacts.enpa-infra.appspot.com"
-  role = "roles/storage.objectViewer"
+  role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.dataflow.email}"
 }
