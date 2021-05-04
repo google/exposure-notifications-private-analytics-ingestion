@@ -21,6 +21,11 @@ variable "project" {
   description = "The ID of the Google Cloud project created previously. Required."
 }
 
+variable "project_owners_list" {
+  type        = list(any)
+  description = "The list of fully-qualified owners (user:<user-email>, group:<group-email>, serviceAccount:<svc-acct-email>) of the project"
+}
+
 variable "pipeline_version" {
   type        = string
   description = "Dataflow tuning parameter: the version of the pipeline code. Required."
@@ -178,4 +183,9 @@ variable "templates_bucket" {
   type        = string
   description = "The bucket in which templates are fetched from. Defaults to 'enpa-infra'."
   default     = "enpa-infra"
+}
+
+variable "terraform_svc_account_email" {
+  type        = string
+  description = "The email address of the Terraform Runner service account"
 }
