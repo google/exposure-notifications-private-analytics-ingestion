@@ -62,7 +62,7 @@ resource "google_project_iam_custom_role" "terraform_service_account_role" {
 
 resource "google_project_iam_member" "terraform_service_account_permissions" {
   project = var.project
-  role    = "projects/${var.project}/roles/${google_project_iam_custom_role.terraform_service_account_role.role_id}"
+  role    = google_project_iam_custom_role.terraform_service_account_role.id
   member  = "serviceAccount:${var.terraform_svc_account_email}"
 }
 
