@@ -22,7 +22,7 @@ variable "project" {
 }
 
 variable "project_owners_list" {
-  type        = list(any)
+  type        = list(string)
   description = "The list of fully-qualified owners (user:<user-email>, group:<group-email>, serviceAccount:<svc-acct-email>) of the project"
 }
 
