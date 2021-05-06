@@ -61,12 +61,14 @@ resource "google_project_iam_custom_role" "terraform_service_account_role" {
 }
 
 resource "google_project_iam_member" "terraform_service_account_permissions" {
+  depends_on = [google_project_iam_custom_role.terraform_service_account_role]
   project = var.project
   role    = google_project_iam_custom_role.terraform_service_account_role.id
   member  = "serviceAccount:${var.terraform_svc_account_email}"
 }
 
 resource "google_project_iam_binding" "owners" {
+  depends_on = [google_project_iam_member.terraform_service_account_permissions]
   project = var.project
   role    = "roles/owner"
   members = var.project_owners_list
