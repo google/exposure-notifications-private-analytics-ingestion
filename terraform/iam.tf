@@ -67,7 +67,8 @@ resource "google_project_iam_member" "terraform_service_account_permissions" {
 }
 
 resource "google_project_iam_binding" "owners" {
-  project = var.project
-  role    = "roles/owner"
-  members = var.project_owners_list
+  depends_on = [google_project_iam_member.terraform_service_account_permissions]
+  project    = var.project
+  role       = "roles/owner"
+  members    = var.project_owners_list
 }
