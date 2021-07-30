@@ -126,6 +126,10 @@ service cloud.firestore {
           'KeysUploaded-v1',
           'DateExposure-v1',
           'KeysUploadedVaccineStatus-v1',
+          'CodeVerifiedWithReportType14d-v1',
+          'KeysUploadedWithReportType14d-v1',
+          'SecondaryAttack14d-v1',
+          'PeriodicExposureNotification14d-v1'
       ];
     }
 
