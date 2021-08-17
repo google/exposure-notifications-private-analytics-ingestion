@@ -21,5 +21,6 @@ scriptDir=$(realpath $(dirname "${BASH_SOURCE[0]}"))
 cd ${scriptDir}/..
 cd config/firebase
 
+npm init -y
 echo "************ Executing rules.test.js ************"
 firebase emulators:exec --project=$PROJECT --only firestore "npm run test"
