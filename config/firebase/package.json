@@ -1,5 +1,5 @@
 {
-  "name": "firebaseConfigsTest",
+  "name": "firebaseconfigstest",
   "version": "1.0.0",
   "description": "test suite for configurations",
   "main": "rules_test.js",
@@ -8,9 +8,10 @@
   },
   "dependencies": {
     "@firebase/testing": "^0.20.11",
-    "jest": "^26.5.3"
+    "jest": "^26.6.3"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {}
 }
