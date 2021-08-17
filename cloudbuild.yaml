@@ -51,7 +51,7 @@ steps:
 ###########################################################
 # Step 3: Run Firebase integration tests using npm
 ########################################################### 
-- name: gcr.io/cloud-devrel-public-resources/java11
+- name: gcr.io/enpa-public-assets/firestore-tesing:v1
   id: firebase-integration-tests
   waitFor: 
     - '-'
@@ -59,6 +59,8 @@ steps:
   args:
     - "-e"
     - "./ci/firebase.sh"
+  env:
+    - PROJECT=enpa-integration-testing
 
 ###########################################################
 # Step 4: Update cached .m2 directory on GCS with any
