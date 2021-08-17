@@ -15,7 +15,7 @@
 FROM openjdk:17-jdk-alpine3.14
 
 RUN apk add --no-cache nodejs npm bash
-RUN npm i -g firebase-tools @firebase/testing jest
+RUN npm i -g firebase-tools 
 RUN firebase emulators:exec --only firestore "npm -v"
 
 WORKDIR /workspace

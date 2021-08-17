@@ -21,6 +21,10 @@ scriptDir=$(realpath $(dirname "${BASH_SOURCE[0]}"))
 cd ${scriptDir}/..
 cd config/firebase
 
+echo "************ Installing npm testing library and jest ************"
 npm init -y
+npm i @firebase/testing jest
+echo "************ Dependencies installed successfully! ************"
+
 echo "************ Executing rules.test.js ************"
 firebase emulators:exec --project=$PROJECT --only firestore "npm run test"
