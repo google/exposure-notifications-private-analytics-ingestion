@@ -358,7 +358,8 @@ public class IngestionPipelineIT {
             .apply(new FirestorePartitionQueryCreation(CREATION_TIME))
             .apply(FirestoreIO.v1().read().partitionQuery().build());
 
-    PCollection<Long> partitionsCreated = partitionedQueries.apply("count-partitions", Count.globally());
+    PCollection<Long> partitionsCreated =
+        partitionedQueries.apply("count-partitions", Count.globally());
 
     PCollection<Long> numShares =
         partitionedQueries
