@@ -152,7 +152,7 @@ public class FirestoreConnector {
   }
 
   private static String getParentPath(String projectId) {
-    return DatabaseRootName.format(projectId, "(default)") + "/";
+    return DatabaseRootName.format(projectId, "(default)") + "/documents";
   }
 
   // Formats a time given in epoch seconds in the format: yyyy-MM-dd-HH
