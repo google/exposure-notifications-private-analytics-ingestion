@@ -24,16 +24,23 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.firestore.v1.FirestoreClient;
 import com.google.cloud.firestore.v1.FirestoreClient.ListDocumentsPagedResponse;
 import com.google.cloud.firestore.v1.FirestoreSettings;
-import com.google.firestore.v1.CreateDocumentRequest;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
+import com.google.firestore.v1.BatchWriteRequest;
+import com.google.firestore.v1.DatabaseRootName;
 import com.google.firestore.v1.Document;
 import com.google.firestore.v1.GetDocumentRequest;
 import com.google.firestore.v1.ListDocumentsRequest;
+import com.google.firestore.v1.Write;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricNameFilter;
 import org.apache.beam.sdk.metrics.MetricsFilter;
@@ -60,9 +67,14 @@ public class DeletionPipelineIT {
   static final String TEST_COLLECTION_NAME =
       "uuid" + UUID.randomUUID().toString().replace("-", "_");
   static final String KEY_RESOURCE_NAME = System.getenv("KEY_RESOURCE_NAME");
+  static final DatabaseRootName DATABASE_ROOT_NAME = DatabaseRootName.of(PROJECT, "(default)");
+  static final String BASE_COLLECTION_NAME =
+      String.format(
+          "%s/documents/%s/testDoc/%s",
+          DATABASE_ROOT_NAME, TEST_COLLECTION_NAME, formatDateTime(CREATION_TIME));
 
-  static List<Document> documentList;
-  static FirestoreClient client;
+  List<String> documentNames;
+  FirestoreClient client;
 
   public transient IngestionPipelineOptions testOptions =
       TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
@@ -71,7 +83,7 @@ public class DeletionPipelineIT {
 
   @Before
   public void setUp() throws IOException {
-    documentList = new ArrayList<>();
+    documentNames = new ArrayList<>();
     client = getFirestoreClient();
   }
 
@@ -83,47 +95,35 @@ public class DeletionPipelineIT {
   @Test
   @Category(NeedsRunner.class)
   public void testFirestoreDeleterDeletesDocs() throws InterruptedException {
-    IngestionPipelineOptions options =
-        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
-    options.setStartTime(CREATION_TIME);
-    options.setProject(PROJECT);
-    options.setDuration(DURATION);
-    options.setKeyResourceName(KEY_RESOURCE_NAME);
-    int numDocs = 50;
+    testOptions.as(DataflowPipelineOptions.class).setMaxNumWorkers(1);
+    testOptions.setStartTime(CREATION_TIME);
+    testOptions.setProject(PROJECT);
+    testOptions.setDuration(DURATION);
+    testOptions.setKeyResourceName(KEY_RESOURCE_NAME);
+    int numDocs = 500;
     seedDatabase(numDocs);
 
-    PipelineResult result = DeletionPipeline.runDeletionPipeline(options);
+    DeletionPipeline.buildDeletionPipeline(testOptions, testPipeline);
+    PipelineResult result = testPipeline.run();
     result.waitUntilFinish();
 
     // Assert that processed documents have been deleted.
-    documentList.forEach(
-        doc -> {
-          String name = doc.getName();
-          assertThrows(NotFoundException.class, () -> fetchDocumentFromFirestore(name, client));
-        });
+    documentNames.forEach(
+        name ->
+            assertThrows(NotFoundException.class, () -> fetchDocumentFromFirestore(name, client)));
+    MetricNameFilter documentsDeletedMetricName =
+        MetricNameFilter.named(
+            "org.apache.beam.sdk.io.gcp.firestore.FirestoreV1.BatchWrite", "writes_successful");
     long documentsDeleted =
         result
             .metrics()
-            .queryMetrics(
-                MetricsFilter.builder()
-                    .addNameFilter(
-                        MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
-                    .build())
+            .queryMetrics(MetricsFilter.builder().addNameFilter(documentsDeletedMetricName).build())
             .getCounters()
             .iterator()
             .next()
             .getCommitted();
-    result
-        .metrics()
-        .queryMetrics(
-            MetricsFilter.builder()
-                .addNameFilter(MetricNameFilter.named(FirestoreConnector.class, "documentsDeleted"))
-                .build())
-        .getCounters()
-        .iterator()
-        .next()
-        .getCommitted();
     assertThat(documentsDeleted).isEqualTo(numDocs);
+
     cleanUpParentResources(client);
   }
 
@@ -150,27 +150,37 @@ public class DeletionPipelineIT {
     return client.getDocument(GetDocumentRequest.newBuilder().setName(path).build());
   }
 
-  private static void seedDatabase(int numDocsToSeed) throws InterruptedException {
+  private void seedDatabase(int numDocsToSeed) throws InterruptedException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
 
-    for (int i = 1; i <= numDocsToSeed; i++) {
-      Document doc = Document.getDefaultInstance();
-      documentList.add(
-          client.createDocument(
-              CreateDocumentRequest.newBuilder()
-                  .setCollectionId(formatDateTime(CREATION_TIME))
-                  .setDocumentId("metric1")
-                  .setDocument(doc)
-                  .setParent(
-                      "projects/"
-                          + PROJECT
-                          + "/databases/(default)/documents/"
-                          + TEST_COLLECTION_NAME
-                          + "/testDoc"
-                          + i)
-                  .build()));
+    documentNames =
+        IntStream.rangeClosed(1, numDocsToSeed)
+            .mapToObj(i -> String.format("%s/metric%05d", BASE_COLLECTION_NAME, i))
+            .collect(Collectors.toList());
+
+    List<BatchWriteRequest> batchWriteRequests =
+        Streams.stream(Iterables.partition(documentNames, 500))
+            .map(
+                names ->
+                    names.stream()
+                        .map(
+                            name ->
+                                Write.newBuilder()
+                                    .setUpdate(Document.newBuilder().setName(name).build())
+                                    .build())
+                        .collect(Collectors.toList()))
+            .map(
+                writes ->
+                    BatchWriteRequest.newBuilder()
+                        .setDatabase(DATABASE_ROOT_NAME.toString())
+                        .addAllWrites(writes)
+                        .build())
+            .collect(Collectors.toList());
+
+    for (BatchWriteRequest batchWriteRequest : batchWriteRequests) {
+      client.batchWrite(batchWriteRequest);
     }
   }
 }
