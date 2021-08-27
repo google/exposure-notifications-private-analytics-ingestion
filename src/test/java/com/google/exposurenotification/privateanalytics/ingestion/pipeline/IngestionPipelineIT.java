@@ -103,8 +103,9 @@ public class IngestionPipelineIT {
   static final Long DEFAULT_HAMMING_WEIGHT = 1L;
 
   static final String STATE_ABBR = "NY";
-  static List<String> documentList;
-  static FirestoreClient client;
+
+  List<String> documentNames;
+  FirestoreClient client;
 
   @Rule public TemporaryFolder tmpFolder = new TemporaryFolder();
 
@@ -115,7 +116,7 @@ public class IngestionPipelineIT {
 
   @Before
   public void setUp() throws IOException {
-    documentList = new ArrayList<>();
+    documentNames = new ArrayList<>();
     client = getFirestoreClient();
   }
 
@@ -146,7 +147,8 @@ public class IngestionPipelineIT {
     Map<String, List<PrioDataSharePacket>> inputDataSharePackets =
         seedDatabaseAndReturnEntryVal(numDocs);
 
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
+    IngestionPipeline.buildIngestionPipeline(testOptions, testPipeline);
+    PipelineResult result = testPipeline.run();
     result.waitUntilFinish();
 
     compareSeededPacketsToActual(inputDataSharePackets, phaDir, facDir);
@@ -181,7 +183,8 @@ public class IngestionPipelineIT {
     testOptions.setFacilitatorAwsBucketName("federation-facilitator");
     testOptions.setFacilitatorAwsBucketRegion("us-east-2");
     testOptions.setFacilitatorAwsBucketRole("arn:aws:iam::543928124548:role/AssumeRoleFacilitator");
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
+    IngestionPipeline.buildIngestionPipeline(testOptions, testPipeline);
+    PipelineResult result = testPipeline.run();
     result.waitUntilFinish();
 
     AWSFederatedAuthHelper.setupAWSAuth(
@@ -232,8 +235,6 @@ public class IngestionPipelineIT {
   @Test
   @Category(NeedsRunner.class)
   public void testIngestionPipelineDeviceAttestationEnabled() throws Exception {
-    IngestionPipelineOptions testOptions =
-        TestPipeline.testingPipelineOptions().as(IngestionPipelineOptions.class);
     String phaDir =
         tmpFolder.newFolder("testDeviceAttestation/pha/" + STATE_ABBR).getAbsolutePath();
     String facDir =
@@ -301,7 +302,8 @@ public class IngestionPipelineIT {
               .build());
     }
 
-    PipelineResult result = IngestionPipeline.runIngestionPipeline(testOptions);
+    IngestionPipeline.buildIngestionPipeline(testOptions, testPipeline);
+    PipelineResult result = testPipeline.run();
     result.waitUntilFinish();
 
     for (int i = 0; i < docs.size(); i++) {
@@ -316,7 +318,7 @@ public class IngestionPipelineIT {
               + "/testDoc"
               + i;
       Document doc = fetchDocumentFromFirestore(docName, client);
-      documentList.add(doc.getName());
+      documentNames.add(doc.getName());
     }
     List<PrioDataSharePacket> phaShares = getSharesInFolder(phaDir, TestAttestation.UUID);
     // If the docs with invalid signatures/certificates were filtered, we expect only one share.
@@ -370,15 +372,15 @@ public class IngestionPipelineIT {
     // runtime, so we can't specify an exact number.
     PAssert.that(partitionsCreated).satisfies(new PartitionsCreatedAssertion());
     PAssert.that(numShares).containsInAnyOrder((long) numDocs);
-    PipelineResult result = testPipeline.run();
+    testPipeline.run();
   }
 
   private static Document fetchDocumentFromFirestore(String path, FirestoreClient client) {
     return client.getDocument(GetDocumentRequest.newBuilder().setName(path).build());
   }
 
-  private static void cleanUpDb() {
-    documentList.forEach(docPath -> client.deleteDocument(docPath));
+  private void cleanUpDb() {
+    documentNames.forEach(docPath -> client.deleteDocument(docPath));
     cleanUpParentResources(client);
   }
 
@@ -420,8 +422,8 @@ public class IngestionPipelineIT {
    * Creates test-users collection and adds sample documents to test queries. Returns entry value in
    * form of {@link Map<String, PrioDataSharePacket>}.
    */
-  private static Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(
-      int numDocsToSeed) throws InterruptedException {
+  private Map<String, List<PrioDataSharePacket>> seedDatabaseAndReturnEntryVal(int numDocsToSeed)
+      throws InterruptedException {
     // Adding a wait here to give the Firestore instance time to initialize before attempting
     // to connect.
     TimeUnit.SECONDS.sleep(1);
@@ -499,7 +501,7 @@ public class IngestionPipelineIT {
               + "/metric1";
       Document doc = fetchDocumentFromFirestore(docName, client);
       // Add document to documentList so that it is deleted in cleanup phase of test run.
-      documentList.add(doc.getName());
+      documentNames.add(doc.getName());
       DataShare dataShare = DataShare.from(doc);
       List<EncryptedShare> encryptedDataShares = dataShare.getEncryptedDataShares();
       List<PrioDataSharePacket> splitDataShares = new ArrayList<>();

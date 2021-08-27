@@ -89,8 +89,7 @@ public class IngestionPipeline {
   }
 
   /** Perform the input, processing and output for the full ingestion pipeline. */
-  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
-    Pipeline pipeline = Pipeline.create(options);
+  static void buildIngestionPipeline(IngestionPipelineOptions options, Pipeline pipeline) {
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
@@ -119,7 +118,6 @@ public class IngestionPipeline {
                     }))
             .apply(ParDo.of(new ConstructDataSharesFn()));
     processDataShares(dataShares).apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
-    return pipeline.run();
   }
 
   public static void main(String[] args) {
@@ -134,7 +132,9 @@ public class IngestionPipeline {
     readOptionsFromManifests(options);
 
     try {
-      PipelineResult result = runIngestionPipeline(options);
+      Pipeline pipeline = Pipeline.create(options);
+      buildIngestionPipeline(options, pipeline);
+      PipelineResult result = pipeline.run();
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
       LOG.info("Metrics:\n\n{}", metrics.allMetrics().getCounters());
