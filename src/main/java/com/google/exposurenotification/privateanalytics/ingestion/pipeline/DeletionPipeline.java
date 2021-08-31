@@ -27,6 +27,7 @@ import org.apache.beam.sdk.io.gcp.firestore.FirestoreIO;
 import org.apache.beam.sdk.io.gcp.firestore.RpcQosOptions;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.slf4j.Logger;
@@ -51,6 +52,14 @@ public class DeletionPipeline {
         .apply(new FirestorePartitionQueryCreation(startTime))
         .apply(FirestoreIO.v1().read().partitionQuery().withNameOnlyQuery().build())
         .apply(FirestoreIO.v1().read().runQuery().build())
+        .apply(
+            Filter.by(
+                new SimpleFunction<RunQueryResponse, Boolean>() {
+                  @Override
+                  public Boolean apply(RunQueryResponse input) {
+                    return input.hasDocument();
+                  }
+                }))
         .apply(
             MapElements.via(
                 new SimpleFunction<RunQueryResponse, Write>() {

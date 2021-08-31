@@ -18,6 +18,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.formatDateTime;
 import static org.junit.Assert.assertThrows;
 
+import com.google.api.core.ApiFutures;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -88,7 +90,8 @@ public class DeletionPipelineIT {
   }
 
   @After
-  public void tearDown() {
+  public void tearDown() throws ExecutionException, InterruptedException {
+    cleanUpParentResources(client);
     FirestoreClientTestUtils.shutdownFirestoreClient(client);
   }
 
@@ -123,8 +126,6 @@ public class DeletionPipelineIT {
             .next()
             .getCommitted();
     assertThat(documentsDeleted).isEqualTo(numDocs);
-
-    cleanUpParentResources(client);
   }
 
   private static FirestoreClient getFirestoreClient() throws IOException {
@@ -136,14 +137,26 @@ public class DeletionPipelineIT {
     return FirestoreClient.create(settings);
   }
 
-  private static void cleanUpParentResources(FirestoreClient client) {
+  private static void cleanUpParentResources(FirestoreClient client)
+      throws ExecutionException, InterruptedException {
     ListDocumentsPagedResponse documents =
         client.listDocuments(
             ListDocumentsRequest.newBuilder()
                 .setParent("projects/" + PROJECT + "/databases/(default)/documents")
                 .setCollectionId(TEST_COLLECTION_NAME)
                 .build());
-    documents.iterateAll().forEach(document -> client.deleteDocument(document.getName()));
+    ApiFutures.allAsList(
+            Streams.stream(Iterables.partition(documents.iterateAll(), 500))
+                .map(
+                    docs ->
+                        docs.stream()
+                            .map(Document::getName)
+                            .map(name -> Write.newBuilder().setDelete(name).build())
+                            .collect(Collectors.toList()))
+                .map(DeletionPipelineIT::getBatchWriteRequest)
+                .map(request -> client.batchWriteCallable().futureCall(request))
+                .collect(Collectors.toList()))
+        .get();
   }
 
   private static Document fetchDocumentFromFirestore(String path, FirestoreClient client) {
@@ -170,16 +183,18 @@ public class DeletionPipelineIT {
                                     .setUpdate(Document.newBuilder().setName(name).build())
                                     .build())
                         .collect(Collectors.toList()))
-            .map(
-                writes ->
-                    BatchWriteRequest.newBuilder()
-                        .setDatabase(DATABASE_ROOT_NAME.toString())
-                        .addAllWrites(writes)
-                        .build())
+            .map(DeletionPipelineIT::getBatchWriteRequest)
             .collect(Collectors.toList());
 
     for (BatchWriteRequest batchWriteRequest : batchWriteRequests) {
       client.batchWrite(batchWriteRequest);
     }
+  }
+
+  private static BatchWriteRequest getBatchWriteRequest(List<Write> writes) {
+    return BatchWriteRequest.newBuilder()
+        .setDatabase(DATABASE_ROOT_NAME.toString())
+        .addAllWrites(writes)
+        .build();
   }
 }
