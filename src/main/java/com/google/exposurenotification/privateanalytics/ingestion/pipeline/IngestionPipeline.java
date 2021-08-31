@@ -98,12 +98,13 @@ public class IngestionPipeline {
             .apply(new FirestorePartitionQueryCreation(startTime))
             .apply(FirestoreIO.v1().read().partitionQuery().build())
             .apply(FirestoreIO.v1().read().runQuery().build())
+            .apply(FirestoreConnector.filterRunQueryResponseHasDocument())
             .apply(
                 MapElements.via(
                     new SimpleFunction<RunQueryResponse, Document>() {
                       @Override
                       public Document apply(RunQueryResponse input) {
-                        return input.hasDocument() ? input.getDocument() : null;
+                        return input.getDocument();
                       }
                     }))
             // Ensure distinctness of data shares based on document path

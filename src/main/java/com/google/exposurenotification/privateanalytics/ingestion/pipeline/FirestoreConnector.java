@@ -17,6 +17,7 @@ package com.google.exposurenotification.privateanalytics.ingestion.pipeline;
 
 import com.google.firestore.v1.DatabaseRootName;
 import com.google.firestore.v1.PartitionQueryRequest;
+import com.google.firestore.v1.RunQueryResponse;
 import com.google.firestore.v1.StructuredQuery;
 import com.google.firestore.v1.StructuredQuery.CollectionSelector;
 import com.google.firestore.v1.StructuredQuery.Direction;
@@ -33,8 +34,10 @@ import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
@@ -116,6 +119,20 @@ public class FirestoreConnector {
                     }
                   }));
     }
+  }
+
+  /**
+   * If a query has zero results, a {@link RunQueryResponse} without a document will still be
+   * returned. Provide a filter which can be used to filter to only {@code RunQueryResponse} which
+   * have documents.
+   */
+  static Filter<RunQueryResponse> filterRunQueryResponseHasDocument() {
+    return Filter.by(new SimpleFunction<RunQueryResponse, Boolean>() {
+      @Override
+      public Boolean apply(RunQueryResponse input) {
+        return input.hasDocument();
+      }
+    });
   }
 
   private static Iterable<StructuredQuery> generateQueries(
