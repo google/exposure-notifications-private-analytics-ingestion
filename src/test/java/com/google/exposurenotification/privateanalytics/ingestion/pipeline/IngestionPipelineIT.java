@@ -38,7 +38,6 @@ import com.google.firestore.v1.GetDocumentRequest;
 import com.google.firestore.v1.ListDocumentsRequest;
 import com.google.firestore.v1.MapValue;
 import com.google.firestore.v1.RunQueryRequest;
-import com.google.firestore.v1.RunQueryResponse;
 import com.google.firestore.v1.Value;
 import java.io.File;
 import java.io.IOException;
@@ -68,9 +67,7 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Count;
-import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.SerializableFunction;
-import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.After;
 import org.junit.Assert;
@@ -125,7 +122,7 @@ public class IngestionPipelineIT {
 
   @After
   public void tearDown() {
-    // cleanUpDb();
+    cleanUpDb();
     FirestoreClientTestUtils.shutdownFirestoreClient(client);
   }
 

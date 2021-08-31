@@ -71,9 +71,7 @@ public class DeletionPipelineIT {
   static final String KEY_RESOURCE_NAME = System.getenv("KEY_RESOURCE_NAME");
   static final DatabaseRootName DATABASE_ROOT_NAME = DatabaseRootName.of(PROJECT, "(default)");
   static final String BASE_COLLECTION_NAME =
-      String.format(
-          "%s/documents/%s",
-          DATABASE_ROOT_NAME, TEST_COLLECTION_NAME);
+      String.format("%s/documents/%s", DATABASE_ROOT_NAME, TEST_COLLECTION_NAME);
 
   List<String> documentNames;
   FirestoreClient client;
@@ -169,7 +167,11 @@ public class DeletionPipelineIT {
     TimeUnit.SECONDS.sleep(1);
     documentNames =
         IntStream.rangeClosed(1, numDocsToSeed)
-            .mapToObj(i -> String.format("%s/testDoc%05d/%s/metric1", BASE_COLLECTION_NAME, i, formatDateTime(CREATION_TIME)))
+            .mapToObj(
+                i ->
+                    String.format(
+                        "%s/testDoc%05d/%s/metric1",
+                        BASE_COLLECTION_NAME, i, formatDateTime(CREATION_TIME)))
             .collect(Collectors.toList());
 
     List<BatchWriteRequest> batchWriteRequests =

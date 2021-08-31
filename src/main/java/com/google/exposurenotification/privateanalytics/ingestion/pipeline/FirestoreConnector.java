@@ -127,12 +127,13 @@ public class FirestoreConnector {
    * have documents.
    */
   static Filter<RunQueryResponse> filterRunQueryResponseHasDocument() {
-    return Filter.by(new SimpleFunction<RunQueryResponse, Boolean>() {
-      @Override
-      public Boolean apply(RunQueryResponse input) {
-        return input.hasDocument();
-      }
-    });
+    return Filter.by(
+        new SimpleFunction<RunQueryResponse, Boolean>() {
+          @Override
+          public Boolean apply(RunQueryResponse input) {
+            return input.hasDocument();
+          }
+        });
   }
 
   private static Iterable<StructuredQuery> generateQueries(
