@@ -46,7 +46,7 @@ page. You will need the following:
 1. [Enable APIs](https://console.cloud.google.com/flows/enableapi?apiid=containerregistry.googleapis.com,cloudbuild.googleapis.com):
     Container Registry, Cloud Build, Cloud Datastore and Dataflow.
 
-1. [Create an asymmetric key](https://cloud.google.com/kms/docs/creating-asymmetric-keys)
+1. [Create an asymmetric signing key](https://cloud.google.com/kms/docs/creating-asymmetric-keys#create_an_asymmetric_signing_key)
 
 1. [Create a storage bucket](https://cloud.google.com/storage/docs/creating-buckets)
     for your outputs.
@@ -58,6 +58,13 @@ page. You will need the following:
 
 1. Download the a key for your service account and store as `credentials.json`.
     Keep those credentials save!
+                  
+### Clone Submodules
+A submodule is need to access the avro definitions of the Prio classes.
+
+```sh
+git submodule update --init
+```
 
 ### Useful Environment Variables
 
