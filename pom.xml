@@ -37,7 +37,7 @@
     <attestation-impl.version>20210426_01</attestation-impl.version>
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
-    <beam.version>2.32.0</beam.version>
+    <beam.version>2.34.0-SNAPSHOT</beam.version>
     <hamcrest.version>2.1</hamcrest.version>
     <jackson.version>2.10.2</jackson.version>
     <joda.version>2.10.5</joda.version>
@@ -213,4 +213,17 @@
       <url>https://maven.pkg.github.com/google/exposure-notifications-private-analytics-ingestion</url>
     </repository>
   </distributionManagement>
+  <repositories>
+    <repository>
+      <id>apache-snapshot</id>
+      <name>Apache Snapshot</name>
+      <url>https://repository.apache.org/content/repositories/snapshots/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 </project>
