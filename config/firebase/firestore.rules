@@ -129,7 +129,7 @@ service cloud.firestore {
           'CodeVerifiedWithReportType14d-v1',
           'KeysUploadedWithReportType14d-v1',
           'SecondaryAttack14d-v1',
-          'PeriodicExposureNotification14d-v1'
+          'PeriodicExposureNotification14d-v1',
           'CodeVerifiedWithReportType14d-v2',
           'KeysUploadedWithReportType14d-v2',
           'SecondaryAttack14d-v2',
