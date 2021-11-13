@@ -24,10 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: textbook/git-checkout-submodule-action@master
-    - uses: actions/setup-java@v1
+      with:
+        submodules: 'true'
+    - uses: actions/setup-java@v2
       with:
         java-version: 11
+        distribution: 'adopt'
+        cache: maven
     - run: java -version
     - run: ci/build.sh
       env:
@@ -36,20 +39,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: textbook/git-checkout-submodule-action@master
-    - uses: actions/setup-java@v1
+      with:
+        submodules: 'true'
+    - uses: actions/setup-java@v2
       with:
         java-version: 11
+        distribution: 'adopt'
+        cache: maven
     - run: java -version
     - run: ci/dependencies.sh
   lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: textbook/git-checkout-submodule-action@master
-    - uses: actions/setup-java@v1
+      with:
+        submodules: 'true'
+    - uses: actions/setup-java@v2
       with:
         java-version: 11
+        distribution: 'adopt'
+        cache: maven
     - run: java -version
     - run: ci/build.sh
       env:

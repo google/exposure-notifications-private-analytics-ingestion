@@ -33,7 +33,7 @@ jobs:
       - name: 'setup-terraform'
         uses: 'hashicorp/setup-terraform@v1'
         with:
-          terraform_version: '0.14.2'
+          terraform_version: '0.15.0'
 
       - name: 'init'
         working-directory: './terraform'
