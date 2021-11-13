@@ -19,8 +19,9 @@ import com.google.exposurenotification.privateanalytics.ingestion.attestation.Ab
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.ConstructDataSharesFn;
 import com.google.exposurenotification.privateanalytics.ingestion.model.DataShare.DataShareMetadata;
-import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestoreReader;
+import com.google.exposurenotification.privateanalytics.ingestion.pipeline.FirestoreConnector.FirestorePartitionQueryCreation;
 import com.google.firestore.v1.Document;
+import com.google.firestore.v1.RunQueryResponse;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.ServiceLoader;
 import java.util.UUID;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.gcp.firestore.FirestoreIO;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.Distinct;
@@ -87,14 +89,24 @@ public class IngestionPipeline {
   }
 
   /** Perform the input, processing and output for the full ingestion pipeline. */
-  static PipelineResult runIngestionPipeline(IngestionPipelineOptions options) {
-    Pipeline pipeline = Pipeline.create(options);
+  static void buildIngestionPipeline(IngestionPipelineOptions options, Pipeline pipeline) {
     long startTime =
         IngestionPipelineOptions.calculatePipelineStart(
             options.getStartTime(), options.getDuration(), 1, Clock.systemUTC());
     PCollection<DataShare> dataShares =
         pipeline
-            .apply(new FirestoreReader(startTime))
+            .apply(new FirestorePartitionQueryCreation(startTime))
+            .apply(FirestoreIO.v1().read().partitionQuery().build())
+            .apply(FirestoreIO.v1().read().runQuery().build())
+            .apply(FirestoreConnector.filterRunQueryResponseHasDocument())
+            .apply(
+                MapElements.via(
+                    new SimpleFunction<RunQueryResponse, Document>() {
+                      @Override
+                      public Document apply(RunQueryResponse input) {
+                        return input.getDocument();
+                      }
+                    }))
             // Ensure distinctness of data shares based on document path
             .apply(
                 Distinct.<Document, String>withRepresentativeValueFn(
@@ -107,7 +119,6 @@ public class IngestionPipeline {
                     }))
             .apply(ParDo.of(new ConstructDataSharesFn()));
     processDataShares(dataShares).apply("SerializePacketHeaderSig", ParDo.of(new BatchWriterFn()));
-    return pipeline.run();
   }
 
   public static void main(String[] args) {
@@ -122,7 +133,9 @@ public class IngestionPipeline {
     readOptionsFromManifests(options);
 
     try {
-      PipelineResult result = runIngestionPipeline(options);
+      Pipeline pipeline = Pipeline.create(options);
+      buildIngestionPipeline(options, pipeline);
+      PipelineResult result = pipeline.run();
       result.waitUntilFinish();
       MetricResults metrics = result.metrics();
       LOG.info("Metrics:\n\n{}", metrics.allMetrics().getCounters());
