@@ -51,6 +51,7 @@ data "template_file" "ingestion" {
     temp_location             = "${google_storage_bucket.bucket.url}/temp"
     window                    = var.ingestion_window
     worker_count              = var.ingestion_worker_count
+    max_worker_count          = var.ingestion_max_worker_count
     package_signature_digest  = var.package_signature_digest
     package_name              = var.package_name
   }
@@ -104,6 +105,7 @@ data "template_file" "deletion" {
     service_account       = google_service_account.dataflow.email
     window                = var.deletion_window
     worker_count          = var.deletion_worker_count
+    max_worker_count      = var.deletion_max_worker_count
   }
 }
 

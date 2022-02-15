@@ -122,6 +122,12 @@ variable "ingestion_worker_count" {
   default     = 10
 }
 
+variable "ingestion_max_worker_count" {
+  type        = number
+  description = "Dataflow tuning parameter: the number of maximum workers used by the ingestion pipeline. Defaults to 15."
+  default     = 15
+}
+
 variable "ingestion_autoscaling_algorithm" {
   type        = string
   description = "Dataflow tuning parameter: the autoscaling algorithm used by the ingestion pipeline. Can be either THROUGHPUT_BASED or NONE. Defaults to NOT SET."
@@ -157,6 +163,12 @@ variable "deletion_worker_count" {
   type        = number
   description = "Dataflow tuning parameter: the number of workers used by the deletion pipeline. Defaults to 10."
   default     = 10
+}
+
+variable "deletion_max_worker_count" {
+  type        = number
+  description = "Dataflow tuning parameter: the number of maximum workers used by the deletion pipeline. Defaults to 20."
+  default     = 20
 }
 
 variable "deletion_autoscaling_algorithm" {
