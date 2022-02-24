@@ -80,8 +80,6 @@ steps:
     - path: '/cache/.m2'
       name: 'm2_cache'
 
-serviceAccount: 'projects/enpa-infra/serviceAccounts/development-integration-tests@enpa-integration-testing.iam.gserviceaccount.com'
-
 substitutions:
   # Default value
   _BUCKET: 'enpa-infra'
