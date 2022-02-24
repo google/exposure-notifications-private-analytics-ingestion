@@ -87,3 +87,4 @@ substitutions:
 options:
   # Use higher CPU machines so the caching and build steps are faster.
   machineType: 'N1_HIGHCPU_32'
+  logging: CLOUD_LOGGING_ONLY
