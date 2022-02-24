@@ -86,7 +86,6 @@ steps:
   env:
     - 'PROJECT=enpa-integration-testing'
     - 'KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1'
-    - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json'
   secretEnv: ['GITHUB_TOKEN']
 
 ###########################################################
@@ -182,14 +181,17 @@ steps:
   volumes:
     - path: '/cache/.m2'
       name: 'm2_cache'
+
 images:
   - 'gcr.io/enpa-public-assets/distroless-flex-template-launcher:11'
+
 substitutions:
   # Default value
   _BUCKET: 'enpa-infra'
   _DEFAULT_TAG: '${SHORT_SHA}-SNAPSHOT'
   _TAG: ${TAG_NAME:-$_DEFAULT_TAG} #default value will be SHORT_SHA-SNAPSHOT
   _VERSION: 'git describe --tags --always --dirty=-dirty'
+
 secrets:
   - kmsKeyName: projects/enpa-infra/locations/global/keyRings/cloudbuild-keyring/cryptoKeys/cloudbuild
     secretEnv:
@@ -198,3 +200,5 @@ secrets:
 options:
   # Use higher CPU machines so the caching and build steps are faster.
   machineType: 'N1_HIGHCPU_32'
+
+serviceAccount: 'projects/enpa-integration-testing/serviceAccounts/development-integration-tests@enpa-integration-testing.iam.gserviceaccount.com'

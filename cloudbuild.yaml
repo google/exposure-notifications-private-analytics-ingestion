@@ -46,7 +46,6 @@ steps:
     - MAVEN_OPTS=-Dmaven.repo.local=/cache/.m2
     - PROJECT=enpa-integration-testing
     - KEY_RESOURCE_NAME=projects/enpa-integration-testing/locations/global/keyRings/appa-signature-key/cryptoKeys/appa-signature-key/cryptoKeyVersions/1
-    - GOOGLE_APPLICATION_CREDENTIALS=/workspace/svc-account.json
 
 ###########################################################
 # Step 3: Run Firebase integration tests using npm
@@ -80,6 +79,8 @@ steps:
   volumes:
     - path: '/cache/.m2'
       name: 'm2_cache'
+
+serviceAccount: 'projects/enpa-integration-testing/serviceAccounts/development-integration-tests@enpa-integration-testing.iam.gserviceaccount.com'
 
 substitutions:
   # Default value
