@@ -31,8 +31,6 @@ set +e
 
 git submodule update --init
 
-gcloud secrets versions access latest --secret=enpa-integration-testing-secrets --format='get(payload.data)' | tr '_-' '/+' | base64 -d > svc-account.json
-
 retry_with_backoff 3 10 \
   ./mvnw clean verify
 
