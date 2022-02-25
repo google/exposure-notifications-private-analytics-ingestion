@@ -103,6 +103,7 @@ service cloud.firestore {
           && d.payload.prioParams != null
           && d.payload.prioParams.bins != null
           && d.payload.prioParams.epsilon != null
+          && d.payload.prioParams.epsilon > 1
           && d.payload.prioParams.numberServers != null
           && d.payload.prioParams.prime != null
           // nothing extraneous at prioParams level
