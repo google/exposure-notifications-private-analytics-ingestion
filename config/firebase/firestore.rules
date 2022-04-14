@@ -119,24 +119,27 @@ service cloud.firestore {
           'fakeMetric-v1',
           // Currently supported metrics:
           // https://github.com/google/exposure-notifications-android/tree/master/app/src/main/java/com/google/android/apps/exposurenotification/privateanalytics/metrics        
-          'histogramMetric-v1',
-          'histogramMetric-v2',
-          'PeriodicExposureNotificationInteraction-v1',
-          'PeriodicExposureNotification-v1',
           'CodeVerified-v1',
-          'KeysUploaded-v1',
+          'CodeVerifiedWithReportType14d-v1',
+          'CodeVerifiedWithReportType14d-v2',
           'DateExposure-v1',
           'DateExposure-v2',
+          'DateExposure14d-v3',
+          'histogramMetric-v1',
+          'histogramMetric-v2',
+          'KeysUploaded-v1',
           'KeysUploadedVaccineStatus-v1',
           'KeysUploadedVaccineStatus-v2',
-          'CodeVerifiedWithReportType14d-v1',
+          'KeysUploadedVaccineStatus14d-v3',
           'KeysUploadedWithReportType14d-v1',
-          'SecondaryAttack14d-v1',
-          'PeriodicExposureNotification14d-v1',
-          'CodeVerifiedWithReportType14d-v2',
           'KeysUploadedWithReportType14d-v2',
-          'SecondaryAttack14d-v2',
-          'PeriodicExposureNotification14d-v2'
+          'PeriodicExposureNotification-v1',
+          'PeriodicExposureNotification14d-v1',
+          'PeriodicExposureNotification14d-v2',
+          'PeriodicExposureNotification14d-v3',
+          'PeriodicExposureNotificationInteraction-v1',
+          'SecondaryAttack14d-v1',
+          'SecondaryAttack14d-v2'
       ];
     }
 
